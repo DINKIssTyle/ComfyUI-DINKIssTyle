@@ -25,6 +25,8 @@ This allows easy switching between two image sources in a workflow.
 **DINKI Image Preview** generates a custom placeholder image containing text when no output image is provided.  
 This is useful for debugging or visually confirming that a node executed without producing an image result.
 
+![Preview](resource/DINKI_Image_Preview.png)
+
 
 ### DINKI CSV Prompt Selector (Live)
 
@@ -77,6 +79,8 @@ allowing it to crop the final image accurately while preserving the original asp
 **DINKI UNet Loader** allows you to preload both a **safetensors-based UNet model** and a **GGUF-format UNet model**,  
 and then choose which one to use through a simple Boolean toggle.
 
+![Preview](resource/DINKI_UNet_Loader.png)
+
 This makes it easy to switch between different UNet formats without manually reloading or reconnecting nodes,  
 streamlining workflows that require rapid model comparison or format-specific processing.
 
@@ -86,10 +90,16 @@ streamlining workflows that require rapid model comparison or format-specific pr
 **DINKI LM Studio Assistant** connects directly to **LM Studio** to handle both image-based and text-based tasks.
 
 - When an **image is provided**, the node sends it to LM Studio and retrieves a detailed description or analysis.
+
+![Preview](resource/DINKI_LM_Studio_Assistant_01.png)
+
 - When **no image is connected**, the node instead uses the LLM to generate a text prompt based on the user's input.
 
-This makes it versatile for workflows that require automated prompt generation, image captioning, or multimodal understanding.
+![Preview](resource/DINKI_LM_Studio_Assistant_02.png)
 
-By using the `assistant_enabled` Boolean option, you can switch to a text-only mode  
-without disabling the node entirely.  
+- By using the `assistant_enabled` Boolean option, you can switch to a text-only mode without disabling the node entirely.
+
+![Preview](resource/DINKI_LM_Studio_Assistant_03.png)
+
+This makes it versatile for workflows that require automated prompt generation, image captioning, or multimodal understanding.
 This allows the LLM to operate normally even when no image is connected.
