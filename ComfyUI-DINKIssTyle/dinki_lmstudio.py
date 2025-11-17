@@ -43,7 +43,7 @@ class DINKI_LMStudio:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("AI Answer Text",)
     FUNCTION = "run"
-    CATEGORY = "DINKIssTyle / LLM"
+    CATEGORY = "DINKIssTyle/LLM"
 
     # --- helpers ---
     def _tensor_to_data_url(self, image_tensor):
