@@ -1,4 +1,4 @@
-// ComfyUI/custom_nodes/YourCustomFolder/js/dinki_nodes.js
+// ComfyUI/custom_nodes/ComfyUI-DINKIssTyle/js/dinki_nodes.js
 
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
