@@ -14,6 +14,15 @@ It then adds padding so diffusion models can process the image in an optimized s
 The padding metadata is passed to **DINKI Remove Pad from Image**, which crops the output back using the original aspect ratio.  
 The final image may not match the exact pixel size of the input, but its **original proportions are fully preserved**.
 
+This Nodes helps prevent **pixel shifting artifacts** in **Qwen Image Edit**,  
+and helps ensure that prompt-based editing requests are processed as accurately as possible.
+
+#### Without DINKI Resize and Pad Image
+![Preview](resource/DINKI_Resize_and_Pad_Image_02.png)
+
+#### With DINKI Resize and Pad Image
+![Preview](resource/DINKI_Resize_and_Pad_Image_01.png)
+
 ### DINKI Cross Output Switch
 
 **DINKI Cross Output Switch** swaps the two input images **A** and **B** based on a Boolean toggle.  
