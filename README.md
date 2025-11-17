@@ -76,20 +76,22 @@ allowing it to crop the final image accurately while preserving the original asp
 
 ### DINKI UNet Loader (safetensors / GGUF)
 
-**DINKI UNet Loader** allows you to preload both a **safetensors-based UNet model** and a **GGUF-format UNet model**,  
-and then choose which one to use through a simple Boolean toggle.
+**DINKI UNet Loader** lets you configure both a **safetensors-based UNet model** and a **GGUF-format UNet model**,  
+and loads **whichever model is selected** through a Boolean toggle.
 
 ![Preview](resource/DINKI_UNet_Loader.png)
 
-This makes it easy to switch between different UNet formats without manually reloading or reconnecting nodes,  
-streamlining workflows that require rapid model comparison or format-specific processing.
+This provides a cleaner workflow compared to placing two separate UNet loader nodes,  
+since the node loads the chosen model directly without requiring multiple loader nodes in the graph.
 
 
 ### DINKI LM Studio Assistant
 
 **DINKI LM Studio Assistant** connects directly to **LM Studio** to handle both image-based and text-based tasks.
 
-- When an **image is provided**, the node sends it to LM Studio and retrieves a detailed description or analysis.
+- When an **image is provided**, the node sends the image **together with the user’s prompt** to LM Studio.  
+  The LLM then produces a response that combines visual analysis with the user’s instructions for richer, context-aware output.  
+  **If no user prompt is provided, the LLM generates an image-based prompt derived solely from the visual content.**
 
 ![Preview](resource/DINKI_LM_Studio_Assistant_01.png)
 
