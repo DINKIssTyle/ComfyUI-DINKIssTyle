@@ -32,10 +32,10 @@ This is useful for debugging or visually confirming that a node executed without
 The node reads a file named **`prompt_list.csv`** located inside the **`input`** folder.
 
 The CSV format is simple:
-LoRA - ToonWorld, ToonWorld
-LoRA - Photo to Anime, transform into anime
-LoRA - 3D Chibi, Convert this image into 3D Chibi Style
-LoRA - InScene, Make a shot in the same scene
+LoRA - ToonWorld, ToonWorld  
+LoRA - Photo to Anime, transform into anime  
+LoRA - 3D Chibi, Convert this image into 3D Chibi Style  
+LoRA - InScene, Make a shot in the same scene  
 
 
 ### DINKI Auto Adjustment / DINKI AI Oversaturation Fix
