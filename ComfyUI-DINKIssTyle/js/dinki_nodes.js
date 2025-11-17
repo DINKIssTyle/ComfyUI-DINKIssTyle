@@ -1,0 +1,240 @@
+// ComfyUI/custom_nodes/YourCustomFolder/js/dinki_nodes.js
+
+import { app } from "/scripts/app.js";
+import { api } from "/scripts/api.js";
+
+// 공통 헬퍼
+function getWidget(node, name) {
+  return node.widgets?.find(w => w.name === name);
+}
+function ensureLater(fn) {
+  requestAnimationFrame(() => setTimeout(fn, 0));
+}
+
+app.registerExtension({
+	name: "DINKI.PromptSelector.Logic",
+	async beforeRegisterNodeDef(nodeType, nodeData, app) {
+		// DINKI_PromptSelector 노드일 때만 이 로직을 적용
+		if (nodeData.name === "DINKI_PromptSelector") {
+			
+			const onNodeCreated = nodeType.prototype.onNodeCreated;
+			nodeType.prototype.onNodeCreated = function () {
+				onNodeCreated?.apply(this, arguments);
+
+				// 1. Python이 만든 원래 텍스트 위젯을 찾습니다.
+				const originalWidget = this.widgets.find(w => w.name === "title");
+
+				// 2. 새로운 드롭다운 위젯을 만듭니다.
+				const comboWidget = this.addWidget(
+					"combo",
+					"title", // 이름은 같게 유지
+					"",      // 초기값
+					(value) => {
+						// 드롭다운 값이 바뀔 때마다 숨겨진 원래 위젯의 값을 업데이트
+						originalWidget.value = value;
+					},
+					{ values: [] } // 필수 옵션
+				);
+				comboWidget.serialize = false; // 워크플로우에 이 위젯의 값은 저장하지 않음
+
+				// 3. 원래 텍스트 위젯은 화면에서 완전히 숨깁니다.
+				originalWidget.hidden = true;
+				
+				// 4. 새로고침 버튼을 추가합니다.
+				const refreshButton = this.addWidget(
+					"button",
+					"🔄 Refresh Prompts",
+					null,
+					() => refreshPromptList(true) // 버튼 클릭 시 강제 새로고침
+				);
+
+				// 5. 프롬프트 목록을 가져와 드롭다운을 채우는 함수
+				const refreshPromptList = async (force) => {
+					try {
+						// 현재 목록이 비어있거나, 강제 새로고침일 때만 API 호출
+						if (force || !comboWidget.options.values || comboWidget.options.values.length === 0) {
+							const response = await api.fetchApi('/get-csv-prompts');
+							const titles = await response.json();
+							
+							comboWidget.options.values = titles;
+							
+							// 현재 선택된 값이 새 목록에 없으면 첫 번째 항목으로 설정
+							if (!titles.includes(comboWidget.value) && titles.length > 0) {
+								comboWidget.value = titles[0];
+							} else if (titles.length === 0) {
+								comboWidget.value = "";
+							}
+						}
+					} catch (error) {
+						console.error("❌ Error refreshing DINKI prompt list:", error);
+					} finally {
+						// 드롭다운 콜백을 수동으로 호출하여 숨겨진 위젯 값 동기화
+						if (comboWidget.callback) {
+							comboWidget.callback(comboWidget.value);
+						}
+					}
+				};
+
+				// 노드가 처음 생성/로드될 때 목록을 한 번 불러옵니다.
+				refreshPromptList(false);
+
+				// 기존 위젯들을 재배치하여 올바른 순서를 유지합니다.
+				this.widgets.splice(this.widgets.indexOf(originalWidget), 1); // 원래 위젯 제거
+				this.widgets.splice(0, 0, comboWidget); // 드롭다운을 맨 위에 추가
+			};
+		}
+	},
+});
+
+
+app.registerExtension({
+  name: "DINKI.PromptSelectorLive.Attach.v2",
+  async beforeRegisterNodeDef(nodeType, nodeData, appInstance) {
+    if (nodeData?.name !== "DINKI_PromptSelectorLive") return;
+
+    // 같은 노드 정의에 중복 패치 금지
+    if (nodeType.prototype.__dinki_live_patched) return;
+    nodeType.prototype.__dinki_live_patched = true;
+
+    async function attach(node) {
+      // 같은 노드 인스턴스에 중복 attach 금지
+      if (node.__dinki_live_attached) return;
+      node.__dinki_live_attached = true;
+
+      ensureLater(() => {
+        const titleW = getWidget(node, "title");
+        const textW  = getWidget(node, "text");
+        const modeW  = getWidget(node, "mode");
+        const sepW   = getWidget(node, "separator");
+        if (!titleW || !textW) return;
+
+        // Clear 버튼(중복 생성 방지)
+        if (!node.__dinki_live_clear_added) {
+          node.addWidget("button", "Clear", null, () => {
+            const tW = getWidget(node, "text");
+            if (tW) {
+              tW.value = "";
+              node.setDirtyCanvas(true);
+            }
+          });
+          node.__dinki_live_clear_added = true;
+        }
+
+        // Refresh 버튼(중복 생성 방지)
+        if (!node.__dinki_live_refresh_added) {
+          node.addWidget("button", "🔄 Refresh Prompts", null, async () => {
+            try {
+              const res = await fetch("/get-csv-prompts");
+              const titles = await res.json();
+
+              if (!titleW.options) titleW.options = {};
+              titleW.options.values = Array.isArray(titles) ? titles : [];
+
+              if (!titleW.options.values.includes(titleW.value)) {
+                titleW.value = titleW.options.values.length ? titleW.options.values[0] : "";
+              }
+
+              // 프로그램적으로 값 바꾼 뒤 한 번만 반영
+              if (titleW.callback) titleW.callback(titleW.value);
+              node.setDirtyCanvas(true);
+            } catch (e) {
+              console.error("DINKI Live refresh error:", e);
+            }
+          });
+          node.__dinki_live_refresh_added = true;
+        }
+
+        // 콤보 콜백: 중복 래핑 방지
+        if (!node.__dinki_live_cb_wrapped) {
+          const origCb = titleW.callback;
+
+          titleW.callback = async (value) => {
+            // 같은 시그니처로 중복 호출되면 스킵(안전장치)
+            const sepVal = sepW?.value ?? "\n";
+            const sig = JSON.stringify([value, modeW?.value || "append", sepVal, textW.value]);
+            if (node.__dinki_last_apply_sig === sig) return;
+            node.__dinki_last_apply_sig = sig;
+
+            // 기존 콜백 먼저/나중 어떤 쪽이든 상관없지만, 2중 호출만 예방되면 OK
+            if (origCb) origCb(value);
+
+            try {
+              const res = await fetch("/dinki/prompts");
+              const map = await res.json();
+              const picked = (map && value && map[value]) ? (map[value] || "") : "";
+              const mode = modeW?.value || "append";
+              let sep = sepVal;
+              if (sep === "\\n") sep = "\n";
+              if (sep === "\\n\\n") sep = "\n\n";
+              if (!picked) return;
+
+              if (mode === "replace") {
+                textW.value = picked;
+              } else if (mode === "append") {
+                if (!textW.value) textW.value = picked;
+                else textW.value = (sep && !textW.value.endsWith(sep))
+                  ? textW.value + sep + picked
+                  : textW.value + picked;
+              }
+              node.setDirtyCanvas(true);
+            } catch (e) {
+              console.error("DINKI Live fetch/prompts error:", e);
+            } finally {
+              // 다음 정상 선택에서 다시 적용될 수 있도록 시그니처 갱신
+              // 단, 즉시 동일 값 재호출을 막기 위해 약간 지연 후 해제
+              setTimeout(() => { node.__dinki_last_apply_sig = null; }, 0);
+            }
+          };
+
+          node.__dinki_live_cb_wrapped = true;
+        }
+      });
+    }
+
+    const origCreated = nodeType.prototype.onNodeCreated;
+    nodeType.prototype.onNodeCreated = function () {
+      const r = origCreated?.apply(this, arguments);
+      attach(this);
+      return r;
+    };
+
+    const origAdded = nodeType.prototype.onAdded;
+    nodeType.prototype.onAdded = function () {
+      const r = origAdded?.apply(this, arguments);
+      attach(this);
+      return r;
+    };
+  },
+});
+
+
+
+function resetTitleWidget(node) {
+  const w = node?.widgets?.find(w => w.name === "title");
+  if (!w) return;
+  // 옵션 목록에서 "-- None --"가 있으면 그걸로
+  const noneIdx = (w.options || []).indexOf("-- None --");
+  if (noneIdx >= 0) {
+    w.value = "-- None --";
+  } else {
+    // 없으면 첫 항목으로
+    w.value = (w.options && w.options[0]) || w.value;
+  }
+  // UI 갱신
+  if (w.callback) try { w.callback(w.value); } catch (e) {}
+  node.setDirtyCanvas(true, true);
+}
+
+app.registerExtension({
+  name: "DINKI.PromptSelector.AutoReset",
+  async setup() {
+    api.addEventListener("executedNode", ({ detail }) => {
+      const { node } = detail || {};
+      if (!node) return;
+      // 대상 노드만
+      const targetNames = ["DINKI_PromptSelector", "DINKI_PromptSelectorLive"];
+      if (!targetNames.includes(node?.comfyClass)) return;
+      resetTitleWidget(node);
+    });
+  }
+});
