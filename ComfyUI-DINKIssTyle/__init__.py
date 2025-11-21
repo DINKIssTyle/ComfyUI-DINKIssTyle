@@ -25,6 +25,9 @@ from .dinki_image_nodes import (
     DINKI_ImagePreview,
 )
 from .dinki_lmstudio import DINKI_LMStudio
+from .dinki_batchImages import DINKI_BatchImages
+from .dinki_node_switch import DINKI_Node_Switch
+
 
 """
 @author: DINKIssTyle
@@ -73,6 +76,9 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Upscale_Latent_By": DINKI_Upscale_Latent_By,
     "DINKI_ToggleUNetLoader": DINKI_ToggleUNetLoader,
     "DINKI_LMStudio": DINKI_LMStudio,
+    "DINKI_BatchImages": DINKI_BatchImages,
+    "DINKI_Node_Switch": DINKI_Node_Switch,
+
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -88,6 +94,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Upscale_Latent_By": "DINKI Upscale Latent By",
     "DINKI_ToggleUNetLoader": "DINKI UNet Loader (safetensors / GGUF)",
     "DINKI_LMStudio": "DINKI LM Studio Assistant",
+    "DINKI_BatchImages": "DINKI Batch Images",
+    "DINKI_Node_Switch": "DINKI Node Switch",
+
 }
 
 WEB_DIRECTORY = "./js"
