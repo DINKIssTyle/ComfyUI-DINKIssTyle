@@ -11,82 +11,87 @@ function ensureLater(fn) {
   requestAnimationFrame(() => setTimeout(fn, 0));
 }
 
+// ============================================================
+// 1. DINKI Prompt Selector Logic
+// ============================================================
 app.registerExtension({
-	name: "DINKI.PromptSelector.Logic",
-	async beforeRegisterNodeDef(nodeType, nodeData, app) {
-		// DINKI_PromptSelector 노드일 때만 이 로직을 적용
-		if (nodeData.name === "DINKI_PromptSelector") {
-			
-			const onNodeCreated = nodeType.prototype.onNodeCreated;
-			nodeType.prototype.onNodeCreated = function () {
-				onNodeCreated?.apply(this, arguments);
+    name: "DINKI.PromptSelector.Logic",
+    async beforeRegisterNodeDef(nodeType, nodeData, app) {
+        // DINKI_PromptSelector 노드일 때만 이 로직을 적용
+        if (nodeData.name === "DINKI_PromptSelector") {
+            
+            const onNodeCreated = nodeType.prototype.onNodeCreated;
+            nodeType.prototype.onNodeCreated = function () {
+                onNodeCreated?.apply(this, arguments);
 
-				// 1. Python이 만든 원래 텍스트 위젯을 찾습니다.
-				const originalWidget = this.widgets.find(w => w.name === "title");
+                // 1. Python이 만든 원래 텍스트 위젯을 찾습니다.
+                const originalWidget = this.widgets.find(w => w.name === "title");
 
-				// 2. 새로운 드롭다운 위젯을 만듭니다.
-				const comboWidget = this.addWidget(
-					"combo",
-					"title", // 이름은 같게 유지
-					"",      // 초기값
-					(value) => {
-						// 드롭다운 값이 바뀔 때마다 숨겨진 원래 위젯의 값을 업데이트
-						originalWidget.value = value;
-					},
-					{ values: [] } // 필수 옵션
-				);
-				comboWidget.serialize = false; // 워크플로우에 이 위젯의 값은 저장하지 않음
+                // 2. 새로운 드롭다운 위젯을 만듭니다.
+                const comboWidget = this.addWidget(
+                    "combo",
+                    "title", // 이름은 같게 유지
+                    "",      // 초기값
+                    (value) => {
+                        // 드롭다운 값이 바뀔 때마다 숨겨진 원래 위젯의 값을 업데이트
+                        originalWidget.value = value;
+                    },
+                    { values: [] } // 필수 옵션
+                );
+                comboWidget.serialize = false; // 워크플로우에 이 위젯의 값은 저장하지 않음
 
-				// 3. 원래 텍스트 위젯은 화면에서 완전히 숨깁니다.
-				originalWidget.hidden = true;
-				
-				// 4. 새로고침 버튼을 추가합니다.
-				const refreshButton = this.addWidget(
-					"button",
-					"🔄 Refresh Prompts",
-					null,
-					() => refreshPromptList(true) // 버튼 클릭 시 강제 새로고침
-				);
+                // 3. 원래 텍스트 위젯은 화면에서 완전히 숨깁니다.
+                originalWidget.hidden = true;
+                
+                // 4. 새로고침 버튼을 추가합니다.
+                const refreshButton = this.addWidget(
+                    "button",
+                    "🔄 Refresh Prompts",
+                    null,
+                    () => refreshPromptList(true) // 버튼 클릭 시 강제 새로고침
+                );
 
-				// 5. 프롬프트 목록을 가져와 드롭다운을 채우는 함수
-				const refreshPromptList = async (force) => {
-					try {
-						// 현재 목록이 비어있거나, 강제 새로고침일 때만 API 호출
-						if (force || !comboWidget.options.values || comboWidget.options.values.length === 0) {
-							const response = await api.fetchApi('/get-csv-prompts');
-							const titles = await response.json();
-							
-							comboWidget.options.values = titles;
-							
-							// 현재 선택된 값이 새 목록에 없으면 첫 번째 항목으로 설정
-							if (!titles.includes(comboWidget.value) && titles.length > 0) {
-								comboWidget.value = titles[0];
-							} else if (titles.length === 0) {
-								comboWidget.value = "";
-							}
-						}
-					} catch (error) {
-						console.error("❌ Error refreshing DINKI prompt list:", error);
-					} finally {
-						// 드롭다운 콜백을 수동으로 호출하여 숨겨진 위젯 값 동기화
-						if (comboWidget.callback) {
-							comboWidget.callback(comboWidget.value);
-						}
-					}
-				};
+                // 5. 프롬프트 목록을 가져와 드롭다운을 채우는 함수
+                const refreshPromptList = async (force) => {
+                    try {
+                        // 현재 목록이 비어있거나, 강제 새로고침일 때만 API 호출
+                        if (force || !comboWidget.options.values || comboWidget.options.values.length === 0) {
+                            const response = await api.fetchApi('/get-csv-prompts');
+                            const titles = await response.json();
+                            
+                            comboWidget.options.values = titles;
+                            
+                            // 현재 선택된 값이 새 목록에 없으면 첫 번째 항목으로 설정
+                            if (!titles.includes(comboWidget.value) && titles.length > 0) {
+                                comboWidget.value = titles[0];
+                            } else if (titles.length === 0) {
+                                comboWidget.value = "";
+                            }
+                        }
+                    } catch (error) {
+                        console.error("❌ Error refreshing DINKI prompt list:", error);
+                    } finally {
+                        // 드롭다운 콜백을 수동으로 호출하여 숨겨진 위젯 값 동기화
+                        if (comboWidget.callback) {
+                            comboWidget.callback(comboWidget.value);
+                        }
+                    }
+                };
 
-				// 노드가 처음 생성/로드될 때 목록을 한 번 불러옵니다.
-				refreshPromptList(false);
+                // 노드가 처음 생성/로드될 때 목록을 한 번 불러옵니다.
+                refreshPromptList(false);
 
-				// 기존 위젯들을 재배치하여 올바른 순서를 유지합니다.
-				this.widgets.splice(this.widgets.indexOf(originalWidget), 1); // 원래 위젯 제거
-				this.widgets.splice(0, 0, comboWidget); // 드롭다운을 맨 위에 추가
-			};
-		}
-	},
+                // 기존 위젯들을 재배치하여 올바른 순서를 유지합니다.
+                this.widgets.splice(this.widgets.indexOf(originalWidget), 1); // 원래 위젯 제거
+                this.widgets.splice(0, 0, comboWidget); // 드롭다운을 맨 위에 추가
+            };
+        }
+    },
 });
 
-
+// ============================================================
+// 2. DINKI Prompt Selector Live Attach v2
+// ============================================================
 app.registerExtension({
   name: "DINKI.PromptSelectorLive.Attach.v2",
   async beforeRegisterNodeDef(nodeType, nodeData, appInstance) {
@@ -208,7 +213,9 @@ app.registerExtension({
 });
 
 
-
+// ============================================================
+// 3. DINKI Prompt Selector Auto Reset
+// ============================================================
 function resetTitleWidget(node) {
   const w = node?.widgets?.find(w => w.name === "title");
   if (!w) return;
@@ -237,4 +244,70 @@ app.registerExtension({
       resetTitleWidget(node);
     });
   }
+});
+
+
+// ============================================================
+// 4. [NEW] DINKI Node Switch Logic
+// ============================================================
+app.registerExtension({
+    name: "DINKI.NodeSwitch",
+    async nodeCreated(node, app) {
+        // DINKI_Node_Switch 클래스일 때만 동작
+        if (node.comfyClass === "DINKI_Node_Switch") {
+            
+            // 위젯 값 변경 시 실행될 함수
+            const onWidgetChange = function () {
+                try {
+                    const idWidget = node.widgets.find(w => w.name === "node_ids");
+                    const toggleWidget = node.widgets.find(w => w.name === "active");
+
+                    if (!idWidget || !toggleWidget) return;
+
+                    const idsText = idWidget.value;
+                    const isActive = toggleWidget.value; // On=True, Off=False
+
+                    // 쉼표로 구분된 ID 파싱
+                    const ids = idsText.split(",").map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+
+                    // 그래프 내의 모든 노드를 순회
+                    app.graph._nodes.forEach(targetNode => {
+                        if (ids.includes(targetNode.id)) {
+                            // ComfyUI Node Modes: 0: Always, 2: Mute, 4: Bypass
+                            
+                            if (isActive) {
+                                // On 상태: 현재 Bypass(4)라면 Always(0)로 변경
+                                if (targetNode.mode === 4) {
+                                    targetNode.mode = 0;
+                                }
+                            } else {
+                                // Off 상태: Bypass(4)로 변경
+                                targetNode.mode = 4;
+                            }
+                        }
+                    });
+                    
+                    // 캔버스 다시 그리기
+                    app.graph.setDirtyCanvas(true, true);
+
+                } catch (error) {
+                    console.error("DINKI Switch Error:", error);
+                }
+            };
+
+            // 위젯 찾아서 콜백 연결
+            const idWidget = node.widgets.find(w => w.name === "node_ids");
+            const toggleWidget = node.widgets.find(w => w.name === "active");
+
+            if (idWidget) {
+                idWidget.callback = onWidgetChange;
+            }
+            if (toggleWidget) {
+                toggleWidget.callback = onWidgetChange;
+            }
+            
+            // 초기 로딩 시 상태 동기화 (약간의 지연 후)
+            setTimeout(onWidgetChange, 1000);
+        }
+    }
 });
