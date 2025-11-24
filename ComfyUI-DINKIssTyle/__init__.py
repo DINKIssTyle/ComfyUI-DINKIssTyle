@@ -27,6 +27,7 @@ from .dinki_image_nodes import (
 from .dinki_lmstudio import DINKI_LMStudio
 from .dinki_batchImages import DINKI_BatchImages
 from .dinki_node_switch import DINKI_Node_Switch
+from .dinki_color_lut import DINKI_Color_Lut
 
 
 """
@@ -78,6 +79,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_LMStudio": DINKI_LMStudio,
     "DINKI_BatchImages": DINKI_BatchImages,
     "DINKI_Node_Switch": DINKI_Node_Switch,
+    "DINKI_Color_Lut": DINKI_Color_Lut,
 
 }
 
@@ -96,6 +98,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_LMStudio": "DINKI LM Studio Assistant",
     "DINKI_BatchImages": "DINKI Batch Images",
     "DINKI_Node_Switch": "DINKI Node Switch",
+    "DINKI_Color_Lut": "DINKI Color LUT",
 
 }
 
