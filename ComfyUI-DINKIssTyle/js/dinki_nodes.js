@@ -311,3 +311,84 @@ app.registerExtension({
         }
     }
 });
+
+
+// ============================================================
+// 4. DINKI Color LUT Upload Logic
+// ============================================================
+app.registerExtension({
+	name: "DINKIssTyle.ColorLUT.Upload",
+	async beforeRegisterNodeDef(nodeType, nodeData, app) {
+		if (nodeData.name === "DINKI_Color_Lut") {
+			
+			// 노드가 생성될 때 실행되는 함수
+			const onNodeCreated = nodeType.prototype.onNodeCreated;
+			nodeType.prototype.onNodeCreated = function () {
+				const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
+
+				const node = this;
+				// "Upload .cube" 버튼 위젯 추가
+				const uploadWidget = this.addWidget("button", "Upload .cube", "Upload", () => {
+					// 숨겨진 파일 입력창 생성 및 클릭
+					const fileInput = document.createElement("input");
+					Object.assign(fileInput, {
+						type: "file",
+						accept: ".cube",
+						style: "display: none",
+						onchange: async () => {
+							if (fileInput.files.length > 0) {
+								await uploadFile(fileInput.files[0]);
+							}
+						},
+					});
+					document.body.appendChild(fileInput);
+					fileInput.click();
+					document.body.removeChild(fileInput);
+				});
+
+				// 파일 업로드 처리 함수
+				async function uploadFile(file) {
+					try {
+						const body = new FormData();
+						body.append("image", file); // ComfyUI API는 키 이름을 'image'로 받음
+						body.append("subfolder", "luts"); // input/luts 폴더 지정
+						body.append("type", "input");
+						body.append("overwrite", "true");
+
+						// ComfyUI 업로드 API 호출
+						const resp = await api.fetchApi("/upload/image", {
+							method: "POST",
+							body,
+						});
+
+						if (resp.status === 200) {
+							const data = await resp.json();
+							const filename = data.name;
+
+							// lut_name 위젯 찾기
+							const lutWidget = node.widgets.find((w) => w.name === "lut_name");
+							if (lutWidget) {
+								// 리스트에 없으면 추가 (옵션 갱신 시늉)
+								if (!lutWidget.options.values.includes(filename)) {
+									lutWidget.options.values.push(filename);
+								}
+								// 값 선택
+								lutWidget.value = filename;
+                                
+                                // 노드 그래프 업데이트 알림
+                                app.graph.setDirtyCanvas(true);
+							}
+                            alert(`Uploaded: ${filename}`);
+						} else {
+							alert("Upload failed: " + resp.statusText);
+						}
+					} catch (error) {
+						alert("Error uploading file: " + error);
+					}
+				}
+
+				return r;
+			};
+		}
+	},
+});
