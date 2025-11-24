@@ -392,3 +392,188 @@ app.registerExtension({
 		}
 	},
 });
+
+app.registerExtension({
+    name: "DINKIssTyle.ColorLUT.PreviewInteractive",
+    async beforeRegisterNodeDef(nodeType, nodeData, app) {
+        
+        if (nodeData.name === "DINKI_Color_Lut_Preview") {
+            
+            const onNodeCreated = nodeType.prototype.onNodeCreated;
+            nodeType.prototype.onNodeCreated = function () {
+                const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
+                const node = this;
+
+                this.previewImage = new Image();
+                this.previewUrl = null;
+
+                this.previewImage.onload = () => {
+                    app.graph.setDirtyCanvas(true);
+                };
+
+                // --- Preview Request Logic ---
+                const lutWidget = this.widgets.find((w) => w.name === "lut_name");
+                const strengthWidget = this.widgets.find((w) => w.name === "strength");
+
+                const requestPreview = async () => {
+                    const lutName = lutWidget.value;
+                    const strength = strengthWidget.value;
+
+                    try {
+                        const resp = await api.fetchApi("/dinki/preview_lut", {
+                            method: "POST",
+                            body: JSON.stringify({ 
+                                lut_name: lutName,
+                                strength: strength 
+                            }),
+                        });
+
+                        if (resp.status === 200) {
+                            const blob = await resp.blob();
+                            
+                            if (node.previewUrl) {
+                                URL.revokeObjectURL(node.previewUrl);
+                            }
+
+                            const url = URL.createObjectURL(blob);
+                            node.previewUrl = url; 
+                            node.previewImage.src = url;
+
+                        } else if (resp.status === 400) {
+                            // 캐시 없음 (정상)
+                        }
+                    } catch (e) {
+                        console.error("DINKI LUT Preview Error:", e);
+                    }
+                };
+
+                if (lutWidget) lutWidget.callback = requestPreview;
+                if (strengthWidget) strengthWidget.callback = requestPreview;
+
+                // -----------------------------------------------------------
+                // [수정됨] ID 비교 로직 완화 (=== -> ==)
+                // -----------------------------------------------------------
+                api.addEventListener("executed", ({ detail }) => {
+                    // detail.node는 문자열일 수 있고, node.id는 숫자일 수 있음
+                    // 따라서 == (느슨한 비교)를 사용해야 함
+                    if (detail?.node == node.id) {
+                        requestPreview();
+                    }
+                });
+                // -----------------------------------------------------------
+
+                // --- Upload Button ---
+                this.addWidget("button", "Upload .cube", "Upload", () => {
+                    const fileInput = document.createElement("input");
+                    Object.assign(fileInput, {
+                        type: "file",
+                        accept: ".cube",
+                        style: "display: none",
+                        onchange: async () => {
+                            if (fileInput.files.length > 0) {
+                                await uploadFile(fileInput.files[0]);
+                            }
+                        },
+                    });
+                    document.body.appendChild(fileInput);
+                    fileInput.click();
+                    document.body.removeChild(fileInput);
+                });
+
+                async function uploadFile(file) {
+                    try {
+                        const body = new FormData();
+                        body.append("image", file);
+                        body.append("subfolder", "luts");
+                        body.append("type", "input");
+                        body.append("overwrite", "true");
+
+                        const resp = await api.fetchApi("/upload/image", { method: "POST", body });
+
+                        if (resp.status === 200) {
+                            const data = await resp.json();
+                            const filename = data.name;
+                            const lutWidget = node.widgets.find((w) => w.name === "lut_name");
+                            if (lutWidget) {
+                                if (!lutWidget.options.values.includes(filename)) {
+                                    lutWidget.options.values.push(filename);
+                                }
+                                lutWidget.value = filename;
+                                requestPreview(); 
+                            }
+                            alert(`Uploaded: ${filename}`);
+                        } else {
+                            alert("Upload failed: " + resp.statusText);
+                        }
+                    } catch (error) {
+                        alert("Error: " + error);
+                    }
+                }
+
+                return r;
+            };
+
+            // --- Context Menu ---
+            const getExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
+            nodeType.prototype.getExtraMenuOptions = function (_, options) {
+                if (getExtraMenuOptions) {
+                    getExtraMenuOptions.apply(this, arguments);
+                }
+                if (this.previewUrl) {
+                    options.push(
+                        {
+                            content: "Open Preview Image",
+                            callback: () => {
+                                window.open(this.previewUrl, "_blank");
+                            },
+                        },
+                        {
+                            content: "Save Preview Image",
+                            callback: () => {
+                                const lutName = this.widgets.find((w) => w.name === "lut_name")?.value || "lut";
+                                const cleanName = lutName.replace(".cube", "");
+                                const a = document.createElement("a");
+                                a.href = this.previewUrl;
+                                a.setAttribute("download", `preview_${cleanName}.png`);
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                            },
+                        }
+                    );
+                }
+            };
+
+            // --- Draw ---
+            const onDrawForeground = nodeType.prototype.onDrawForeground;
+            nodeType.prototype.onDrawForeground = function(ctx) {
+                if (onDrawForeground) onDrawForeground.apply(this, arguments);
+
+                if (this.previewImage && this.previewImage.src) {
+                    const w = this.size[0];
+                    const h = this.size[1];
+                    const headerHeight = 50; 
+                    const drawH = h - headerHeight - 10;
+                    
+                    if (drawH > 0) {
+                        const imgW = this.previewImage.width;
+                        const imgH = this.previewImage.height;
+                        const ratio = Math.min(w / imgW, drawH / imgH);
+                        
+                        const finalW = imgW * ratio;
+                        const finalH = imgH * ratio;
+                        const x = (w - finalW) / 2;
+                        const y = headerHeight + (drawH - finalH) / 2;
+
+                        ctx.save();
+                        ctx.drawImage(this.previewImage, x, y + 10, finalW, finalH);
+                        ctx.strokeStyle = "#555";
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(x, y + 10, finalW, finalH);
+                        ctx.restore();
+                    }
+                }
+            };
+        }
+    },
+});
