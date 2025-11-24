@@ -30,6 +30,7 @@ from .dinki_node_switch import DINKI_Node_Switch
 from .dinki_color_lut import DINKI_Color_Lut
 from .dinki_color_lut_preview import DINKI_Color_Lut_Preview
 from .dinki_adobe_xmp import DINKI_adobe_xmp
+from .dinki_adobe_xmp_preview import DINKI_Adobe_XMP_Preview
 
 
 """
@@ -84,6 +85,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Color_Lut": DINKI_Color_Lut,
     "DINKI_Color_Lut_Preview": DINKI_Color_Lut_Preview,
     "DINKI_adobe_xmp": DINKI_adobe_xmp,
+    "DINKI_Adobe_XMP_Preview": DINKI_Adobe_XMP_Preview,
 
 }
 
@@ -105,6 +107,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Color_Lut": "DINKI Color LUT",
     "DINKI_Color_Lut_Preview": "DINKI Color LUT Preview",
     "DINKI_adobe_xmp": "DINKI Adobe XMP",
+    "DINKI_Adobe_XMP_Preview": "DINKI Adobe XMP Preview",
 
 }
 
