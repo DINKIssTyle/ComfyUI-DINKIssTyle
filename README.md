@@ -151,5 +151,24 @@ It automatically outputs Width and Height values (adjusted to multiples of 8) ba
 I found this node to work especially well with **Z-Image Turbo**.
 
 
+### DINKI Overlay
+![Preview](resource/DINKI_Overlay.png)
+
+A versatile ComfyUI node designed to add **watermarks, copyright text, and logo overlays** to your generated images with precision.
+
+#### ✨ Key Features
+* **Dual Layering:** Add Text and Image overlays simultaneously or independently using simple toggle switches.
+* **Precise Positioning:** Choose from **7 preset positions** (e.g., Top-Left, Bottom-Center) and fine-tune with percentage-based **margins**.
+* **Adaptive Sizing:** Scale text and logos relative to the source image size (%) for consistent results across different resolutions.
+* **Transparency Support:** Full support for **Alpha/Masks** (transparent PNGs) and adjustable opacity control.
+* **Safe Bypass:** Automatically ignores missing inputs (e.g., if no overlay image is connected) without causing errors.
+
+#### 💡 Usage Tip for Transparent PNGs
+To properly overlay a logo with a transparent background:
+1. Connect the `IMAGE` output of your **Load Image** node to `overlay_image`.
+2. Connect the `MASK` output to `overlay_mask`.
+3. *If the transparency looks inverted (e.g., the background is opaque and the logo is cut out), pass the mask through an **InvertMask** node first.*
+
+
 
 
