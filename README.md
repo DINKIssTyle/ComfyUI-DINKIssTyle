@@ -142,7 +142,7 @@ This is useful when you need quick control in addition to group bypass functiona
 
 
 ### DINKI Photo Specifications
-![Preview](resource/DINKI_photo_specifications.png)
+![Preview](resource/DINKI_Photo_Specifications.png)
 
 This custom node calculates the **optimal resolution** by defining a target **megapixel count** and selecting **real-world standard aspect ratios** (including Photo and Cinema formats).
 
