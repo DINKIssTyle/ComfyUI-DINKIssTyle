@@ -114,3 +114,39 @@ since the node loads the chosen model directly without requiring multiple loader
 
 This makes it versatile for workflows that require automated prompt generation, image captioning, or multimodal understanding.
 This allows the LLM to operate normally even when no image is connected.
+
+
+## DINKI Color Nodes
+![Preview](resource/DINKI_Color.png)
+### DINKI Auto Adjustment Node
+The **DINKI Auto Adjustment** node implements the following automatic correction features:
+- **Auto Tone**
+- **Auto Contrast**
+- **Auto Color**
+
+### DINKI Adobe XMP Node
+The **DINKI Adobe XMP** node applies presets from **Adobe Lightroom** and **Adobe Camera Raw**.  
+Currently supported adjustments include:
+
+- **Exposure**
+- **Contrast**
+- **Saturation**
+- **Vibrance**
+- **Tone Curve** (Master Curve + RGB Channels)
+- **HSL** (Hue / Saturation / Luminance)
+- **Vignette**
+- **Grain**
+XMP preset files should be placed in: ~/ComfyUI/input/adobe_xmp
+
+
+### DINKI Color LUT Node
+The **DINKI Color LUT** node applies color LUTs in **.cube** format.  
+Place your LUT files in: ~/ComfyUI/input/luts
+
+
+
+### DINKI Node Switch
+![Preview](resource/DINKI_Node_Switch.gif)
+You can specify one or multiple **Node IDs**, separated by commas (`,`), and **toggle their bypass state with a mouse click.**  
+This is useful when you need quick control in addition to group bypass functionality.
+
