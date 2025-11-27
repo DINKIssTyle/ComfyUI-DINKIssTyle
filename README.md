@@ -104,6 +104,7 @@ This allows the LLM to operate normally even when no image is connected.
 
 ### DINKI Color Nodes
 ![Preview](resource/DINKI_Color.png)
+
 #### DINKI Auto Adjustment Node
 The **DINKI Auto Adjustment** node implements the following automatic correction features:
 - **Auto Tone**
@@ -133,9 +134,22 @@ Place your LUT files in: **~/ComfyUI/input/luts**
 Reduces excessive saturation or color distortion often produced by AI-generated images.
 
 
-
 ### DINKI Node Switch
 ![Preview](resource/DINKI_Node_Switch.gif)
+
 You can specify one or multiple **Node IDs**, separated by commas (`,`), and **toggle their bypass state with a mouse click.**  
 This is useful when you need quick control in addition to group bypass functionality.
+
+
+### DINKI Photo Specifications
+![Preview](resource/DINKI_photo_specifications.png)
+
+This custom node calculates the **optimal resolution** by defining a target **megapixel count** and selecting **real-world standard aspect ratios** (including Photo and Cinema formats).
+
+It automatically outputs Width and Height values (adjusted to multiples of 8) based on your selected scale and format.
+
+I found this node to work especially well with **Z-Image Turbo**.
+
+
+
 
