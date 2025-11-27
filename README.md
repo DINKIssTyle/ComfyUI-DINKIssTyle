@@ -8,7 +8,7 @@ Using them with other models may cause unexpected issues.
 
 ### DINKI Resize and Pad Image / DINKI Remove Pad from Image
 
-**DINKI Resize and Pad Image** resizes an image to fit within **1024×1024** while *preserving the original aspect ratio*.  
+**DINKI Resize and Pad Image** resizes an image to fit within **1024×1024 or 1328*1328** while *preserving the original aspect ratio*.  
 It then adds padding so diffusion models can process the image in an optimized square format.
 
 The padding metadata is passed to **DINKI Remove Pad from Image**, which crops the output back using the original aspect ratio.  
