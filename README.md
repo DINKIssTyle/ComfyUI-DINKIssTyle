@@ -49,20 +49,6 @@ LoRA - 3D Chibi, Convert this image into 3D Chibi Style
 LoRA - InScene, Make a shot in the same scene  
 
 
-### DINKI Auto Adjustment / DINKI AI Oversaturation Fix
-
-These nodes provide various automatic image adjustments:
-
-- **DINKI Auto Adjustment**  
-  Applies automatic enhancements to improve overall image balance and clarity.
-
-- **DINKI AI Oversaturation Fix**  
-  Reduces excessive saturation or color distortion often produced by AI-generated images.
-
-Both nodes help refine and stabilize image quality during post-processing in ComfyUI workflows.
-
-
-
 ### DINKI Upscale Latent By
 
 **DINKI Upscale Latent By** is a latent-space upscaling node with additional controls not found in the default *Upscale By* node.
@@ -116,15 +102,15 @@ This makes it versatile for workflows that require automated prompt generation, 
 This allows the LLM to operate normally even when no image is connected.
 
 
-## DINKI Color Nodes
+### DINKI Color Nodes
 ![Preview](resource/DINKI_Color.png)
-### DINKI Auto Adjustment Node
+#### DINKI Auto Adjustment Node
 The **DINKI Auto Adjustment** node implements the following automatic correction features:
 - **Auto Tone**
 - **Auto Contrast**
 - **Auto Color**
 
-### DINKI Adobe XMP Node
+#### DINKI Adobe XMP Node
 The **DINKI Adobe XMP** node applies presets from **Adobe Lightroom** and **Adobe Camera Raw**.  
 Currently supported adjustments include:
 
@@ -139,9 +125,12 @@ Currently supported adjustments include:
 XMP preset files should be placed in: **~/ComfyUI/input/adobe_xmp**
 
 
-### DINKI Color LUT Node
+#### DINKI Color LUT Node
 The **DINKI Color LUT** node applies color LUTs in **.cube** format.  
 Place your LUT files in: **~/ComfyUI/input/luts**
+
+#### DINKI AI Oversaturation Fix
+Reduces excessive saturation or color distortion often produced by AI-generated images.
 
 
 
