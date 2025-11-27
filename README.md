@@ -135,13 +135,13 @@ Currently supported adjustments include:
 - **Tone Curve** (Master Curve + RGB Channels)
 - **HSL** (Hue / Saturation / Luminance)
 - **Vignette**
-- **Grain**
-XMP preset files should be placed in: ~/ComfyUI/input/adobe_xmp
+- **Grain**  
+XMP preset files should be placed in: **~/ComfyUI/input/adobe_xmp**
 
 
 ### DINKI Color LUT Node
 The **DINKI Color LUT** node applies color LUTs in **.cube** format.  
-Place your LUT files in: ~/ComfyUI/input/luts
+Place your LUT files in: **~/ComfyUI/input/luts**
 
 
 
