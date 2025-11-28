@@ -1,0 +1,415 @@
+{
+  "id": "a7952149-4e6b-40be-8065-5ddc52619c19",
+  "revision": 0,
+  "last_node_id": 8,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        1890,
+        220
+      ],
+      "size": [
+        390,
+        326
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            5,
+            9
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Left Image",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "pasted/image (1).png",
+        "image"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "LoadImage",
+      "pos": [
+        2290,
+        220
+      ],
+      "size": [
+        390,
+        326
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Right Image",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "pasted/image (1).png",
+        "image"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "DINKI_Overlay",
+      "pos": [
+        1890,
+        600
+      ],
+      "size": [
+        390,
+        632
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 5
+        },
+        {
+          "name": "overlay_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "overlay_mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "title": "Left Image Overlay",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "DINKI_Overlay"
+      },
+      "widgets_values": [
+        "Left Image",
+        true,
+        false,
+        "NotoSansKR-SemiBold.ttf",
+        "Center",
+        2,
+        2,
+        "#FFFFFF",
+        100,
+        false,
+        "#000000",
+        3,
+        false,
+        "#000000",
+        5,
+        5,
+        3,
+        70,
+        "Top-Left",
+        2,
+        15,
+        100
+      ]
+    },
+    {
+      "id": 6,
+      "type": "DINKI_Overlay",
+      "pos": [
+        2290,
+        600
+      ],
+      "size": [
+        390,
+        632
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 9
+        },
+        {
+          "name": "overlay_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "overlay_mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "title": "Right Image Overlay",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "DINKI_Overlay"
+      },
+      "widgets_values": [
+        "Right Image",
+        true,
+        false,
+        "NotoSansKR-SemiBold.ttf",
+        "Center",
+        2,
+        2,
+        "#FFFFFF",
+        100,
+        false,
+        "#000000",
+        3,
+        false,
+        "#000000",
+        5,
+        5,
+        3,
+        70,
+        "Top-Left",
+        2,
+        15,
+        100
+      ]
+    },
+    {
+      "id": 3,
+      "type": "DINKI_Video_Player",
+      "pos": [
+        3050,
+        230
+      ],
+      "size": [
+        960,
+        990
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "filename",
+          "type": "STRING",
+          "link": 1
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "DINKI_Video_Player"
+      }
+    },
+    {
+      "id": 2,
+      "type": "DINKI_Image_Comparer_MOV",
+      "pos": [
+        2710,
+        520
+      ],
+      "size": [
+        281.9478515625,
+        294
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_a",
+          "type": "IMAGE",
+          "link": 6
+        },
+        {
+          "name": "image_b",
+          "type": "IMAGE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "filename",
+          "type": "STRING",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "DINKI_Image_Comparer_MOV"
+      },
+      "widgets_values": [
+        1280,
+        1280,
+        "lanczos",
+        5,
+        1,
+        24,
+        "mp4",
+        100,
+        5,
+        "DINKI_Compare"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "Note",
+      "pos": [
+        2710,
+        370
+      ],
+      "size": [
+        280,
+        100
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "DINKI Image Comparer MOV",
+      "properties": {},
+      "widgets_values": [
+        "When exporting as GIF or WebP, setting loops to 0 makes the animation loop indefinitely.\nWhen exporting as MP4, increasing the loop count extends the total duration of the video."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      3,
+      0,
+      "STRING"
+    ],
+    [
+      5,
+      1,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      6,
+      5,
+      0,
+      2,
+      0,
+      "IMAGE"
+    ],
+    [
+      8,
+      6,
+      0,
+      2,
+      1,
+      "IMAGE"
+    ],
+    [
+      9,
+      1,
+      0,
+      6,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "ds": {
+      "scale": 0.717153616904527,
+      "offset": [
+        -1559.7110990598228,
+        67.72532307443988
+      ]
+    },
+    "frontendVersion": "1.30.6",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
