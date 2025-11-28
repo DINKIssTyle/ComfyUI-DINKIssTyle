@@ -11,7 +11,8 @@ Using them with other models may cause unexpected issues.
 ## Node Descriptions
 
 ### 🎬 DINKI Video Tools
-![Preview](resource/DINKI_comparer.png)
+![Preview](resource/DINKI_comparer.gif)  
+![Preview](resource/DINKI_comparer.png)  
 [Download Image_Comparison_Video_with_Overlays.json](sample_workflows/Image_Comparison_Video_with_Overlays.json)
 
 A comprehensive node suite designed to create **Before/After sliding comparison animations** and **play them directly** within your ComfyUI workflow.
