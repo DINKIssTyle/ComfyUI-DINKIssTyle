@@ -11,6 +11,12 @@ class DINKI_photo_specifications:
                 "megapixels": (["1MP", "2MP", "3MP", "4MP"], {"default": "1MP"}),
                 "aspect_ratio": (
                     [
+                        # --- Basic ---
+                        "Basic 1:1", 
+                        "Bacic 1:2",
+                        "Bacic 1.5:2",  
+                        "Basic 9:16", 
+                        "Basic 10:16",
                         # --- Photo ---
                         "Photo 3:4", 
                         "Photo 3.5:5", 
