@@ -6,78 +6,132 @@ Using them with other models may cause unexpected issues.
 
 ## Node Descriptions
 
-### DINKI Resize and Pad Image / DINKI Remove Pad from Image
+### 📐 DINKI Resize and Pad Image / Remove Pad
 
-**DINKI Resize and Pad Image** resizes an image to fit within **1024×1024 or 1328*1328** while *preserving the original aspect ratio*.  
-It then adds padding so diffusion models can process the image in an optimized square format.
+This pair of nodes is essential for workflows involving image editing models (like **Qwen Image Edit**) that are sensitive to aspect ratio changes or resolution resizing.
 
-The padding metadata is passed to **DINKI Remove Pad from Image**, which crops the output back using the original aspect ratio.  
-The final image may not match the exact pixel size of the input, but its **original proportions are fully preserved**.
+**1. DINKI Resize and Pad Image** Resizes an input image to fit within a target square resolution (default **1024×1024**) while *preserving the original aspect ratio*. It automatically adds padding (letterboxing) to fill the remaining space.
 
-This Nodes helps prevent **pixel shifting artifacts** in **Qwen Image Edit**,  
-and helps ensure that prompt-based editing requests are processed as accurately as possible.
+**2. DINKI Remove Pad from Image** Takes the processed image and the `PAD_INFO` from the first node to crop the padding out, restoring the **exact original aspect ratio**.
 
-#### Without DINKI Resize and Pad Image
+#### 💡 Why use this?
+This workflow prevents **pixel shifting artifacts** and distortion in models like Qwen Image Edit. It ensures that prompt-based editing requests are processed as accurately as possible by maintaining the subject's original proportions throughout the generation process.
+
+#### Comparison
+**Without Resize and Pad (Distorted/Shifted):**
 ![Preview](resource/DINKI_Resize_and_Pad_Image_02.png)
 
-#### With DINKI Resize and Pad Image
+**With DINKI Resize and Pad (Accurate):**
 ![Preview](resource/DINKI_Resize_and_Pad_Image_01.png)
 
-### DINKI Cross Output Switch
+#### 🎛️ Parameters Guide
 
-**DINKI Cross Output Switch** swaps the two input images **A** and **B** based on a Boolean toggle.  
-When the toggle is enabled, the node outputs them in reversed order (**B**, **A**) instead of (**A**, **B**).  
-This allows easy switching between two image sources in a workflow.
+**DINKI Resize and Pad Image**
+| Parameter | Description |
+| :--- | :--- |
+| **target_size** | The target resolution for the square canvas (e.g., 1024). The longest side of the image will fit this size. |
+| **resize_and_pad** | **True:** Applies resizing and padding.<br>**False:** Bypasses the node (returns original image). |
+| **upscale_method** | Algorithm used for resizing (lanczos, bicubic, area, nearest). |
 
-### DINKI Image Preview
+**DINKI Remove Pad from Image**
+| Parameter | Description |
+| :--- | :--- |
+| **pad_info** | Connect the `PAD_INFO` output from the *Resize and Pad* node here. Contains cropping metadata. |
+| **latent_scale** | (Optional) Connect the `latent_scale` output from **DINKI Upscale Latent By**. <br>Allows correct cropping even if the image was upscaled in latent space (e.g., during High-Res Fix). |
+| **remove_pad** | **True:** Crops the padding.<br>**False:** Returns the input image as-is. |
 
-**DINKI Image Preview** generates a custom placeholder image containing text when no output image is provided.  
-This is useful for debugging or visually confirming that a node executed without producing an image result.
+---
+
+### 🔀 DINKI Cross Output Switch
+
+A simple yet handy utility for A/B testing or routing logic. It swaps the two input images based on a boolean toggle.
+
+#### 🎛️ Parameters Guide
+
+| Parameter | Description |
+| :--- | :--- |
+| **image_1 / image_2** | The two input images to be swapped. |
+| **invert** | **False:** Output 1 = Image 1, Output 2 = Image 2.<br>**True:** Output 1 = Image 2, Output 2 = Image 1 (Swapped). |
+
+---
+
+### 👁️ DINKI Image Preview
+
+A robust preview node that handles empty signals gracefully. If no image is provided (e.g., a skipped step due to a switch), it automatically generates a **custom placeholder image** containing text instead of crashing or showing an error.
 
 ![Preview](resource/DINKI_Image_Preview.png)
 
+#### 🎛️ Parameters Guide
 
-### DINKI CSV Prompt Selector (Live)
+| Parameter | Description |
+| :--- | :--- |
+| **images** | (Optional) Connect your image here. If disconnected/None, the placeholder is shown. |
+| **placeholder_text** | Text to display on the placeholder (e.g., "Bypassed"). |
+| **width / height** | Dimensions of the placeholder image. |
+| **bg_gray / fg_gray** | Background and Text brightness (0-255 grayscale). |
+| **font_path** | Path to a custom .ttf file. If empty, it attempts to find a system font. |
 
-**DINKI CSV Prompt Selector (Live)** allows you to quickly insert frequently used prompts by selecting them from a dropdown menu.  
-The node reads a file named **`prompt_list.csv`** located inside the **`input`** folder.
+---
 
-The CSV format is simple:
-LoRA - ToonWorld, ToonWorld  
-LoRA - Photo to Anime, transform into anime  
-LoRA - 3D Chibi, Convert this image into 3D Chibi Style  
-LoRA - InScene, Make a shot in the same scene  
+### 📝 DINKI CSV Prompt Selector (Live)
 
+Quickly insert frequently used prompts or LoRA triggers by selecting them from a dropdown menu.
 
-### DINKI Upscale Latent By
+* **Setup:** Create a file named **`prompt_list.csv`** inside your ComfyUI **`input`** folder.
+* **CSV Format:** `Title, Prompt Text`
+    ```csv
+    LoRA - ToonWorld, ToonWorld
+    LoRA - Photo to Anime, transform into anime
+    ```
+* **Live Update:** The node refreshes the list from the CSV file automatically on every run.
 
-**DINKI Upscale Latent By** is a latent-space upscaling node with additional controls not found in the default *Upscale By* node.
+#### 🎛️ Parameters Guide
 
-Key features:
+| Parameter | Description |
+| :--- | :--- |
+| **title** | Select the key/title defined in your CSV file. The node outputs the corresponding prompt text. |
 
-- **Snap_to_multiple**  
-  Ensures the upscaled latent resolution snaps to clean, model-friendly multiples.  
-  This helps avoid odd dimensions that may cause issues in certain diffusion pipelines.
+---
 
-- **Boolean Toggle (Bypass Mode)**  
-  Allows you to enable or disable the upscaling process instantly.  
-  When disabled, the node simply passes the latent through without modification.
+### ⬆️ DINKI Upscale Latent By
 
-This node is useful for flexible latent upscaling workflows where dimension alignment and quick toggling are required.
+An enhanced latent upscaling node designed for flexibility and pipeline integration. It features a "Snap to Multiple" function to prevent odd-resolution errors.
 
-Additionally, you can pass the upscale metadata to **DINKI Remove Pad from Image**,  
-allowing it to crop the final image accurately while preserving the original aspect ratio after upscaling.
+#### 🎛️ Parameters Guide
 
+| Parameter | Description |
+| :--- | :--- |
+| **scale_by** | The multiplier for upscaling (e.g., 1.5x). |
+| **snap_to_multiple** | Ensures the resulting resolution is a multiple of this number (default 8). Prevents "odd dimension" errors in VAEs. |
+| **enabled** | **True:** Performs upscaling.<br>**False:** Bypasses the node (returns original latent). |
+| **upscale_method** | Algorithm for latent interpolation (nearest-exact, bicubic, etc.). |
 
-### DINKI UNet Loader (safetensors / GGUF)
+> **Output Note:** The `latent_scale` output provides the *actual* scaling factor used (after snapping), which can be sent to **DINKI Remove Pad from Image**.
 
-**DINKI UNet Loader** lets you configure both a **safetensors-based UNet model** and a **GGUF-format UNet model**,  
-and loads **whichever model is selected** through a Boolean toggle.
+---
+
+### 🧠 DINKI UNet Loader (safetensors / GGUF)
+
+A streamlined loader that combines **safetensors** and **GGUF** model loading into a single node. This removes the need to place separate loader nodes and rewire connections when switching between standard and quantized models.
 
 ![Preview](resource/DINKI_UNet_Loader.png)
 
-This provides a cleaner workflow compared to placing two separate UNet loader nodes,  
-since the node loads the chosen model directly without requiring multiple loader nodes in the graph.
+#### 🎛️ Parameters Guide
+
+| Parameter | Description |
+| :--- | :--- |
+| **use_gguf** | **True (GGUF):** Loads the model selected in `gguf_unet`.<br>**False (safetensors):** Loads the model selected in `safetensors_unet`. |
+| **safetensors_unet** | Select a standard model from `models/diffusion_models`. |
+| **gguf_unet** | Select a quantized model from `models/unet_gguf`. |
+
+
+
+
+
+
+
+
+
 
 
 ## 🤖 DINKI LM Studio Assistant
