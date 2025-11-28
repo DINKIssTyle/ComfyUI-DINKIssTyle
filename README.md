@@ -238,6 +238,7 @@ The **DINKI Auto Adjustment** node implements the following automatic correction
 - **Auto Tone**
 - **Auto Contrast**
 - **Auto Color**
+- **Auto Skin Tone**
 
 #### DINKI Adobe XMP Node
 The **DINKI Adobe XMP** node applies presets from **Adobe Lightroom** and **Adobe Camera Raw**.  
