@@ -152,7 +152,7 @@ I found this node to work especially well with **Z-Image Turbo**.
 
 
 ### 🖼️ DINKI Overlay
-![Preview](resource/DINKI_Overlay.png)
+![Preview](resource/DINKI_Overlay.png?v=2)
 
 A powerful and versatile ComfyUI node designed to add **watermarks, copyright text, subtitles, and logo overlays** to your generated images with professional precision.
 
