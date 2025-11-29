@@ -36,6 +36,7 @@ from .dinki_photo_specs import DINKI_photo_specifications
 from .dinki_overlay import DINKI_Overlay
 from .dinki_comparer import DINKI_Image_Comparer_MOV
 from .dinki_player import DINKI_Video_Player
+from .dinki_grid import DINKI_Grid
 
 """
 @author: DINKIssTyle
@@ -95,6 +96,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Overlay": DINKI_Overlay,
     "DINKI_Image_Comparer_MOV": DINKI_Image_Comparer_MOV,
     "DINKI_Video_Player": DINKI_Video_Player,
+    "DINKI_Grid": DINKI_Grid,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -121,6 +123,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Overlay": "DINKI Overlay",
     "DINKI_Image_Comparer_MOV": "DINKI Image Comparer MOV",
     "DINKI_Video_Player": "DINKI Video Player",
+    "DINKI_Grid": "DINKI Grid",
 }
 
 WEB_DIRECTORY = "./js"
