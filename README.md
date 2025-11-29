@@ -343,6 +343,47 @@ A simple yet handy utility for A/B testing or routing logic. It swaps the two in
 
 ---
 
+## ▦ DINKI Grid
+![Preview](resource/DINKI_Grid.gif)
+
+An essential ComfyUI node for compiling up to **10 images** into a customizable grid layout. Perfect for creating comparison sheets, storyboards, or organized image galleries.
+
+#### ✨ Key Features
+
+* **Flexible Matrix Layout:** Define your own grid structure by setting **Columns** and **Rows** (e.g., 2x3, 4x4). Images fill the grid from Left-to-Right, Top-to-Bottom.
+* **Smart Resolution Handling:**
+    * **Base Resolution:** The grid cell size is automatically determined by the resolution of **Image 1**.
+    * **Adaptive Resizing:** Subsequent images are automatically resized to fit the cell using methods like **Fit**, **Crop**, or **Stretch**.
+* **Upscale Comparison Mode:**
+    * **No Resize (Top-Left):** A specialized mode where images are placed at their original scale without resizing. Ideal for comparing **Upcaled vs. Original** images side-by-side to visualize detail enhancement.
+* **Custom Styling:**
+    * **Frames:** Add spacing between images with adjustable **Frame Thickness** (supports 0 for seamless grids).
+    * **Background:** Customize the background color (Hex code) for frames and empty cells.
+* **Output Optimization:**
+    * **Size Limiter:** Toggle `limit_output` to prevent generating massive files. Automatically downscales the final grid to fit within `max_width` / `max_height` while maintaining aspect ratio.
+
+#### 💡 Layout Logic Example
+If you set the grid to **2 Columns × 3 Rows** (Total 6 cells) but connect only **5 images**:
+1.  Images 1-2 fill Row 1.
+2.  Images 3-4 fill Row 2.
+3.  Image 5 fills the first slot of Row 3.
+4.  The last empty slot will be filled with your specified **Background Color**.
+
+
+#### 🎛️ Input Parameters
+
+| Parameter | Description |
+| :--- | :--- |
+| **image_1 ~ 10** | Connect up to 10 images. Unconnected slots are ignored. |
+| **cols / rows** | Set the number of columns and rows for the grid. |
+| **frame_thickness** | Width of the border around each image (in pixels). Set to 0 for no gap. |
+| **bg_color_hex** | Hex color code for the background/frame (e.g., `#000000`, `#FFFFFF`). |
+| **resize_method** | Choose how images fit the cell: `Fit`, `Crop`, `Stretch`, or `No Resize`. |
+| **limit_output** | Enable to restrict the maximum pixel dimensions of the final image. |
+| **max_output_w/h** | The maximum allowed width/height if limit is enabled. |
+
+---
+
 ## 👁️ DINKI Image Preview
 
 A robust preview node that handles empty signals gracefully. If no image is provided (e.g., a skipped step due to a switch), it automatically generates a **custom placeholder image** containing text instead of crashing or showing an error.
