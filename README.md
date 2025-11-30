@@ -104,7 +104,7 @@ To properly overlay a logo with a transparent background:
 
 ---
 
-## DINKI Color Nodes
+# DINKI Color Nodes
 ![Preview](resource/DINKI_Color.png)
 
 #### DINKI Auto Adjustment Node
@@ -439,7 +439,7 @@ An enhanced latent upscaling node designed for flexibility and pipeline integrat
 
 ---
 
-### 🧠 DINKI UNet Loader (safetensors / GGUF)
+## 🧠 DINKI UNet Loader (safetensors / GGUF)
 
 A streamlined loader that combines **safetensors** and **GGUF** model loading into a single node. This removes the need to place separate loader nodes and rewire connections when switching between standard and quantized models.
 
@@ -453,11 +453,60 @@ A streamlined loader that combines **safetensors** and **GGUF** model loading in
 | **safetensors_unet** | Select a standard model from `models/diffusion_models`. |
 | **gguf_unet** | Select a quantized model from `models/unet_gguf`. |
 
+---
 
 
+# 📦 DINKI Base64 Image Embedding Suite
+![Preview](resource/DINKI_Base64.png)  
+[Download DINKI_Base64_to_Image.json](sample_workflows/DINKI_Base64_to_Image.json)
 
+A set of nodes designed to make your ComfyUI workflows **fully self-contained and portable**. By converting images into Base64 strings, you can embed essential reference images, masks, or logos directly inside the workflow `.json` file. 
 
+**No more missing files when sharing your workflows!**
 
+---
+
+## 🖼️ DINKI Image To Base64
+
+Prepares your image for embedding by converting it into a text-based format. Use this to generate the data needed for the **Base64 String Input** node.
+
+#### 🎛️ Parameters Guide
+
+| Parameter | Description |
+| :--- | :--- |
+| **image** | The source image you want to embed (e.g., a specific ControlNet reference or style image). |
+
+> **Workflow Tip:** Connect an image, run the queue, and copy the resulting string. You can then paste it into the **DINKI Base64 String Input** node to permanently store it in your workflow.
+
+---
+
+## 💾 DINKI Base64 String Input
+
+The core storage node. It allows you to paste the Base64 code, effectively **saving the image data inside the node itself**. When you save and share your workflow `.json`, the image travels with it.
+
+#### 🎛️ Parameters Guide
+
+| Parameter | Description |
+| :--- | :--- |
+| **base64_string** | Paste your Base64 code here. This text field acts as the permanent container for your embedded image. |
+
+> **Key Benefit:** Eliminates external file dependencies. Users downloading your workflow will have the correct image loaded instantly, without needing to download separate assets.
+
+---
+
+## 👁️ DINKI Base64 Image Viewer
+
+Unpacks and restores the embedded image data for use in generation. It visualizes the stored Base64 string and converts it back into a standard IMAGE format.
+
+#### 🎛️ Parameters Guide
+
+| Parameter | Description |
+| :--- | :--- |
+| **base64_string** | Connects to the **DINKI Base64 String Input** node to retrieve the stored image data. |
+
+> **Smart Decoding:** Automatically handles standard Base64 headers.
+>
+> **Output:** Returns a standard `IMAGE` tensor, allowing the embedded image to be used immediately in KSampler, ControlNet, or Image-to-Image processes.
 
 
 
