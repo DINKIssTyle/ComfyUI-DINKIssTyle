@@ -462,7 +462,7 @@ A streamlined loader that combines **safetensors** and **GGUF** model loading in
 
 A set of nodes designed to make your ComfyUI workflows **fully self-contained and portable**. By converting images into Base64 strings, you can embed essential reference images, masks, or logos directly inside the workflow `.json` file. 
 
-**No more missing files when sharing your workflows!**
+**You can embed explanatory images or sample results directly within the Workflow.**
 
 ---
 
