@@ -8,6 +8,29 @@ from server import PromptServer
 from aiohttp import web
 import folder_paths
 
+import importlib.util
+import subprocess
+import sys
+
+# 설치할 패키지 이름 리스트
+packages = ["imageio"]
+
+def is_installed(package):
+    try:
+        spec = importlib.util.find_spec(package)
+    except ModuleNotFoundError:
+        return False
+    return spec is not None
+
+def install_package(package):
+    print(f"## DINKI Node: Installing missing package: {package}")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+# 리스트를 확인하며 없으면 설치
+for package in packages:
+    if not is_installed(package):
+        install_package(package)
+
 from .dinki_auto_adjustment import DINKI_Auto_Adjustment
 from .dinki_ai_oversaturation_fix import DINKI_AIOversaturationFix
 from .dinki_latent_upscale_bypass import DINKI_Upscale_Latent_By
@@ -37,6 +60,8 @@ from .dinki_overlay import DINKI_Overlay
 from .dinki_comparer import DINKI_Image_Comparer_MOV
 from .dinki_player import DINKI_Video_Player
 from .dinki_grid import DINKI_Grid
+from .dinki_mask_mixer import DINKI_Mask_Weighted_Mix
+from .dinki_base64 import DINKI_Img2Base64, DINKI_Base64Input, DINKI_Base64Viewer
 
 """
 @author: DINKIssTyle
@@ -97,6 +122,10 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Image_Comparer_MOV": DINKI_Image_Comparer_MOV,
     "DINKI_Video_Player": DINKI_Video_Player,
     "DINKI_Grid": DINKI_Grid,
+    "DINKI_Mask_Weighted_Mix": DINKI_Mask_Weighted_Mix,
+    "DINKI_Img2Base64": DINKI_Img2Base64,
+    "DINKI_Base64Input": DINKI_Base64Input,
+    "DINKI_Base64Viewer": DINKI_Base64Viewer,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -124,6 +153,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Image_Comparer_MOV": "DINKI Image Comparer MOV",
     "DINKI_Video_Player": "DINKI Video Player",
     "DINKI_Grid": "DINKI Grid",
+    "DINKI_Mask_Weighted_Mix": "DINKI Mask Weighted Mix",
+    "DINKI_Img2Base64": "DINKI Image To Base64",
+    "DINKI_Base64Input": "DINKI Base64 String Input",
+    "DINKI_Base64Viewer": "DINKI Base64 Image Viewer",
 }
 
 WEB_DIRECTORY = "./js"
