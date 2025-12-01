@@ -1,4 +1,5 @@
 import os
+import folder_paths # 경로 확인을 위해 필요
 
 class DINKI_Video_Player:
     def __init__(self):
@@ -18,13 +19,21 @@ class DINKI_Video_Player:
     CATEGORY = "DINKIssTyle/Video"
 
     def show_video(self, filename):
-        # 전체 경로에서 파일명만 추출합니다.
-        # ComfyUI 서버는 output 폴더 내의 파일을 파일명으로 찾습니다.
+        # 1. 파일명 추출
         video_name = os.path.basename(filename)
         
-        # UI 쪽으로 비디오 파일명 정보를 보냅니다.
-        # type="output"은 ComfyUI 기본 output 폴더를 의미합니다.
-        return {"ui": {"video": [video_name]}}
+        # 2. 파일이 temp 폴더에 있는지 output 폴더에 있는지 감지
+        # 기본값은 output
+        source_type = "output"
+        
+        # 입력된 절대 경로(filename)가 temp 폴더 경로로 시작하는지 확인
+        temp_dir = folder_paths.get_temp_directory()
+        if filename.startswith(temp_dir):
+            source_type = "temp"
+        
+        # 3. UI에 파일명뿐만 아니라 type 정보도 함께 전달 (Dictionary 형태)
+        # 이렇게 보내야 프론트엔드(JS)가 type="temp" 파라미터를 붙여서 요청할 수 있음
+        return {"ui": {"video": [{"filename": video_name, "type": source_type, "subfolder": ""}]}}
 
 # Node Mapping
 NODE_CLASS_MAPPINGS = {
