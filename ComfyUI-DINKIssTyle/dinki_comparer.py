@@ -4,10 +4,12 @@ import numpy as np
 from PIL import Image
 import imageio
 import folder_paths
+import random # Temp 파일 충돌 방지용
 
 class DINKI_Image_Comparer_MOV:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
+        self.temp_dir = folder_paths.get_temp_directory() # Temp 폴더 경로 추가
         self.type = "output"
         self.prefix_append = ""
 
@@ -29,6 +31,9 @@ class DINKI_Image_Comparer_MOV:
                 #"format": (["mp4", "gif", "webp", "webm"],),
                 "quality": ("INT", {"default": 100, "min": 1, "max": 100}),
                 "loops": ("INT", {"default": 0, "min": 0, "max": 100, "step": 1}),
+                
+                # [New] 미리보기 모드 추가
+                "preview_mode": ("BOOLEAN", {"default": False}),
                 "filename_prefix": ("STRING", {"default": "DINKI_Compare"}),
             },
         }
@@ -59,7 +64,7 @@ class DINKI_Image_Comparer_MOV:
         return img.resize((target_w, target_h), resample=resample_filter)
 
     def compare_images(self, image_a, image_b, max_width, max_height, resampling, 
-                       sweep_duration, pause_duration, fps, format, quality, loops, filename_prefix):
+                       sweep_duration, pause_duration, fps, format, quality, loops, preview_mode, filename_prefix):
         
         # 1. 크기 계산 로직 (비율 유지)
         # image_a의 원본 크기 가져오기
@@ -146,9 +151,22 @@ class DINKI_Image_Comparer_MOV:
                 frame[:, start:end, :] = 255
             frames.append(frame)
 
-        # 3. Save Output
-        full_output_folder, filename, counter, subfolder, filename_prefix = \
-            folder_paths.get_save_image_path(filename_prefix, self.output_dir, image_width=target_w, image_height=target_h)
+        # 3. Save Output (수정됨: Preview Mode 지원)
+        
+        if preview_mode:
+            # 미리보기: temp 폴더 사용
+            output_dir = self.temp_dir
+            type_name = "temp"
+            current_prefix = f"temp_{filename_prefix}_{random.randint(1, 100000)}"
+        else:
+            # 저장: output 폴더 사용
+            output_dir = self.output_dir
+            type_name = "output"
+            current_prefix = filename_prefix
+
+        # 경로 생성
+        full_output_folder, filename, counter, subfolder, current_prefix = \
+            folder_paths.get_save_image_path(current_prefix, output_dir, image_width=target_w, image_height=target_h)
             
         file_ext = format
         if format == 'animated webp': file_ext = 'webp'
@@ -172,9 +190,13 @@ class DINKI_Image_Comparer_MOV:
             if format == 'gif': writer_kwargs['quantizer'] = 'nq'
 
         imageio.mimsave(full_path, frames, format=format, **writer_kwargs)
-        print(f"DINKI Comparer saved to: {full_path}")
+        
+        if not preview_mode:
+            print(f"DINKI Comparer saved to: {full_path}")
 
-        return (full_path,)
+        # UI 업데이트 및 파일 경로 리턴 (UI에 보여주기 위해 딕셔너리 구조 사용)
+        return {"ui": {"images": [{"filename": file_name_with_ext, "subfolder": subfolder, "type": type_name}]}, 
+                "result": (full_path,)}
 
     @classmethod
     def IS_CHANGED(s, **kwargs):
