@@ -660,6 +660,9 @@ app.registerExtension({
     },
 });
 
+// ============================================================
+// 7. DINKI Video Player Logic (Fixed for Temp/Output)
+// ============================================================
 app.registerExtension({
     name: "DINKI.VideoPlayer",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
@@ -667,19 +670,43 @@ app.registerExtension({
             
             // 1. 노드 실행 시 (파일 수신)
             nodeType.prototype.onExecuted = function(message) {
-                const filename = message.video[0];
+                // Python에서 보낸 데이터 확인
+                // 기존: return {"ui": {"video": ["filename.mp4"]}} -> 문자열
+                // 변경: return {"ui": {"video": [{"filename":..., "type":..., "subfolder":...}]}} -> 객체
+                
+                const videoData = message.video[0];
+                let filename, type, subfolder;
+
+                if (typeof videoData === 'string') {
+                    // 구버전 호환성 (문자열인 경우)
+                    filename = videoData;
+                    type = 'output';
+                    subfolder = '';
+                } else {
+                    // 신버전 (객체인 경우)
+                    filename = videoData.filename;
+                    type = videoData.type || 'output';
+                    subfolder = videoData.subfolder || '';
+                }
                 
                 // 확장자 추출 및 소문자 변환
                 const ext = filename.split('.').pop().toLowerCase();
                 
-                // 기존 위젯 제거
+                // 기존 위젯 제거 (새 영상 재생을 위해)
                 if (this.videoWidget) {
                     this.videoWidget.element.remove();
                     this.videoWidget = null;
                 }
 
-                // URL 생성
-                const fileUrl = api.apiURL(`/view?filename=${encodeURIComponent(filename)}&type=output&format=video&t=${Date.now()}`);
+                // [중요] URL 생성 시 type과 subfolder를 동적으로 반영하도록 수정됨
+                const queryParams = new URLSearchParams({
+                    filename: filename,
+                    type: type,
+                    subfolder: subfolder,
+                    format: 'video',
+                    t: Date.now()
+                });
+                const fileUrl = api.apiURL(`/view?${queryParams.toString()}`);
 
                 // 컨테이너 생성
                 const div = document.createElement("div");
@@ -690,15 +717,14 @@ app.registerExtension({
                     alignItems: "center",
                     pointerEvents: "auto",
                     zIndex: "10",
-                    backgroundColor: "#000", // 배경 검정
-                    overflow: "hidden" // 둥근 모서리 등을 위해 넘치는 것 숨김
+                    backgroundColor: "#000",
+                    overflow: "hidden"
                 });
 
                 let contentElement;
 
-                // [중요] 확장자에 따라 태그 분기 처리
-                if (ext === 'mp4' || ext === 'webm' || ext === 'mov') {
-                    // 비디오 포맷
+                // 포맷에 따른 태그 생성
+                if (['mp4', 'webm', 'mov'].includes(ext)) {
                     contentElement = document.createElement("video");
                     Object.assign(contentElement, {
                         controls: true,
@@ -707,14 +733,14 @@ app.registerExtension({
                         muted: true, // 자동 재생 정책 준수
                     });
                 } else {
-                    // 이미지 포맷 (gif, webp, png 등)
+                    // 이미지 포맷 (gif, webp 등)
                     contentElement = document.createElement("img");
                     Object.assign(contentElement.style, {
-                        objectFit: "contain", // 비율 유지하며 꽉 차게
+                        objectFit: "contain",
                     });
                 }
 
-                // 공통 속성 설정
+                // 소스 연결 및 스타일 설정
                 contentElement.src = fileUrl;
                 contentElement.style.width = "100%";
                 contentElement.style.height = "100%";
@@ -726,7 +752,7 @@ app.registerExtension({
 
                 this.videoWidget = {
                     element: div,
-                    content: contentElement, // 비디오 혹은 이미지 요소
+                    content: contentElement,
                 };
 
                 // 노드 크기 최소값 보정
@@ -774,7 +800,7 @@ app.registerExtension({
                 div.style.height = `${realHeight}px`;
             };
 
-            // 3. 삭제 처리
+            // 3. 삭제 처리 (기존 로직 유지)
             const onRemoved = nodeType.prototype.onRemoved;
             nodeType.prototype.onRemoved = function() {
                 if (onRemoved) onRemoved.apply(this, arguments);
