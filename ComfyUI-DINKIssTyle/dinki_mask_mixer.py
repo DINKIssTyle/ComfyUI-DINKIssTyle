@@ -22,7 +22,7 @@ class DINKI_Mask_Weighted_Mix:
     RETURN_TYPES = ("MASK",)
     RETURN_NAMES = ("mixed_mask",)
     FUNCTION = "mix_masks"
-    CATEGORY = "DINKI/Mask"
+    CATEGORY = "DINKIssTyle/Image"
 
     def mix_masks(self, mask_1=None, strength_1=1.0, 
                         mask_2=None, strength_2=1.0,
