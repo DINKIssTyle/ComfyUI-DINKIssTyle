@@ -8,6 +8,30 @@ from server import PromptServer
 from aiohttp import web
 import folder_paths
 
+import importlib.util
+import subprocess
+import sys
+
+# 설치할 패키지 이름 리스트
+packages = ["imageio"]
+
+def is_installed(package):
+    try:
+        spec = importlib.util.find_spec(package)
+    except ModuleNotFoundError:
+        return False
+    return spec is not None
+
+def install_package(package):
+    print(f"## DINKI Node: Installing missing package: {package}")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+# 리스트를 확인하며 없으면 설치
+for package in packages:
+    if not is_installed(package):
+        install_package(package)
+
+
 from .dinki_auto_adjustment import DINKI_Auto_Adjustment
 from .dinki_ai_oversaturation_fix import DINKI_AIOversaturationFix
 from .dinki_latent_upscale_bypass import DINKI_Upscale_Latent_By
