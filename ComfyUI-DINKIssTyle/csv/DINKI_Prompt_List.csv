@@ -18,9 +18,6 @@
 기본 - 캔디드 사진, Candid photography unaware of the camera, captured mid-step. Natural expression, looking slightly away. slight motion blur, Handheld 35mm lens look, documentary-style realism, natural depth of field.
 기본 - 인물 특징 유지, (use 100% reference faces) Keep the same face as reference. the reference and must be 100% identical to person.
 기본 - 관찰자로 향하고 쳐다봅니다, Person is standing towards the viewer and looking at the viewer.
-기본 - 2D를 실사화해서 인물 얼굴로 교체, transform into realistic photography. studio realism. 将图片转为真实风格, Image 1 Change the person's hairstyle, clothing, pose, expression, etc. by referring to Image 2. (use 100% reference faces) Keep the same face as reference. the reference and must be 100% identical to person., Don't make person's breasts bigger. remove person's nipples. Do not have more than five fingers on one hand.
-기본 - 2D를 실사화해서 인물 얼굴로 교체 2,transform into realistic photography. studio realism. 将图片转为真实风格, Image 1 Change the person's clothing, pose, expression by referring to Image 2. don't change hair style and hair color. (use 100% reference faces) Keep the same face as reference. the reference and must be 100% identical to person., Don't make woman's breasts bigger. remove woman's nipples. Do not have more than five fingers on one hand.
-기본 - 2D를 실사화해서 인물 얼굴로 교체 3, transform into realistic photography. studio realism. 将图片转为真实风格, Image 1 Change the person's hairstyle, clothing, pose, expression, (use 100% reference faces) Keep the same face as reference. the reference and must be 100% identical to person, Don't make person's breasts bigger.
 
 3D 캐릭터 스타일 1, restyle into realistic cute 3d game character
 3D 캐릭터 스타일 2, restyle into ultra realistic cute 3d character.
