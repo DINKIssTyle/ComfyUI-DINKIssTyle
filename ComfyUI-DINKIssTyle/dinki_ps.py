@@ -5,292 +5,340 @@ import folder_paths
 import comfy.sd
 import comfy.utils
 import nodes
+import torch.nn.functional as F
 from PIL import Image
+from typing import Type, List, Tuple, Union # Type hinting 추가
 from nodes import MAX_RESOLUTION
+from comfy.utils import common_upscale 
 
 # ============================================================================
-# 1. DINKI Upscale Latent By (Bypassable)
+# 상수 정의 (Missing definition fixed)
 # ============================================================================
+NONE_LABEL = "None"
 
-class DINKI_Upscale_Latent_By:
-    def __init__(self):
-        pass
+def tensor_to_pil(tensors) -> List[Image.Image]:
+    if isinstance(tensors, np.ndarray):
+        arr = tensors
+    else:
+        arr = tensors.detach().cpu().numpy()
+    imgs = []
+    for tensor in arr:
+        img = (np.clip(tensor, 0.0, 1.0) * 255.0).astype(np.uint8)
+        imgs.append(Image.fromarray(img))
+    return imgs
 
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "samples": ("LATENT",),
-                "upscale_method": (["nearest-exact", "bilinear", "area", "bicubic", "bislerp"],),
-                "scale_by": ("FLOAT", {"default": 1.5, "min": 0.01, "max": 8.0, "step": 0.01}),
-                "bypass": ("BOOLEAN", {"default": False}),  # Bypass toggle
-            }
-        }
 
-    RETURN_TYPES = ("LATENT",)
-    FUNCTION = "upscale"
-    CATEGORY = "DINKIssTyle/Latent"
-
-    def upscale(self, samples, upscale_method, scale_by, bypass):
-        if bypass:
-            return (samples,)
-        
-        s = samples.copy()
-        width = round(samples["samples"].shape[3] * scale_by * 8)
-        height = round(samples["samples"].shape[2] * scale_by * 8)
-        
-        s["samples"] = comfy.utils.common_upscale(
-            samples["samples"], width // 8, height // 8, upscale_method, "disabled"
-        )
-        return (s,)
-
+def pil_to_tensor(pil_images: List[Image.Image]) -> torch.Tensor:
+    return torch.stack(
+        [
+            torch.from_numpy(
+                np.array(pil_image).astype(np.float32) / 255.0
+            )
+            for pil_image in pil_images
+        ]
+    )
 
 # ============================================================================
-# 2. DINKI Mask Weighted Mix
-# ============================================================================
-
-class DINKI_Mask_Weighted_Mix:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "mask1": ("MASK",),
-                "mask2": ("MASK",),
-                "weight1": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.1}),
-                "weight2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.1}),
-                "operation": (["add", "subtract", "multiply", "min", "max"],),
-            }
-        }
-
-    RETURN_TYPES = ("MASK",)
-    FUNCTION = "mix_masks"
-    CATEGORY = "DINKIssTyle/Mask"
-
-    def mix_masks(self, mask1, mask2, weight1, weight2, operation):
-        # Ensure dimensions match (expand if necessary)
-        if mask1.shape != mask2.shape:
-            # Simple resize to match mask1 (creates a copy)
-            mask2 = torch.nn.functional.interpolate(
-                mask2.unsqueeze(0).unsqueeze(0), 
-                size=mask1.shape[-2:], 
-                mode="bilinear"
-            ).squeeze(0).squeeze(0)
-
-        m1 = mask1 * weight1
-        m2 = mask2 * weight2
-
-        if operation == "add":
-            result = m1 + m2
-        elif operation == "subtract":
-            result = m1 - m2
-        elif operation == "multiply":
-            result = m1 * m2
-        elif operation == "min":
-            result = torch.min(m1, m2)
-        elif operation == "max":
-            result = torch.max(m1, m2)
-        else:
-            result = m1 + m2
-
-        return (torch.clamp(result, 0.0, 1.0),)
-
-
-# ============================================================================
-# 3. DINKI Resize & Pad (and Remove Pad)
-# ============================================================================
-
-class DINKI_Resize_And_Pad:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "target_width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION}),
-                "target_height": ("INT", {"default": 768, "min": 64, "max": MAX_RESOLUTION}),
-                "fit_method": (["letterbox", "crop", "stretch"],), 
-                "pad_color": ("INT", {"default": 0, "min": 0, "max": 255}), 
-                "interpolation": (["nearest", "bilinear", "bicubic", "lanczos"],),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE", "INT", "INT", "INT", "INT", "INT", "INT")
-    RETURN_NAMES = ("image", "x", "y", "new_width", "new_height", "orig_width", "orig_height")
-    FUNCTION = "resize_and_pad"
-    CATEGORY = "DINKIssTyle/Image"
-
-    def resize_and_pad(self, image, target_width, target_height, fit_method, pad_color, interpolation):
-        # image: [B, H, W, C] tensor
-        results = []
-        info_list = []
-        
-        # Interpolation mapping
-        interp_map = {
-            "nearest": Image.NEAREST,
-            "bilinear": Image.BILINEAR,
-            "bicubic": Image.BICUBIC,
-            "lanczos": Image.LANCZOS,
-        }
-        interp = interp_map.get(interpolation, Image.BILINEAR)
-
-        for img_tensor in image:
-            # Tensor -> PIL
-            i = 255. * img_tensor.cpu().numpy()
-            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            orig_w, orig_h = img.size
-
-            if fit_method == "stretch":
-                new_img = img.resize((target_width, target_height), interp)
-                x, y = 0, 0
-                new_w, new_h = target_width, target_height
-                
-            elif fit_method == "crop":
-                # Center Crop Logic
-                ratio_w = target_width / orig_w
-                ratio_h = target_height / orig_h
-                ratio = max(ratio_w, ratio_h) # Use max to fill
-                
-                new_w = int(orig_w * ratio)
-                new_h = int(orig_h * ratio)
-                resized = img.resize((new_w, new_h), interp)
-                
-                # Center crop
-                left = (new_w - target_width) // 2
-                top = (new_h - target_height) // 2
-                new_img = resized.crop((left, top, left + target_width, top + target_height))
-                
-                x, y = -left, -top # Negative offset relative to original
-
-            else: # letterbox (contain)
-                ratio_w = target_width / orig_w
-                ratio_h = target_height / orig_h
-                ratio = min(ratio_w, ratio_h) # Use min to fit
-                
-                new_w = int(orig_w * ratio)
-                new_h = int(orig_h * ratio)
-                resized = img.resize((new_w, new_h), interp)
-                
-                new_img = Image.new("RGB", (target_width, target_height), (pad_color, pad_color, pad_color))
-                x = (target_width - new_w) // 2
-                y = (target_height - new_h) // 2
-                new_img.paste(resized, (x, y))
-
-            # PIL -> Tensor
-            out = np.array(new_img).astype(np.float32) / 255.0
-            results.append(torch.from_numpy(out))
-            info_list.append((x, y, new_w, new_h, orig_w, orig_h))
-
-        # Batch stack
-        final_image = torch.stack(results)
-        
-        # Return info of the first image (simplified for batch)
-        x, y, nw, nh, ow, oh = info_list[0]
-        
-        return (final_image, x, y, nw, nh, ow, oh)
-
-
-class DINKI_Remove_Pad_From_Image:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "x": ("INT", {"default": 0}),
-                "y": ("INT", {"default": 0}),
-                "width": ("INT", {"default": 0}), # Valid content width
-                "height": ("INT", {"default": 0}), # Valid content height
-                "orig_width": ("INT", {"default": 0}), # Original size to restore
-                "orig_height": ("INT", {"default": 0}),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "restore"
-    CATEGORY = "DINKIssTyle/Image"
-
-    def restore(self, image, x, y, width, height, orig_width, orig_height):
-        # image: [B, H, W, C]
-        results = []
-        
-        for img_tensor in image:
-            i = 255. * img_tensor.cpu().numpy()
-            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            
-            # 1. Crop valid area (remove padding)
-            # x, y is the top-left coordinate where the image was pasted
-            # If x, y are negative (crop mode), logic might differ, 
-            # but usually this node is paired with Letterbox mode.
-            if width > 0 and height > 0:
-                # Letterbox case
-                valid_area = img.crop((x, y, x + width, y + height))
-            else:
-                valid_area = img
-
-            # 2. Resize back to original
-            if orig_width > 0 and orig_height > 0:
-                restored = valid_area.resize((orig_width, orig_height), Image.BILINEAR)
-            else:
-                restored = valid_area
-
-            out = np.array(restored).astype(np.float32) / 255.0
-            results.append(torch.from_numpy(out))
-
-        return (torch.stack(results),)
-
-
-# ============================================================================
-# 4. DINKI Toggle UNet Loader
+# 1. DINKI Toggle UNet Loader
 # ============================================================================
 
 class DINKI_ToggleUNetLoader:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
+        safelist = folder_paths.get_filename_list("diffusion_models")
+        safetensor_unets = [NONE_LABEL] + safelist if safelist else [NONE_LABEL]
+
+        gguf_list = folder_paths.get_filename_list("unet_gguf")
+        # GGUF 폴더가 없을 경우를 대비해 빈 리스트 처리
+        if gguf_list is None: 
+            gguf_list = []
+        gguf_unets = [NONE_LABEL] + gguf_list if gguf_list else [NONE_LABEL]
+
         return {
             "required": {
-                "unet_name": (folder_paths.get_filename_list("unet"),),
-                "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e5m2"],),
-                "load_mode": (["Always", "Bypass (None)"], {"default": "Always"}),
+                "use_gguf": ("BOOLEAN", {
+                    "default": False,
+                    "label_on": "GGUF",
+                    "label_off": "safetensors",
+                }),
+                "safetensors_unet": (safetensor_unets, {"default": NONE_LABEL}),
+                "gguf_unet": (gguf_unets, {"default": NONE_LABEL}),
             }
         }
 
     RETURN_TYPES = ("MODEL",)
-    RETURN_NAMES = ("MODEL",)
+    RETURN_NAMES = ("model",)
     FUNCTION = "load_unet"
-    CATEGORY = "DINKIssTyle/Loaders"
+    CATEGORY = "DINKIssTyle/PS"
+    TITLE = "DINKI UNet Loader (safetensors / GGUF)"
 
-    def load_unet(self, unet_name, weight_dtype, load_mode):
-        if load_mode == "Bypass (None)":
-            print(f"## DINKI: UNet Loading Bypassed for {unet_name}")
-            return (None,)
+    def _get_gguf_loader_class(self) -> Type:
+        node_map = getattr(nodes, "NODE_CLASS_MAPPINGS", {})
+        if "UnetLoaderGGUFAdvanced" in node_map:
+            return node_map["UnetLoaderGGUFAdvanced"]
+        if "UnetLoaderGGUF" in node_map:
+            return node_map["UnetLoaderGGUF"]
+        raise RuntimeError("ComfyUI-GGUF custom node not found.")
 
-        # Standard Load Logic
-        unet_path = folder_paths.get_full_path("unet", unet_name)
-        model = comfy.sd.load_unet(unet_path)
+    def load_unet(self, use_gguf: bool, safetensors_unet: str, gguf_unet: str):
+        if use_gguf:
+            if gguf_unet == NONE_LABEL:
+                raise ValueError("No GGUF UNet selected.")
+            loader_class = self._get_gguf_loader_class()
+            loader = loader_class()
+            return loader.load_unet(gguf_unet)
+        else:
+            if safetensors_unet == NONE_LABEL:
+                raise ValueError("No safetensors UNet selected.")
+            loader = nodes.UNETLoader()
+            return loader.load_unet(safetensors_unet, "default")
+
+
+# ============================================================================
+# 2. Resize and Pad
+# ============================================================================
+
+class DINKI_Resize_And_Pad:
+    UPSCALE_METHODS = ["lanczos", "bicubic", "area", "nearest"]
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "input_image": ("IMAGE",),
+                "target_size": ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 8}),
+                "resolution_multiple": ("INT", {"default": 32, "min": 8, "max": 128, "step": 8}),
+                "upscale_method": (cls.UPSCALE_METHODS,),
+                "resize_and_pad": ("BOOLEAN", {"default": True}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "PAD_INFO")
+    RETURN_NAMES = ("output_image", "pad_info")
+    FUNCTION = "process"
+    CATEGORY = "DINKIssTyle/PS"
+
+    def process(self, input_image: torch.Tensor, target_size: int, resolution_multiple: int, upscale_method: str, resize_and_pad: bool):
+        if not resize_and_pad:
+            # Bypass info: (left, top, right, bottom, original_size)
+            # original_size는 복원이 불필요하므로 1로 설정하여 scale 계산 시 0나눗셈 방지
+            pad_info_out = (0, 0, 0, 0, 1)
+            return (input_image, pad_info_out)
+
+        remainder = target_size % resolution_multiple
+        if remainder != 0:
+            if remainder >= resolution_multiple / 2:
+                target_size = target_size + (resolution_multiple - remainder)
+            else:
+                target_size = target_size - remainder
         
-        # Dtype casting if needed (simplified from standard nodes)
-        if weight_dtype == "fp8_e4m3fn":
-             # Logic to cast model weights would go here if not handled by comfy.sd.load_unet
-             # Usually standard loader handles simple loading.
-             pass
-             
-        return (model,)
+        target_size = max(target_size, resolution_multiple)
+        pad_color = (0, 0, 0) # 보통 패딩은 검정색을 선호하지만, 필요시 (255,255,255) 변경 가능
+
+        pil_images = tensor_to_pil(input_image)
+        processed_pil_images, pad_info_out = [], None
+        
+        resampling_filter = {
+            "lanczos": Image.Resampling.LANCZOS,
+            "bicubic": Image.Resampling.BICUBIC,
+            "area": Image.Resampling.BOX,
+            "nearest": Image.Resampling.NEAREST,
+        }[upscale_method]
+
+        for pil_image in pil_images:
+            orig_width, orig_height = pil_image.size
+            ratio = min(target_size / orig_width, target_size / orig_height)
+            new_width, new_height = int(orig_width * ratio), int(orig_height * ratio)
+
+            resized_image = pil_image.resize((new_width, new_height), resample=resampling_filter)
+            padded_image = Image.new("RGB", (target_size, target_size), pad_color)
+
+            pad_left = (target_size - new_width) // 2
+            pad_top = (target_size - new_height) // 2
+            padded_image.paste(resized_image, (pad_left, pad_top))
+            processed_pil_images.append(padded_image)
+
+            if pad_info_out is None:
+                pad_right = target_size - new_width - pad_left
+                pad_bottom = target_size - new_height - pad_top
+                pad_info_out = (pad_left, pad_top, pad_right, pad_bottom, target_size)
+
+        return (pil_to_tensor(processed_pil_images), pad_info_out)
 
 
 # ============================================================================
-# Node Registration
+# 3. Remove Pad
 # ============================================================================
 
-NODE_CLASS_MAPPINGS = {
-    "DINKI_Upscale_Latent_By": DINKI_Upscale_Latent_By,
-    "DINKI_Mask_Weighted_Mix": DINKI_Mask_Weighted_Mix,
-    "DINKI_Resize_And_Pad": DINKI_Resize_And_Pad,
-    "DINKI_Remove_Pad_From_Image": DINKI_Remove_Pad_From_Image,
-    "DINKI_ToggleUNetLoader": DINKI_ToggleUNetLoader,
-}
+class DINKI_Remove_Pad_From_Image:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "input_image": ("IMAGE",),
+                "pad_info": ("PAD_INFO",),
+                "remove_pad": ("BOOLEAN", {"default": True}),
+            },
+            "optional": {
+                "latent_scale": ("FLOAT", {"default": 0.0}),
+            }
+        }
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "DINKI_Upscale_Latent_By": "DINKI Upscale Latent By",
-    "DINKI_Mask_Weighted_Mix": "DINKI Mask Weighted Mix",
-    "DINKI_Resize_And_Pad": "DINKI Resize and Pad Image",
-    "DINKI_Remove_Pad_From_Image": "DINKI Remove Pad from Image",
-    "DINKI_ToggleUNetLoader": "DINKI UNet Loader (safetensors / GGUF)",
-}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "process"
+    CATEGORY = "DINKIssTyle/PS"
+
+    def process(self, input_image: torch.Tensor, pad_info: any, remove_pad: bool, latent_scale: float = 0.0):
+        if not remove_pad:
+            return (input_image,)
+
+        # 안전한 pad_info 추출
+        pad_info_tuple = pad_info
+        if isinstance(pad_info, list) and len(pad_info) > 0:
+            pad_info_tuple = pad_info[0]
+            
+        if not isinstance(pad_info_tuple, (tuple, list)) or len(pad_info_tuple) < 5:
+            print(f"[DINKI_Remove_Pad] Invalid pad_info: {pad_info}, bypassing.")
+            return (input_image,)
+
+        left, top, right, bottom, original_size = pad_info_tuple[:5]
+        
+        # Bypass 모드에서 생성된 pad_info(0,0,0,0,1)인 경우 처리
+        if left == 0 and top == 0 and right == 0 and bottom == 0:
+             return (input_image,)
+
+        pil_images = tensor_to_pil(input_image)
+        cropped_images = []
+
+        for pil_image in pil_images:
+            final_width, final_height = pil_image.size
+            scale_from_image = final_width / float(original_size)
+            scale_factor = scale_from_image
+
+            if latent_scale is not None and latent_scale > 0.0:
+                tolerance = 0.1
+                diff = abs(scale_from_image - float(latent_scale))
+                if diff <= tolerance * scale_from_image:
+                    scale_factor = float(latent_scale)
+
+            scaled_left   = int(left   * scale_factor)
+            scaled_top    = int(top    * scale_factor)
+            scaled_right  = int(right  * scale_factor)
+            scaled_bottom = int(bottom * scale_factor)
+
+            crop_box = (
+                scaled_left,
+                scaled_top,
+                final_width  - scaled_right,
+                final_height - scaled_bottom,
+            )
+            cropped_images.append(pil_image.crop(crop_box))
+
+        return (pil_to_tensor(cropped_images),)
+
+
+# ============================================================================
+# 4. Upscale Latent By (Bypassable)
+# ============================================================================
+
+def _resize_any(mask, width, height, method: str):
+    if mask is None:
+        return None
+    return common_upscale(mask, width, height, method, "disabled")
+
+class DINKI_Upscale_Latent_By:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "samples": ("LATENT",),
+                "upscale_method": ([
+                    "nearest-exact", "bilinear", "area", "bicubic", "bislerp",
+                ], {"default": "nearest-exact"}),
+                "scale_by": ("FLOAT", {"default": 1.50, "min": 0.01, "max": 8.0, "step": 0.01}),
+                "enabled": ("BOOLEAN", {"default": True}),
+            },
+            "optional": {
+                "snap_to_multiple": ("INT", {"default": 8, "min": 1, "max": 64}),
+            },
+        }
+
+    RETURN_TYPES = ("LATENT", "FLOAT")
+    RETURN_NAMES = ("samples", "latent_scale")
+    FUNCTION = "apply"
+    CATEGORY = "DINKIssTyle/PS"
+
+    def apply(self, samples, upscale_method, scale_by, enabled, snap_to_multiple=8):
+        if not enabled or abs(scale_by - 1.0) < 1e-6:
+            return (samples, 1.0)
+
+        s = samples.copy()
+        x = s["samples"]
+        
+        # 마지막 두 차원(H, W) 기준
+        height = x.shape[-2]
+        width  = x.shape[-1]
+
+        new_w = max(1, int(round(width  * float(scale_by))))
+        new_h = max(1, int(round(height * float(scale_by))))
+
+        if snap_to_multiple > 1:
+            m = int(snap_to_multiple)
+            new_w = (new_w + m - 1) // m * m
+            new_h = (new_h + m - 1) // m * m
+
+        s["samples"] = common_upscale(x, new_w, new_h, upscale_method, "disabled")
+
+        if "noise_mask" in s and s["noise_mask"] is not None:
+            s["noise_mask"] = _resize_any(s["noise_mask"], new_w, new_h, upscale_method)
+
+        effective_scale = new_w / float(width)
+        return (s, float(effective_scale))
+
+
+# ============================================================================
+# 5. Mask Weighted Mix
+# ============================================================================
+
+class DINKI_Mask_Weighted_Mix:
+    @classmethod
+    def INPUT_TYPES(s):
+        inputs = {"required": {}, "optional": {}}
+        for i in range(1, 6):
+            inputs["optional"][f"mask_{i}"] = ("MASK",)
+            inputs["optional"][f"strength_{i}"] = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01})
+        return inputs
+
+    RETURN_TYPES = ("MASK",)
+    RETURN_NAMES = ("mixed_mask",)
+    FUNCTION = "mix_masks"
+    CATEGORY = "DINKIssTyle/PS"
+
+    def mix_masks(self, **kwargs):
+        final_mask = None
+
+        for i in range(1, 6):
+            mask = kwargs.get(f"mask_{i}")
+            strength = kwargs.get(f"strength_{i}", 1.0)
+
+            if mask is not None:
+                weighted_mask = mask * strength
+
+                if final_mask is None:
+                    final_mask = weighted_mask
+                else:
+                    if final_mask.shape[-2:] != weighted_mask.shape[-2:]:
+                        # ComfyUI Mask: (Batch, H, W) -> unsqueeze(1) -> (Batch, 1, H, W)
+                        wm_dim = weighted_mask.unsqueeze(1)
+                        target_h, target_w = final_mask.shape[-2], final_mask.shape[-1]
+                        
+                        # align_corners=False 가 기본값으로 적절
+                        wm_resized = F.interpolate(wm_dim, size=(target_h, target_w), mode="bilinear", align_corners=False)
+                        weighted_mask = wm_resized.squeeze(1)
+
+                    final_mask = torch.max(final_mask, weighted_mask)
+
+        if final_mask is None:
+            final_mask = torch.zeros((1, 64, 64), dtype=torch.float32, device="cpu")
+
+        return (final_mask,)
