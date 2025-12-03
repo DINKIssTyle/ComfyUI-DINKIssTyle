@@ -13,7 +13,7 @@ class DINKI_ImageSelector:
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "select_latest_image"
-    CATEGORY = "DINKIssTyle/Image"
+    CATEGORY = "DINKIssTyle/Util"
 
     def select_latest_image(self, **kwargs):
         for i in range(8, 0, -1):
@@ -38,7 +38,7 @@ class DINKI_CrossOutputSwitch:
     RETURN_TYPES = ("IMAGE", "IMAGE")
     RETURN_NAMES = ("image_out_1", "image_out_2")
     FUNCTION = "process"
-    CATEGORY = "DINKIssTyle/Image"
+    CATEGORY = "DINKIssTyle/Util"
 
     def process(self, image_1, image_2, invert=False):
         # invert가 True면 교차 출력 (2,1), 아니면 그대로 (1,2)
@@ -74,7 +74,7 @@ class DINKI_ImagePreview:
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("images",)
     FUNCTION = "preview"
-    CATEGORY = "DINKIssTyle/Image"
+    CATEGORY = "DINKIssTyle/Util"
 
     # ===== 내부 유틸 =====
     def _find_font(self, font_path_hint: str):

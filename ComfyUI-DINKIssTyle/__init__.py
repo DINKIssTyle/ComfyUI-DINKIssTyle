@@ -27,7 +27,7 @@ for package in packages:
 # --- Node Imports ---
 
 # 1. Prompt 관련 노드
-from .dinki_prompt_nodes import (
+from .dinki_prompt import (
     PromptLoader,
     DINKI_PromptSelector,
     DINKI_PromptSelectorLive,
@@ -35,7 +35,7 @@ from .dinki_prompt_nodes import (
     prompt_loader,
 )
 
-# 2. Color & Correction 관련 노드 (통합됨: dinki_color.py)
+# 2. Color & Correction 관련 노드 (dinki_color.py)
 from .dinki_color import (
     DINKI_adobe_xmp,
     DINKI_Adobe_XMP_Preview,
@@ -46,11 +46,17 @@ from .dinki_color import (
     DINKI_Deband,
 )
 
-# 3. 기타 노드들
-from .dinki_latent_upscale_bypass import DINKI_Upscale_Latent_By
-from .dinki_toggle_unet_loader import DINKI_ToggleUNetLoader
-from .dinki_resize_pad import DINKI_Resize_And_Pad, DINKI_Remove_Pad_From_Image
-from .dinki_image_nodes import (
+# 3. Processing 관련 노드 (통합됨: dinki_ps.py)
+from .dinki_ps import (
+    DINKI_Upscale_Latent_By,
+    DINKI_Mask_Weighted_Mix,
+    DINKI_Resize_And_Pad,
+    DINKI_Remove_Pad_From_Image,
+    DINKI_ToggleUNetLoader,
+)
+
+# 4. 이미지 관련 노드 (통합됨: dinki_image.py)
+from .dinki_image import (
     DINKI_ImageSelector,
     DINKI_CrossOutputSwitch,
     DINKI_ImagePreview,
@@ -61,9 +67,8 @@ from .dinki_node_switch import DINKI_Node_Switch
 from .dinki_photo_specs import DINKI_photo_specifications
 from .dinki_overlay import DINKI_Overlay
 from .dinki_comparer import DINKI_Image_Comparer_MOV
-from .dinki_player import DINKI_Video_Player
+from .dinki_viewer import DINKI_Video_Player
 from .dinki_grid import DINKI_Grid
-from .dinki_mask_mixer import DINKI_Mask_Weighted_Mix
 from .dinki_base64 import DINKI_Img2Base64, DINKI_Base64Input, DINKI_Base64Viewer
 from .dinki_depth_parallax import DINKI_DepthParallax_MOV
 
@@ -78,7 +83,12 @@ from .dinki_depth_parallax import DINKI_DepthParallax_MOV
 # --- Node Registration ---
 
 NODE_CLASS_MAPPINGS = {
-    # Color & Correction Nodes
+    # Prompt
+    "DINKI_PromptSelector": DINKI_PromptSelector,
+    "DINKI_PromptSelectorLive": DINKI_PromptSelectorLive,
+    "DINKI_random_prompt": DINKI_random_prompt,
+
+    # Color & Correction
     "DINKI_adobe_xmp": DINKI_adobe_xmp,
     "DINKI_Adobe_XMP_Preview": DINKI_Adobe_XMP_Preview,
     "DINKI_AIOversaturationFix": DINKI_AIOversaturationFix,
@@ -87,17 +97,17 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Color_Lut_Preview": DINKI_Color_Lut_Preview,
     "DINKI_Deband": DINKI_Deband,
 
-    # Other Nodes
+    # Photoshop/Processing (dinki_ps)
+    "DINKI_Upscale_Latent_By": DINKI_Upscale_Latent_By,
+    "DINKI_Mask_Weighted_Mix": DINKI_Mask_Weighted_Mix,
     "DINKI_Resize_And_Pad": DINKI_Resize_And_Pad,
     "DINKI_Remove_Pad_From_Image": DINKI_Remove_Pad_From_Image,
-    "DINKI_PromptSelector": DINKI_PromptSelector,
-    "DINKI_PromptSelectorLive": DINKI_PromptSelectorLive,
-    "DINKI_random_prompt": DINKI_random_prompt,
+    "DINKI_ToggleUNetLoader": DINKI_ToggleUNetLoader,
+
+    # Others
     "DINKI_ImageSelector": DINKI_ImageSelector,
     "DINKI_CrossOutputSwitch": DINKI_CrossOutputSwitch,
     "DINKI_ImagePreview": DINKI_ImagePreview,
-    "DINKI_Upscale_Latent_By": DINKI_Upscale_Latent_By,
-    "DINKI_ToggleUNetLoader": DINKI_ToggleUNetLoader,
     "DINKI_LMStudio": DINKI_LMStudio,
     "DINKI_BatchImages": DINKI_BatchImages,
     "DINKI_Node_Switch": DINKI_Node_Switch,
@@ -106,7 +116,6 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Image_Comparer_MOV": DINKI_Image_Comparer_MOV,
     "DINKI_Video_Player": DINKI_Video_Player,
     "DINKI_Grid": DINKI_Grid,
-    "DINKI_Mask_Weighted_Mix": DINKI_Mask_Weighted_Mix,
     "DINKI_Img2Base64": DINKI_Img2Base64,
     "DINKI_Base64Input": DINKI_Base64Input,
     "DINKI_Base64Viewer": DINKI_Base64Viewer,
@@ -114,7 +123,12 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    # Color & Correction Nodes
+    # Prompt
+    "DINKI_PromptSelector": "DINKI CSV Prompt Selector",
+    "DINKI_PromptSelectorLive": "DINKI CSV Prompt Selector (Live)",
+    "DINKI_random_prompt": "DINKI Random Prompt",
+
+    # Color & Correction
     "DINKI_adobe_xmp": "DINKI Adobe XMP",
     "DINKI_Adobe_XMP_Preview": "DINKI Adobe XMP Preview",
     "DINKI_AIOversaturationFix": "DINKI AI Oversaturation Fix",
@@ -123,17 +137,17 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Color_Lut_Preview": "DINKI Color LUT Preview",
     "DINKI_Deband": "DINKI Deband",
 
-    # Other Nodes
+    # Photoshop/Processing
+    "DINKI_Upscale_Latent_By": "DINKI Upscale Latent By",
+    "DINKI_Mask_Weighted_Mix": "DINKI Mask Weighted Mix",
     "DINKI_Resize_And_Pad": "DINKI Resize and Pad Image",
     "DINKI_Remove_Pad_From_Image": "DINKI Remove Pad from Image",
-    "DINKI_PromptSelector": "DINKI CSV Prompt Selector",
-    "DINKI_PromptSelectorLive": "DINKI CSV Prompt Selector (Live)",
-    "DINKI_random_prompt": "DINKI Random Prompt",
+    "DINKI_ToggleUNetLoader": "DINKI UNet Loader (safetensors / GGUF)",
+
+    # Others
     "DINKI_ImageSelector": "DINKI Image Selector",
     "DINKI_CrossOutputSwitch": "DINKI Cross Output Switch",
     "DINKI_ImagePreview": "DINKI Image Preview",
-    "DINKI_Upscale_Latent_By": "DINKI Upscale Latent By",
-    "DINKI_ToggleUNetLoader": "DINKI UNet Loader (safetensors / GGUF)",
     "DINKI_LMStudio": "DINKI LM Studio Assistant",
     "DINKI_BatchImages": "DINKI Batch Images",
     "DINKI_Node_Switch": "DINKI Node Switch",
@@ -142,7 +156,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Image_Comparer_MOV": "DINKI Image Comparer MOV",
     "DINKI_Video_Player": "DINKI Video Player",
     "DINKI_Grid": "DINKI Grid",
-    "DINKI_Mask_Weighted_Mix": "DINKI Mask Weighted Mix",
     "DINKI_Img2Base64": "DINKI Image To Base64",
     "DINKI_Base64Input": "DINKI Base64 String Input",
     "DINKI_Base64Viewer": "DINKI Base64 Image Viewer",

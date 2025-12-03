@@ -22,7 +22,7 @@ class DINKI_Img2Base64:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("base64_string",)
     FUNCTION = "encode_image"
-    CATEGORY = "DINKIssTyle/Image"
+    CATEGORY = "DINKIssTyle/Util"
     
     def encode_image(self, image):
         # ComfyUI의 이미지는 Tensor (Batch, H, W, C) 형태이며 0-1 범위입니다.
@@ -57,7 +57,7 @@ class DINKI_Base64Input:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("base64_string",)
     FUNCTION = "pass_string"
-    CATEGORY = "DINKIssTyle/Image"
+    CATEGORY = "DINKIssTyle/Util"
 
     def pass_string(self, base64_string):
         return (base64_string,)
@@ -80,7 +80,7 @@ class DINKI_Base64Viewer:
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode_and_view"
-    CATEGORY = "DINKIssTyle/Image"
+    CATEGORY = "DINKIssTyle/Util"
     OUTPUT_NODE = True
 
     def decode_and_view(self, base64_string):
