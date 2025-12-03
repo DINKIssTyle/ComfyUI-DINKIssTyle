@@ -135,20 +135,21 @@ class DINKI_random_prompt:
             "required": {
                 "text_input": ("STRING", {"multiline": True, "default": "", "placeholder": "Optional prefix text..."}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                "enable_random": ("BOOLEAN", {"default": True, "label_on": "Random", "label_off": "Manual"}),
+                # [변경] enable_random 스위치 제거됨
             },
             "optional": {}
         }
 
-        # [수정] 리스트 생성 방식 안전하게 처리
+        # [변경] 리스트 구성: None, Random, 값들...
         for cat_name, values in categories.items():
             if values and len(values) > 0:
-                # 1. 원본 리스트 복사하여 사용 (안전)
                 safe_values = list(values)
-                # 2. 맨 앞에 "-- None --" 추가
-                full_list = ["-- None --"] + safe_values
-                # 3. 기본값은 실제 데이터의 첫 번째 값 (None이 아닌 값)
-                default_val = safe_values[0]
+                
+                # 1. 옵션 목록 생성: 맨 앞에 "-- None --"과 "-- Random --" 추가
+                full_list = ["-- None --", "-- Random --"] + safe_values
+                
+                # 2. 기본값은 "-- Random --"
+                default_val = "-- Random --"
                 
                 inputs["optional"][cat_name] = (full_list, {"default": default_val})
         
@@ -159,7 +160,8 @@ class DINKI_random_prompt:
     FUNCTION = "generate_prompt"
     CATEGORY = "DINKIssTyle/Prompt"
 
-    def generate_prompt(self, text_input, seed, enable_random, **kwargs):
+    # [변경] enable_random 인자 제거
+    def generate_prompt(self, text_input, seed, **kwargs):
         rng = random.Random(seed)
         selected_values = []
         
@@ -170,6 +172,7 @@ class DINKI_random_prompt:
         current_category = None
         category_order = [] 
 
+        # 실행 시 CSV를 다시 읽어 실제 데이터 목록 확보 (Random 선택용)
         if os.path.exists(file_path):
             with open(file_path, 'r', encoding='utf-8') as f:
                 reader = csv.reader(f)
@@ -187,23 +190,23 @@ class DINKI_random_prompt:
                     if col_b and current_category:
                         categories[current_category].append(col_b)
 
-        # 결과 생성
+        # 결과 생성 로직 변경
         for cat in category_order:
             ui_value = kwargs.get(cat, None)
             
-            # None 선택 시 (랜덤 모드여도) 건너뛰기
-            if ui_value == "-- None --":
+            # 1. UI에서 선택된 값이 없거나 "-- None --"이면 건너뜀
+            if not ui_value or ui_value == "-- None --":
                 continue
 
-            if enable_random:
-                # 랜덤 모드: 카테고리 내에서 무작위 선택
+            # 2. "-- Random --" 선택 시 해당 카테고리 목록에서 무작위 추출
+            if ui_value == "-- Random --":
                 if cat in categories and categories[cat]:
                     picked = rng.choice(categories[cat])
                     selected_values.append(picked)
+            
+            # 3. 특정 값을 선택했을 경우 그대로 사용
             else:
-                # 수동 모드: UI 선택값 사용
-                if ui_value:
-                    selected_values.append(ui_value)
+                selected_values.append(ui_value)
         
         csv_prompt_string = ", ".join(selected_values)
         
