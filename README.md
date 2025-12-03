@@ -422,6 +422,35 @@ Quickly insert frequently used prompts or LoRA triggers by selecting them from a
 
 ---
 
+
+## 🎲 DINKI Random Prompt
+
+![Random Prompt](resource/DINKI_Random_Prompt.gif)
+
+A versatile prompt generator that builds complex prompts using a custom CSV file. It allows you to organize tags by category and offers granular control over each section—choose a specific tag, randomize it, or skip it entirely.
+
+* **Setup:** Ensure your CSV file is located at `~/ComfyUI/custom_nodes/ComfyUI-DINKIssTyle/csv/DINKI_Random_Prompt.csv`.
+* **CSV Format:** `Category, Tag/Prompt`
+    ```csv
+    Art Style, Cyberpunk
+    , Steampunk
+    Camera, 35mm lens
+    , Wide angle
+    ```
+* **Dynamic Controls:** The node automatically creates dropdown menus for every unique category found in the CSV file.
+
+#### 🎛️ Parameters Guide
+
+| Parameter | Description |
+| :--- | :--- |
+| **text_input** | (Optional) Fixed text to appear at the beginning of the prompt (e.g., "masterpiece, best quality"). |
+| **seed** | Controls the random selection. Keep the seed fixed to reproduce the same "random" combination. |
+| **[Category Name]** | Dynamic dropdowns generated from your CSV categories. <br>• **Specific Value**: Manually select a specific tag.<br>• **-- Random --**: Randomly picks one tag from this category.<br>• **-- None --**: Skips this category entirely. |
+
+
+---
+
+
 ## ⬆️ DINKI Upscale Latent By
 
 An enhanced latent upscaling node designed for flexibility and pipeline integration. It features a "Snap to Multiple" function to prevent odd-resolution errors.
