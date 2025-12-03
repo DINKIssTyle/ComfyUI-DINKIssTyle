@@ -1,0 +1,398 @@
+pose:,Standing straight with relaxed shoulders
+,Slight three-quarter turn toward the camera
+,Looking back over the shoulder
+,Seated with hands resting on knees
+,Sitting cross-legged on the floor
+,"Leaning slightly forward, elbows on table"
+,Leaning back casually with one hand behind
+,"One hand in pocket, relaxed stance"
+,"Both hands in pockets, confident posture"
+,Arms crossed softly
+,
+,Touching chin with fingertips
+,One hand resting gently on cheek
+,Both hands framing the face
+,Playing with hair casually
+,Holding hair up with one hand
+,Hands clasped together in front
+,"Hands behind the back, soft pose"
+,Arms raised above the head
+,Stretching upward naturally
+,Tilting head slightly to the side
+,
+,Walking forward mid-step
+,"Walking away from camera, head turned back"
+,Looking up slightly with lifted chin
+,"Looking down softly, contemplative"
+,Sitting sideways on a chair
+,Kneeling with relaxed posture
+,"Lying down on one side, head propped on hand"
+,Leaning against a wall with one shoulder
+,Leaning on railings with arms resting
+,Sitting on stairs with relaxed arms
+,
+,Holding an object close to the chest
+,Holding a cup with both hands
+,Holding a book partially covering face
+,Reaching out toward the camera
+,Hand extended outward as if touching light
+,"Light mid-jump, dynamic pose"
+,"Twirling slightly, dress or hair moving"
+,"Hands behind head, elbows wide"
+,One knee pulled up while seated
+,Sitting with legs stretched forward
+,
+,Side profile with hands clasped in front
+,Soft pose with one leg slightly bent
+,Half-turn with torso twisted gently
+,Standing with hands folded in front
+,Holding a jacket draped over shoulder
+,Sitting on ground leaning on one arm
+,Standing with arms loosely hanging
+,Holding an item at chest height
+,Looking out a window with hand on glass
+,Arms open slightly as if feeling breeze
+,
+,
+hairstyle:,Long Wavy Hair
+,Straight Long Hair
+,Soft Curls
+,Loose Beach Waves
+,Layered Cut
+,Feathered Layers
+,Blunt Cut
+,Bob Cut
+,A-Line Bob
+,French Bob
+,Lob (Long Bob)
+,Pixie Cut
+,Tousled Pixie
+,Shag Cut
+,Modern Wolf Cut
+,Curtain Bangs
+,Side-Swept Bangs
+,Blunt Bangs
+,Wispy Bangs
+,High Ponytail
+,Low Ponytail
+,Messy Bun
+,High Bun
+,Braided Ponytail
+,French Braid
+,Dutch Braid
+,Fishtail Braid
+,Half-Up Half-Down
+,Top Knot
+,Space Buns
+,Sleek High Bun
+,Curly Updo
+,Vintage Hollywood Waves
+,Flipped Ends
+,Textured Waves
+,
+,
+expression:,Joyful
+,Happy
+,Delighted
+,Excited
+,Playful
+,Amused
+,Laughing
+,Cheerful
+,Smiling Softly
+,Warm Smile
+,
+,Sad
+,Tearful
+,Heartbroken
+,Melancholic
+,Lonely
+,Sorrowful
+,Gloomy
+,Grieving
+,Nostalgic
+,Bitter-Sweet
+,
+,Angry
+,Furious
+,Annoyed
+,Irritated
+,Resentful
+,Displeased
+,Frustrated
+,Stern
+,Intense Glare
+,Cold Expression
+,
+,Surprised
+,Shocked
+,Astonished
+,Startled
+,Wide-Eyed Wonder
+,Curious
+,Intrigued
+,Confused
+,Bewildered
+,Perplexed
+,
+,Calm
+,Peaceful
+,Serene
+,Thoughtful
+,Contemplative
+,Relaxed
+,Gentle
+,Neutral
+,Focused
+,Determined
+,
+,
+outfit:,White Button-Up Shirt
+,Oversized Knit Sweater
+,Linen Blouse
+,Satin Slip Dress
+,Silk Blouse
+,Ruffled Blouse
+,Off-Shoulder Top
+,Crop Top
+,Floral Dress
+,Maxi Dress
+,
+,Midi Skirt
+,Pleated Skirt
+,Denim Jacket
+,Leather Jacket
+,Trench Coat
+,Blazer
+,Oversized Hoodie
+,Zip-Up Hoodie
+,Wool Coat
+,Cardigan
+,
+,Denim Jeans
+,High-Waisted Pants
+,Cargo Pants
+,Wide-Leg Trousers
+,Tailored Suit
+,Knit Two-Piece Set
+,Sporty Tracksuit
+,Bomber Jacket
+,Puffer Jacket
+,Faux Fur Coat
+,
+,Knit Dress
+,Lace Dress
+,Bohemian Dress
+,Peasant Blouse
+,Tube Top
+,Halter Neck Top
+,Graphic Tee
+,Simple Crewneck Tee
+,Cable Knit Sweater
+,Silk Camisole
+,
+,Layered Sundress
+,Denim Overalls
+,Jumpsuit
+,Romper
+,Long Coat with Belt
+,Sheer Blouse
+,Knit Vest
+,Satin Robe
+,Winter Scarf & Coat Set
+,Tweed Jacket
+,
+,
+composition:,Rule of Thirds
+,Center-Framed Portrait
+,Symmetrical Composition
+,Asymmetrical Balance
+,Leading Lines Toward Subject
+,Diagonal Composition
+,Golden Ratio Layout
+,Minimalist Negative Space
+,Close-Up Tight Framing
+,Extreme Close-Up Focus
+,
+,Over-the-Shoulder View
+,Three-Quarter Angle Composition
+,Profile Side View
+,High-Angle Shot
+,Low-Angle Dramatic Shot
+,Dutch Tilt (Slight Angle)
+,Wide Environmental Portrait
+,Full-Body Vertical Composition
+,Half-Body Midshot
+,Foreground–Subject–Background Layering
+,
+,Subject in Motion Blur
+,Depth-of-Field Isolation
+,Soft Bokeh Background
+,Silhouette Against Bright Background
+,Rim-Light Edge Composition
+,Dynamic Off-Center Framing
+,Framed Within a Frame (door/window)
+,Reflections in Glass or Water
+,Subject Partially Obscured
+,Tight Crop on Expression
+,
+,Backlit Glow Composition
+,Atmospheric Perspective Depth
+,Cinematic Widescreen Crop
+,
+,
+background:,modern minimalist living room with clean lines and bright natural light
+,cozy wooden cabin interior with warm fireplace glow
+,elegant hotel lobby with marble flooring and soft ambient lighting
+,futuristic sci-fi control room with holographic panels
+,Japanese-style tatami room with sliding shoji doors
+,high-end fashion boutique interior with glossy displays
+,modern kitchen island with stainless steel appliances
+,vintage study room filled with books and warm desk lamps
+,spacious art gallery with white walls and spotlights
+,classic European ballroom with chandeliers
+,contemporary office workspace with large windows
+,minimalist studio apartment with neutral colors
+,cinema room with dimmed lights and large projection screen
+,retro 80s arcade with neon lights and pixel cabinets
+,industrial loft with brick walls and metal beams
+,luxury spa interior with warm candles and stone textures
+,photography studio with softboxes and seamless backdrop
+,modern conference hall with LED wall
+,bakery interior with wooden shelves and warm tones
+,high-tech laboratory with monitors and blue lighting
+,university library reading zone with soft seating
+,rooftop lounge bar with warm evening lighting
+,cozy café corner with plants and soft sunlight
+,artist workshop filled with canvases and brushes
+,greenhouse interior with lush greenery and soft mist
+,
+,modern city skyline at golden hour
+,neon-lit downtown street on a rainy night
+,quiet residential alley with soft warm streetlights
+,rooftop view overlooking skyscrapers
+,European old-town street with cobblestone roads
+,peaceful suburban neighborhood under clear sky
+,bustling open marketplace with colorful stalls
+,futuristic megacity with flying vehicles
+,vintage street scene with classic cars
+,seaside promenade with pastel buildings
+,riverside park walkway with sunset lighting
+,street café terrace with umbrellas
+,modern business district with glass towers
+,graffiti-filled urban backstreet
+,high-speed train station platform
+,palm-lined boulevard in warm coastal city
+,night festival street filled with lanterns
+,snowy city street with soft falling snow
+,industrial shipping docks with cranes
+,hilltop overlook above a glowing city
+,old stone bridge crossing a quiet canal
+,urban park with fountains and benches
+,tram street intersection in morning light
+,harbor skyline with sailboats
+,wide pedestrian plaza in a modern city
+,
+,serene lakeside with mist and soft morning light
+,dense green forest with sunbeams through trees
+,snowy mountain peak under clear blue sky
+,wide open meadow with wildflowers
+,desert dunes with soft golden sunset
+,tropical beach with turquoise water
+,autumn forest trail with falling leaves
+,dramatic cliffside overlooking the ocean
+,lavender field at golden hour
+,bamboo forest with soft filtered light
+,waterfall valley surrounded by mossy rocks
+,northern lights shimmering over snowy ground
+,peaceful riverside with slow flowing water
+,volcanic landscape with black rocks
+,quiet countryside road after rain
+,panoramic canyon under bright sunlight
+,lush rice terraces with morning fog
+,sunflower field with clear sky
+,glacial lake with floating ice
+,tropical rainforest canopy
+,misty hills at dawn
+,rocky shoreline with crashing waves
+,alpine village in the mountains
+,serene orchard with blooming trees
+,starry night sky above open grassland
+,
+,Eiffel Tower view from Trocadéro gardens
+,Times Square with glowing billboards
+,Santorini white cliffside houses with blue domes
+,Machu Picchu ancient terraces at sunrise
+,Taj Mahal reflecting in the water pool
+,Great Wall of China stretching along mountain ridge
+,Sydney Opera House and harbor skyline
+,London Tower Bridge at sunset
+,Dubai skyline with Burj Khalifa
+,Rome Colosseum under warm evening light
+,Kyoto torii gate path through the forest
+,Iguazu Falls panorama
+,Petra rose-red canyon city
+,Seoul Namsan Tower cityscape
+,Maldives overwater villas above clear ocean
+,Swiss Alps village with snowy peaks
+,Sahara desert caravan scene
+,Golden Gate Bridge with fog rolling in
+,Icelandic black sand beach with basalt cliffs
+,Angkor Wat temple reflected on water
+,Havana colorful colonial street
+,Morocco blue city alley of Chefchaouen
+,Amsterdam canal houses with boats
+,Cairo pyramids under golden sunlight
+,Singapore Marina Bay skyline at night
+,
+,
+style:,cinematic film look with rich contrast
+,analog 35mm film grain
+,soft pastel aesthetic with gentle tones
+,high-key bright photography
+,low-key dramatic lighting
+,vintage sepia-toned photograph
+,HDR hyper-detailed photography
+,minimalist clean aesthetic
+,dreamy bokeh with shallow depth of field
+,black and white fine art photography
+,neon cyberpunk color palette
+,documentary street photography
+,retro 80s photo filter
+,Polaroid instant photo look
+,soft natural light with warm tones
+,glossy fashion editorial style
+,surrealistic artistic photo treatment
+,dark moody cinematic lighting
+,high-contrast monochrome
+,cottagecore warm nostalgic tone
+,pastel film fade with low saturation
+,golden hour warm sunlight glow
+,cool blue urban night photography
+,matte muted color grading
+,modern smartphone portrait mode look
+,classic Hollywood glamour lighting
+,macro photography with sharp detail
+,luxury magazine cover style
+,futuristic sci-fi light streaks
+,tilt-shift miniature effect
+,watercolor-like soft texture
+,vibrant travel photography aesthetic
+,natural documentary wildlife style
+,editorial street-style fashion
+,crisp commercial product photography
+,warm sunset flare aesthetic
+,soft-focus dreamy portrait
+,film noir dramatic shadows
+,pastel overexposed light leak
+,
+,ultra-realistic 8K sharp clarity
+,muted earth-tone lifestyle photography
+,high saturation pop-art color style
+,nostalgic Y2K digital camera look
+,soft artistic bloom-effect style
+,black-and-gold luxury visual style
+,foggy atmospheric landscape tone
+,monochrome clay-like texture style
+,faded vintage postcard look
+,natural candid lifestyle moment

@@ -16,7 +16,7 @@ class DINKI_photo_specifications:
                         "Bacic 1:2",
                         "Bacic 1.5:2",  
                         "Basic 9:16", 
-                        "Basic 10:16",
+                        "Basic 10:16", 
                         # --- Photo ---
                         "Photo 3:4", 
                         "Photo 3.5:5", 
@@ -38,7 +38,7 @@ class DINKI_photo_specifications:
                         "Super 16 1.66:1",
                         "Super 16 1.78:1",
                     ],
-                    {"default": "Photo 3:4"}
+                    {"default": "Basic 1:1"}
                 ),
                 "orientation": (["Portrait", "Landscape"], {"default": "Portrait"}),
             },

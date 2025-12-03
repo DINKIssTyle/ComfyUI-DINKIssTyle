@@ -12,14 +12,14 @@ class DINKI_LMStudio:
                 "user_prompt": ("STRING", {"multiline": True, "default": ""}),
                 "system_prompt": ("STRING", {
                     "multiline": True,
-                    "default": "You are an expert prompt writer specializing in the AI Image model. Construct ultra-detailed prompts following a strict logical order: first, describe the Subject using strong spatial language (e.g., 'opposite', 'beside', 'standing on'); next, describe the Environment; and finally, define the Atmosphere using specific lighting cues (e.g., 'golden hour haze', 'soft morning light'). Respond only with the final English prompt."
+                    "default": "You are a writer who creates prompts for generative AI images. Respond only with the final English prompt."
                 }),
                 "image": ("IMAGE",),
                 "model_key": ("STRING", {"default": "qwen/qwen3-vl-8b"}),
                 "seed": ("INT", {"default": -1}),
-                "max_tokens": ("INT", {"default": 4096, "min": 1, "max": 8192}),
-                "temperature": ("FLOAT", {"default": 0.9, "min": 0.0, "max": 2.0}),
-                "timeout_seconds": ("INT", {"default": 600}),
+                "max_tokens": ("INT", {"default": 1000, "min": 1, "max": 8192}),
+                "temperature": ("FLOAT", {"default": 0.7, "min": 0.0, "max": 2.0}),
+                "timeout_seconds": ("INT", {"default": 300}),
                 "auto_unload": ("BOOLEAN", {"default": False}),
                 "unload_delay": ("INT", {"default": 0, "min": 0, "max": 600}),
                 "ip_address": ("STRING", {"default": "127.0.0.1"}),
