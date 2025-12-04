@@ -134,13 +134,14 @@ class DINKI_random_prompt:
         inputs = {
             "required": {
                 "text_input": ("STRING", {"multiline": True, "default": "", "placeholder": "Optional prefix text..."}),
+                # [추가] Active 스위치: seed 위에 배치
+                "Active": ("BOOLEAN", {"default": True}), 
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                # [변경] enable_random 스위치 제거됨
             },
             "optional": {}
         }
 
-        # [변경] 리스트 구성: None, Random, 값들...
+        # 리스트 구성: None, Random, 값들...
         for cat_name, values in categories.items():
             if values and len(values) > 0:
                 safe_values = list(values)
@@ -149,7 +150,7 @@ class DINKI_random_prompt:
                 full_list = ["-- None --", "-- Random --"] + safe_values
                 
                 # 2. 기본값은 "-- Random --"
-                default_val = "-- Random --"
+                default_val = "-- None --"
                 
                 inputs["optional"][cat_name] = (full_list, {"default": default_val})
         
@@ -160,8 +161,12 @@ class DINKI_random_prompt:
     FUNCTION = "generate_prompt"
     CATEGORY = "DINKIssTyle/Prompt"
 
-    # [변경] enable_random 인자 제거
-    def generate_prompt(self, text_input, seed, **kwargs):
+    # [수정] Active 인자 추가
+    def generate_prompt(self, text_input, Active, seed, **kwargs):
+        # [추가] Active가 False(끄기) 상태면 텍스트 입력창의 내용만 바로 반환 (Bypass 기능)
+        if not Active:
+            return (text_input,)
+
         rng = random.Random(seed)
         selected_values = []
         
@@ -190,7 +195,7 @@ class DINKI_random_prompt:
                     if col_b and current_category:
                         categories[current_category].append(col_b)
 
-        # 결과 생성 로직 변경
+        # 결과 생성 로직
         for cat in category_order:
             ui_value = kwargs.get(cat, None)
             
