@@ -357,10 +357,13 @@ class DINKI_Empty_Or_Image_Latent:
     def INPUT_TYPES(s):
         return {
             "required": {
+                # [추가] 작동 모드 선택 (Auto: 자동 감지, Bypass: 이미지 무시하고 빈 잠재 생성)
+                "mode": (["Auto", "Bypass"], {"default": "Auto"}),
+                
                 "vae": ("VAE",),
-                "width": ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 8, "tooltip": "Used only if no image is input"}),
-                "height": ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 8, "tooltip": "Used only if no image is input"}),
-                "batch_size": ("INT", {"default": 1, "min": 1, "max": 64, "tooltip": "Used only if no image is input"}),
+                "width": ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 8, "tooltip": "Used only if no image is input or Bypass mode"}),
+                "height": ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 8, "tooltip": "Used only if no image is input or Bypass mode"}),
+                "batch_size": ("INT", {"default": 1, "min": 1, "max": 64, "tooltip": "Used only if no image is input or Bypass mode"}),
                 "denoise": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Denoise strength for img2img. Ignored (set to 1.0) if no image input."}),
             },
             "optional": {
@@ -373,9 +376,9 @@ class DINKI_Empty_Or_Image_Latent:
     FUNCTION = "process"
     CATEGORY = "DINKI/Latent"
 
-    def process(self, vae, width, height, batch_size, denoise, image=None):
-        # 1. 이미지가 연결되어 있는 경우 (img2img)
-        if image is not None:
+    def process(self, mode, vae, width, height, batch_size, denoise, image=None):
+        # 1. [Auto 모드]이고 [이미지]가 연결되어 있는 경우 -> img2img (VAE Encode)
+        if mode == "Auto" and image is not None:
             # 입력된 이미지를 VAE로 인코딩
             pixels = image
             pixels = pixels.to(comfy.model_management.get_torch_device())
@@ -384,13 +387,13 @@ class DINKI_Empty_Or_Image_Latent:
             # 사용자가 설정한 denoise 값 그대로 출력
             return ({"samples": t}, denoise)
 
-        # 2. 이미지가 연결되어 있지 않은 경우 (txt2img / Empty Latent)
+        # 2. [Bypass 모드]이거나 [이미지]가 없는 경우 -> txt2img (Empty Latent)
         else:
             latent_width = width // 8
             latent_height = height // 8
             latent = torch.zeros([batch_size, 4, latent_height, latent_width], device=comfy.model_management.intermediate_device())
             
-            # [중요 변경점] 이미지가 없으면 입력창의 숫자와 무관하게 1.0 강제 출력
+            # 이미지가 없거나 무시되었으므로 denoise 1.0 강제 출력
             return ({"samples": latent}, 1.0)
 
 
