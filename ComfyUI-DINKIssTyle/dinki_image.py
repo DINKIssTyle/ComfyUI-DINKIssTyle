@@ -3,6 +3,7 @@
 import os
 import torch
 import numpy as np
+import comfy.utils
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -187,3 +188,99 @@ class DINKI_ImagePreview:
                 else images
             )
         return (out,)
+
+
+
+
+class DINKI_Image_Resize:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "width": ("INT", {"default": 1024, "min": 0, "max": 8192, "step": 8}),
+                "height": ("INT", {"default": 1024, "min": 0, "max": 8192, "step": 8}),
+                "interpolation": (["nearest", "bilinear", "bicubic", "area", "nearest-exact", "lanczos"],),
+                "keep_proportion": ("BOOLEAN", {"default": False, "label_on": "True (Fit)", "label_off": "False (Stretch)"}),
+                "condition": ([
+                    "always", 
+                    "downscale_if_bigger", 
+                    "upscale_if_smaller", 
+                    "if_bigger_area", 
+                    "if_smaller_area"
+                ],),
+            },
+            "optional": {
+                "image": ("IMAGE",),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "INT", "INT")
+    RETURN_NAMES = ("IMAGE", "width", "height")
+    FUNCTION = "resize_image"
+    CATEGORY = "DINKIssTyle/Image"
+
+    def resize_image(self, width, height, interpolation, keep_proportion, condition, image=None):
+        # 1. 이미지가 입력되지 않았을 때 무시 (None 반환)
+        if image is None:
+            print("[DINKI] Warning: No image input for DINKI Image Resize.")
+            return (None, 0, 0)
+
+        # 현재 이미지 크기 가져오기
+        # ComfyUI Image Shape: [Batch, Height, Width, Channel]
+        _, cur_h, cur_w, _ = image.shape
+
+        # 2. 목표 크기 계산 (비율 유지 여부에 따라)
+        target_w = width
+        target_h = height
+
+        if keep_proportion:
+            # 비율을 유지하면서 목표 박스 안에 맞춤 (Fit)
+            ratio = min(width / cur_w, height / cur_h)
+            target_w = round(cur_w * ratio)
+            target_h = round(cur_h * ratio)
+
+        # 3. 리사이즈 조건(Condition) 체크
+        should_resize = False
+
+        if condition == "always":
+            should_resize = True
+            
+        elif condition == "downscale_if_bigger":
+            # 목표 크기가 현재보다 작을 때만 (축소)
+            if target_w < cur_w or target_h < cur_h:
+                should_resize = True
+                
+        elif condition == "upscale_if_smaller":
+            # 목표 크기가 현재보다 클 때만 (확대)
+            if target_w > cur_w or target_h > cur_h:
+                should_resize = True
+                
+        elif condition == "if_bigger_area":
+            # 현재 픽셀 수가 목표 픽셀 수보다 많으면 (총 면적 기준 축소)
+            if (cur_w * cur_h) > (target_w * target_h):
+                should_resize = True
+                
+        elif condition == "if_smaller_area":
+            # 현재 픽셀 수가 목표 픽셀 수보다 적으면 (총 면적 기준 확대)
+            if (cur_w * cur_h) < (target_w * target_h):
+                should_resize = True
+
+        # 4. 리사이즈 수행 또는 원본 반환
+        if should_resize:
+            # 이미지 채널 변경 [B,H,W,C] -> [B,C,H,W] (comfy.utils.common_upscale용)
+            samples = image.movedim(-1, 1)
+            
+            # 리사이즈 실행
+            resized_samples = comfy.utils.common_upscale(
+                samples, target_w, target_h, interpolation, "disabled"
+            )
+            
+            # 다시 채널 복구 [B,C,H,W] -> [B,H,W,C]
+            final_image = resized_samples.movedim(1, -1)
+            return (final_image, target_w, target_h)
+        else:
+            # 조건에 맞지 않으면 원본 그대로 출력
+            return (image, cur_w, cur_h)

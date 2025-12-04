@@ -53,6 +53,7 @@ from .dinki_ps import (
     DINKI_Resize_And_Pad,
     DINKI_Remove_Pad_From_Image,
     DINKI_ToggleUNetLoader,
+    DINKI_Empty_Or_Image_Latent,
 )
 
 # 4. 이미지 관련 노드 (통합됨: dinki_image.py)
@@ -60,6 +61,7 @@ from .dinki_image import (
     DINKI_ImageSelector,
     DINKI_CrossOutputSwitch,
     DINKI_ImagePreview,
+    DINKI_Image_Resize,
 )
 from .dinki_lmstudio import DINKI_LMStudio
 from .dinki_batchImages import DINKI_BatchImages
@@ -71,6 +73,8 @@ from .dinki_viewer import DINKI_Video_Player
 from .dinki_grid import DINKI_Grid
 from .dinki_base64 import DINKI_Img2Base64, DINKI_Base64Input, DINKI_Base64Viewer
 from .dinki_depth_parallax import DINKI_DepthParallax_MOV
+
+
 
 
 """
@@ -103,6 +107,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Resize_And_Pad": DINKI_Resize_And_Pad,
     "DINKI_Remove_Pad_From_Image": DINKI_Remove_Pad_From_Image,
     "DINKI_ToggleUNetLoader": DINKI_ToggleUNetLoader,
+    "DINKI_Empty_Or_Image_Latent": DINKI_Empty_Or_Image_Latent,
 
     # Others
     "DINKI_ImageSelector": DINKI_ImageSelector,
@@ -120,6 +125,9 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Base64Input": DINKI_Base64Input,
     "DINKI_Base64Viewer": DINKI_Base64Viewer,
     "DINKI_DepthParallax_MOV": DINKI_DepthParallax_MOV,
+    "DINKI_Image_Resize": DINKI_Image_Resize,
+
+
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -143,6 +151,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Resize_And_Pad": "DINKI Resize and Pad Image",
     "DINKI_Remove_Pad_From_Image": "DINKI Remove Pad from Image",
     "DINKI_ToggleUNetLoader": "DINKI UNet Loader (safetensors / GGUF)",
+    "DINKI_Empty_Or_Image_Latent": "DINKI Empty or Image Latent",
 
     # Others
     "DINKI_ImageSelector": "DINKI Image Selector",
@@ -160,6 +169,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Base64Input": "DINKI Base64 String Input",
     "DINKI_Base64Viewer": "DINKI Base64 Image Viewer",
     "DINKI_DepthParallax_MOV": "DINKI Depth Parallax",
+    "DINKI_Image_Resize": "DINKI Image Resize",
+
+
 }
 
 WEB_DIRECTORY = "./js"
