@@ -63,16 +63,30 @@ from .dinki_image import (
     DINKI_ImagePreview,
     DINKI_Image_Resize,
 )
+
+# 5. 뷰어 관련 노드
+from .dinki_viewer import (
+    DINKI_Video_Player,
+)
+
+# 6. 스위치 관련
+from .dinki_switch import (
+    DINKI_Node_Switch,
+    DINKI_String_Switch_RT,
+)
+
+
+
+
 from .dinki_lmstudio import DINKI_LMStudio
 from .dinki_batchImages import DINKI_BatchImages
-from .dinki_node_switch import DINKI_Node_Switch
 from .dinki_photo_specs import DINKI_photo_specifications
 from .dinki_overlay import DINKI_Overlay
 from .dinki_comparer import DINKI_Image_Comparer_MOV
-from .dinki_viewer import DINKI_Video_Player
 from .dinki_grid import DINKI_Grid
 from .dinki_base64 import DINKI_Img2Base64, DINKI_Base64Input, DINKI_Base64Viewer
 from .dinki_depth_parallax import DINKI_DepthParallax_MOV
+
 
 
 
@@ -109,17 +123,23 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_ToggleUNetLoader": DINKI_ToggleUNetLoader,
     "DINKI_Empty_Or_Image_Latent": DINKI_Empty_Or_Image_Latent,
 
+    # Viewer
+    "DINKI_Video_Player": DINKI_Video_Player,
+
+    # Switch
+    "DINKI_Node_Switch": DINKI_Node_Switch,
+    "DINKI_String_Switch_RT": DINKI_String_Switch_RT,
+
+
     # Others
     "DINKI_ImageSelector": DINKI_ImageSelector,
     "DINKI_CrossOutputSwitch": DINKI_CrossOutputSwitch,
     "DINKI_ImagePreview": DINKI_ImagePreview,
     "DINKI_LMStudio": DINKI_LMStudio,
     "DINKI_BatchImages": DINKI_BatchImages,
-    "DINKI_Node_Switch": DINKI_Node_Switch,
     "DINKI_photo_specifications": DINKI_photo_specifications,
     "DINKI_Overlay": DINKI_Overlay,
     "DINKI_Image_Comparer_MOV": DINKI_Image_Comparer_MOV,
-    "DINKI_Video_Player": DINKI_Video_Player,
     "DINKI_Grid": DINKI_Grid,
     "DINKI_Img2Base64": DINKI_Img2Base64,
     "DINKI_Base64Input": DINKI_Base64Input,
@@ -153,17 +173,23 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_ToggleUNetLoader": "DINKI UNet Loader (safetensors / GGUF)",
     "DINKI_Empty_Or_Image_Latent": "DINKI Empty or Image Latent",
 
+    # Viewer
+    "DINKI_Video_Player": "DINKI MP4/WEBM/GIF Player",
+
+    # Switch
+    "DINKI_Node_Switch": "DINKI Node Switch",
+    "DINKI_String_Switch_RT": "DINKI String Switch RT",
+
+
     # Others
     "DINKI_ImageSelector": "DINKI Image Selector",
     "DINKI_CrossOutputSwitch": "DINKI Cross Output Switch",
     "DINKI_ImagePreview": "DINKI Image Signal",
     "DINKI_LMStudio": "DINKI LM Studio Assistant",
     "DINKI_BatchImages": "DINKI Batch Images",
-    "DINKI_Node_Switch": "DINKI Node Switch",
     "DINKI_photo_specifications": "DINKI Photo Specifications",
     "DINKI_Overlay": "DINKI Overlay",
     "DINKI_Image_Comparer_MOV": "DINKI Image Comparer (to Video)",
-    "DINKI_Video_Player": "DINKI MP4/WEBM/GIF Player",
     "DINKI_Grid": "DINKI Grid",
     "DINKI_Img2Base64": "DINKI Image To Base64",
     "DINKI_Base64Input": "DINKI Base64 String Input",
