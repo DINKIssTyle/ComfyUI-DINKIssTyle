@@ -16,7 +16,7 @@ class DINKI_Video_Player:
     RETURN_TYPES = ()
     FUNCTION = "show_video"
     OUTPUT_NODE = True
-    CATEGORY = "DINKIssTyle/Video"
+    CATEGORY = "DINKIssTyle/Viewer"
 
     def show_video(self, filename):
         # 1. 파일명 추출
@@ -35,11 +35,7 @@ class DINKI_Video_Player:
         # 이렇게 보내야 프론트엔드(JS)가 type="temp" 파라미터를 붙여서 요청할 수 있음
         return {"ui": {"video": [{"filename": video_name, "type": source_type, "subfolder": ""}]}}
 
-# Node Mapping
-NODE_CLASS_MAPPINGS = {
-    "DINKI_Video_Player": DINKI_Video_Player
-}
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "DINKI_Video_Player": "DINKI Video Player"
-}
+
+
+

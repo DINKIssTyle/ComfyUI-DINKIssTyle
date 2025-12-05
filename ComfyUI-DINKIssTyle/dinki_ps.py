@@ -374,7 +374,7 @@ class DINKI_Empty_Or_Image_Latent:
     RETURN_TYPES = ("LATENT", "FLOAT")
     RETURN_NAMES = ("LATENT", "denoise")
     FUNCTION = "process"
-    CATEGORY = "DINKI/Latent"
+    CATEGORY = "DINKIssTyle/PS"
 
     def process(self, mode, vae, width, height, batch_size, denoise, image=None):
         # 1. [Auto 모드]이고 [이미지]가 연결되어 있는 경우 -> img2img (VAE Encode)
@@ -395,5 +395,3 @@ class DINKI_Empty_Or_Image_Latent:
             
             # 이미지가 없거나 무시되었으므로 denoise 1.0 강제 출력
             return ({"samples": latent}, 1.0)
-
-

@@ -814,3 +814,83 @@ app.registerExtension({
 });
 
 
+
+// ============================================================
+// 8. DINKI String Switch RT (Fixed & Final)
+// ============================================================
+app.registerExtension({
+    name: "DINKI.StringSwitchRT",
+    async beforeRegisterNodeDef(nodeType, nodeData, app) {
+        if (nodeData.name === "DINKI_String_Switch_RT") {
+            const onNodeCreated = nodeType.prototype.onNodeCreated;
+            
+            nodeType.prototype.onNodeCreated = function () {
+                if (onNodeCreated) onNodeCreated.apply(this, arguments);
+
+                const node = this;
+
+                // 1. 위젯 찾기
+                const comboIndex = node.widgets.findIndex(w => w.name === "select_string");
+                // [변경] 여러 개의 string_ 대신 하나의 input_text 위젯을 찾습니다.
+                const textInputWidget = node.widgets.find(w => w.name === "input_text");
+
+                if (comboIndex === -1 || !textInputWidget) {
+                    console.warn("DINKI Warning: Necessary widgets not found.");
+                    return;
+                }
+
+                // 2. 구버전 UI 호환을 위한 위젯 교체 (이전 답변과 동일 로직)
+                const originalWidget = node.widgets[comboIndex];
+                const originalValue = originalWidget.value;
+                let comboWidget;
+
+                if (originalWidget.type !== "combo") {
+                    node.widgets.splice(comboIndex, 1);
+                    comboWidget = node.addWidget("combo", "select_string", originalValue, originalWidget.callback, { values: [] });
+                    node.widgets.pop();
+                    node.widgets.splice(comboIndex, 0, comboWidget);
+                } else {
+                    comboWidget = originalWidget;
+                }
+
+                // [핵심 변경] 3. 줄 바꿈 기준으로 드랍다운 목록 업데이트
+                const updateCombo = () => {
+                    // 텍스트 박스의 값을 줄바꿈(\n)으로 자릅니다.
+                    // trim()을 사용하여 양쪽 공백을 제거하고, 빈 줄은 필터링(제외)합니다.
+                    const rawText = textInputWidget.value || "";
+                    const lines = rawText.split("\n")
+                                         .map(line => line.trim())
+                                         .filter(line => line.length > 0);
+
+                    comboWidget.options.values = lines;
+
+                    // 현재 선택된 값이 목록에 없으면(예: 텍스트를 지웠을 때) 첫 번째 값 선택
+                    if (!lines.includes(comboWidget.value) && lines.length > 0) {
+                        comboWidget.value = lines[0];
+                    }
+                };
+
+                // 4. 멀티라인 텍스트 위젯에 리스너 연결
+                const originalCallback = textInputWidget.callback;
+                textInputWidget.callback = function (value) {
+                    if (originalCallback) originalCallback.apply(this, arguments);
+                    
+                    // 타이핑 할 때마다 드랍다운 목록 갱신
+                    updateCombo();
+                    
+                    // 캔버스 갱신
+                    app.graph.setDirtyCanvas(true, true);
+                };
+
+                // 5. 초기화
+                requestAnimationFrame(() => {
+                    updateCombo();
+                    // 저장된 값이 유효하다면 복구
+                    if (comboWidget.options.values.includes(originalValue)) {
+                        comboWidget.value = originalValue;
+                    }
+                });
+            };
+        }
+    },
+});
