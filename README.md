@@ -451,6 +451,27 @@ A versatile prompt generator that builds complex prompts using a custom CSV file
 ---
 
 
+## 🔀 DINKI String Switch RT
+
+![String Switch RT](resource/DINKI_String_Switch_RT.gif)
+
+A real-time text utility that converts multi-line text input into a dynamic dropdown menu. It allows you to switch between different text segments (such as prompt variations, styles, or parameters) instantly without disconnecting wires.
+
+* **Dynamic Parsing:** Simply type into the `input_text` field. The node automatically splits the text by new lines (`\n`) to populate the selection menu.
+* **Real-Time Sync:** Updates the dropdown list instantly as you type. * This node currently does not support real-time updates in Nodes 2.0.
+* **Flexible Output:** Can operate as a standalone selector or concatenate with an incoming text stream.
+
+#### 🎛️ Parameters Guide
+
+| Parameter | Description |
+| :--- | :--- |
+| **select_string** | The dynamically generated dropdown menu. Selects one line from the text list below. |
+| **input_text** | Enter your text options here. **Each new line creates a new option** in the dropdown list immediately. |
+| **text_in** | (Optional) Input text to be prepended to the selected output. <br>• If connected: Output = `text_in, selected_string`<br>• If empty: Output = `selected_string` |
+
+---
+
+
 ## ⬆️ DINKI Upscale Latent By
 
 An enhanced latent upscaling node designed for flexibility and pipeline integration. It features a "Snap to Multiple" function to prevent odd-resolution errors.
