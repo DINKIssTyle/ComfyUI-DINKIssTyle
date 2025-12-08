@@ -20,7 +20,7 @@ class DINKI_Node_Switch:
 
     RETURN_TYPES = ()
     FUNCTION = "do_nothing"
-    CATEGORY = "DINKIssTyle/Utils"
+    CATEGORY = "DINKIssTyle/Util"
     OUTPUT_NODE = True
 
     def do_nothing(self, node_ids, active):
@@ -56,7 +56,7 @@ class DINKI_String_Switch_RT:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("combined_text",)
     FUNCTION = "switch_and_combine"
-    CATEGORY = "DINKIssTyle/Utils"
+    CATEGORY = "DINKIssTyle/Util"
 
     # 함수 인자도 input_text로 변경
     def switch_and_combine(self, select_string, input_text, text_in=None):

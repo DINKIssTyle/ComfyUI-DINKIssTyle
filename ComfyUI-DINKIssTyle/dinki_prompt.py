@@ -3,6 +3,7 @@ import csv
 import random
 from server import PromptServer
 from aiohttp import web
+import comfy.samplers
 
 # ============================================================================
 # PART 1: Prompt Loader & Selectors (DINKI_Prompt_List.csv)
@@ -228,3 +229,126 @@ class DINKI_random_prompt:
             final_string = csv_prompt_string
         
         return (final_string,)
+
+
+# ============================================================================
+# PART 3: Sampler Preset (JS Version) (DINKI_Sampler_Preset.csv)
+# ============================================================================
+# [1] API 서버 설정 및 데이터 로드
+SAMPLER_PRESET_DATA = {}
+ALL_PRESETS_LIST = [] # [핵심 수정] 모든 프리셋 이름을 담을 리스트
+
+def load_sampler_presets():
+    global SAMPLER_PRESET_DATA, ALL_PRESETS_LIST
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+    csv_path = os.path.join(current_dir, "csv", "DINKI_Sampler_Preset.csv") 
+    
+    data = {}
+    all_presets = set() # 중복 방지를 위해 set 사용
+
+    if os.path.exists(csv_path):
+        try:
+            with open(csv_path, 'r', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                next(reader, None) # 헤더 스킵
+                for row in reader:
+                    if len(row) >= 4:
+                        model = row[0].strip()
+                        preset = row[1].strip()
+                        sampler = row[2].strip()
+                        scheduler = row[3].strip()
+                        
+                        display_name = f"{preset} [{sampler} / {scheduler}]"
+                        
+                        if model not in data:
+                            data[model] = []
+                        
+                        data[model].append({
+                            "name": preset,
+                            "sampler": sampler,
+                            "scheduler": scheduler,
+                            "display": display_name
+                        })
+                        
+                        # [핵심] 백엔드 검증 통과를 위해 모든 이름 수집
+                        all_presets.add(display_name)
+                        
+        except Exception as e:
+            print(f"[DINKI] Sampler CSV Read Error: {e}")
+            
+    # set을 리스트로 변환하고 정렬
+    ALL_PRESETS_LIST = sorted(list(all_presets))
+    return data
+
+# 서버 시작 시 데이터 로드
+SAMPLER_PRESET_DATA = load_sampler_presets()
+
+# JS에서 호출할 API 경로
+@PromptServer.instance.routes.get("/dinki/sampler_presets")
+async def get_dinki_sampler_presets(request):
+    return web.json_response(SAMPLER_PRESET_DATA)
+
+
+# 연결 호환성을 위한 만능 타입
+class AnyType(str):
+    def __ne__(self, __value: object) -> bool:
+        return False
+
+class DINKI_Sampler_Preset:
+    @classmethod
+    def INPUT_TYPES(cls):
+        # 모델 목록 확보
+        model_list = list(SAMPLER_PRESET_DATA.keys()) if SAMPLER_PRESET_DATA else ["No CSV Data"]
+        
+        # [핵심 수정] preset 목록에 "Select Model First"만 넣는 게 아니라,
+        # CSV에 존재하는 '모든 프리셋'을 넣어줍니다.
+        # 이렇게 하면 JS가 어떤 값을 보내도 이 리스트 안에 있으므로 에러가 나지 않습니다.
+        # (화면에는 JS가 필터링해서 보여주므로 사용자는 이 긴 목록을 볼 일이 없습니다)
+        preset_list = ALL_PRESETS_LIST if ALL_PRESETS_LIST else ["Select Model First"]
+        
+        return {
+            "required": {
+                "model": (model_list,), 
+                "preset": (preset_list,), 
+            }
+        }
+
+    # 혹시 모를 검증 에러 방지를 위한 2중 안전장치
+    @classmethod
+    def VALIDATE_INPUTS(cls, input_types):
+        return True
+
+    RETURN_TYPES = (AnyType("*"), AnyType("*"), "STRING")
+    RETURN_NAMES = ("sampler_name", "scheduler_name", "info")
+    FUNCTION = "process"
+    CATEGORY = "DINKIssTyle/Utils"
+
+    def process(self, model, preset):
+        target_sampler = "euler"
+        target_scheduler = "normal"
+        
+        # 메모리 데이터에서 매칭되는 값 찾기
+        found = False
+        if model in SAMPLER_PRESET_DATA:
+            for p in SAMPLER_PRESET_DATA[model]:
+                if p["display"] == preset:
+                    target_sampler = p["sampler"]
+                    target_scheduler = p["scheduler"]
+                    found = True
+                    break
+        
+        # 만약 정확한 매칭을 못 찾았을 경우 (JS와 Python 싱크 문제 등)
+        # 1. 전체 데이터에서라도 이름이 같은 걸 찾아봅니다.
+        if not found:
+            for m_key, m_val in SAMPLER_PRESET_DATA.items():
+                for p in m_val:
+                    if p["display"] == preset:
+                        target_sampler = p["sampler"]
+                        target_scheduler = p["scheduler"]
+                        found = True
+                        break
+                if found: break
+
+        info = f"Model: {model} | Preset: {preset}"
+        
+        return (target_sampler, target_scheduler, info)

@@ -1,0 +1,8 @@
+Model,Preset Name,Sampler,Scheduler
+Z-Image Turbo,Clean Base,euler,simple
+Z-Image Turbo,Balanced Default,euler_ancestral,FlowMatchEulerDiscreteScheduler
+Z-Image Turbo,Soft Skin Tone,euler_ancestral,beta
+Z-Image Turbo,Detailed Background,euler_ancestral,ddim_uniform
+Z-Image Turbo,Quality Equalizer,dpmpp_sde,beta
+Z-Image Turbo,Diverse Variants,dpmpp_sde,ddim_uniform
+Z-Image Turbo,Ultra Sharpen,res_2s,beta

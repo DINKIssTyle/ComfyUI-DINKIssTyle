@@ -894,3 +894,160 @@ app.registerExtension({
         }
     },
 });
+
+
+
+// ============================================================
+// 9. DINKI Note
+// ============================================================
+app.registerExtension({
+    name: "DINKI.Note.Display",
+    async beforeRegisterNodeDef(nodeType, nodeData, app) {
+        // "DINKI Note" 노드에만 적용
+        if (nodeData.name === "DINKI_Note") {
+            
+            // 노드가 생성될 때 기본 크기를 좀 더 크게 설정
+            const onNodeCreated = nodeType.prototype.onNodeCreated;
+            nodeType.prototype.onNodeCreated = function() {
+                if (onNodeCreated) onNodeCreated.apply(this, arguments);
+                this.setSize([300, 300]); // 기본 크기 (가로, 세로)
+            };
+
+            // 화면 그리기 함수 오버라이딩
+            const onDrawForeground = nodeType.prototype.onDrawForeground;
+            nodeType.prototype.onDrawForeground = function(ctx) {
+                if (onDrawForeground) onDrawForeground.apply(this, arguments);
+
+                // 1. 위젯 값 가져오기
+                const directionWidget = this.widgets.find(w => w.name === "direction");
+                const textWidget = this.widgets.find(w => w.name === "text");
+
+                const directionValue = directionWidget ? directionWidget.value : "";
+                const textValue = textWidget ? textWidget.value : "";
+
+                // 위젯 영역 아래부터 그리기를 시작하기 위해 높이 계산 (대략적인 위젯 높이 제외)
+                // 위젯들이 가려지지 않도록 margin을 줍니다.
+                const startY = 100; 
+
+                ctx.save(); // 그리기 상태 저장
+
+                // --- 2. 이모지 그리기 (아주 크게) ---
+                ctx.font = "80px Arial"; // 이모지 크기 설정
+                ctx.fillStyle = "white";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "top";
+                
+                // 노드 가로 중앙에 이모지 배치
+                ctx.fillText(directionValue, this.size[0] / 2, startY);
+
+                // --- 3. 텍스트 그리기 (크게) ---
+                const fontSize = 24; // ★ 여기서 텍스트 폰트 크기 조절 ★
+                ctx.font = "bold " + fontSize + "px Arial"; 
+                ctx.fillStyle = "#ddd"; // 글자색 (밝은 회색)
+                
+                // 이모지 아래로 위치 잡기
+                let textY = startY + 90; 
+                const lineHeight = fontSize * 1.4;
+                const maxWidth = this.size[0] - 20; // 좌우 여백 10px씩
+
+                // 텍스트 줄바꿈 처리 (Word Wrap)
+                const words = textValue.split('\n'); // 엔터키 기준 먼저 분리
+                
+                for (let i = 0; i < words.length; i++) {
+                    const line = words[i];
+
+                    let tempLine = "";
+                    const chars = line.split("");
+                    
+                    for(let n = 0; n < chars.length; n++) {
+                        let testLine = tempLine + chars[n];
+                        let metrics = ctx.measureText(testLine);
+                        let testWidth = metrics.width;
+                        
+                        if (testWidth > maxWidth && n > 0) {
+                            ctx.fillText(tempLine, this.size[0] / 2, textY);
+                            tempLine = chars[n];
+                            textY += lineHeight;
+                        } else {
+                            tempLine = testLine;
+                        }
+                    }
+                    ctx.fillText(tempLine, this.size[0] / 2, textY);
+                    textY += lineHeight;
+                }
+
+                ctx.restore(); // 그리기 상태 복구
+            };
+        }
+    },
+});
+
+
+// ============================================================
+// 10. DINKI Sampler Preset
+// ============================================================
+app.registerExtension({
+    name: "DINKI.SamplerPreset",
+    async nodeCreated(node, app) {
+        if (node.comfyClass !== "DINKI_Sampler_Preset_JS") return;
+
+        const modelWidget = node.widgets.find((w) => w.name === "model");
+        const presetWidget = node.widgets.find((w) => w.name === "preset");
+
+        if (!modelWidget || !presetWidget) return;
+
+        // API 데이터 가져오기
+        const response = await api.fetchApi("/dinki/sampler_presets");
+        if (response.status !== 200) {
+            presetWidget.options.values = ["API Error"];
+            return;
+        }
+        const presetData = await response.json();
+
+        // === [핵심 수정] 프리셋 목록 업데이트 함수 ===
+        // targetValue: 이 값이 목록에 있다면 그 값을 선택하고(불러오기 복구), 없다면 첫 번째 값 선택
+        const updatePresets = (selectedModel, targetValue = null) => {
+            const presets = presetData[selectedModel];
+            
+            if (presets && presets.length > 0) {
+                // 1. 목록 갱신
+                const newOptions = presets.map(p => p.display);
+                presetWidget.options.values = newOptions;
+
+                // 2. 값 설정 로직 (저장된 값 유지 vs 초기화)
+                if (targetValue && newOptions.includes(targetValue)) {
+                    // 저장된 값(targetValue)이 현재 목록에 유효하게 존재하면 유지
+                    presetWidget.value = targetValue;
+                } else {
+                    // 유효하지 않거나 새로운 모델 선택 시 첫 번째 값으로 초기화
+                    presetWidget.value = newOptions[0];
+                }
+            } else {
+                presetWidget.options.values = ["No Presets Found"];
+                presetWidget.value = "No Presets Found";
+            }
+
+            node.setDirtyCanvas(true, true); 
+        };
+
+        // 모델 변경 콜백 (사용자가 직접 변경 시)
+        const originalCallback = modelWidget.callback;
+        modelWidget.callback = function (value) {
+            // 사용자가 모델을 바꿀 때는 기존 프리셋이 의미가 없으므로 
+            // 두 번째 인자를 null로 주어 첫 번째 값으로 리셋시킴
+            updatePresets(value, null);
+            
+            if (originalCallback) {
+                originalCallback.call(this, value);
+            }
+        };
+
+        // === [핵심 수정] 초기 실행 로직 ===
+        // 노드가 생성될 때(워크플로우 로딩 시)
+        if (modelWidget.value) {
+            // 현재 저장되어 있는 프리셋 값(presetWidget.value)을 
+            // updatePresets 함수에 전달하여 유지 시도
+            updatePresets(modelWidget.value, presetWidget.value);
+        }
+    }
+});

@@ -33,6 +33,7 @@ from .dinki_prompt import (
     DINKI_PromptSelectorLive,
     DINKI_random_prompt,
     prompt_loader,
+    DINKI_Sampler_Preset,
 )
 
 # 2. Color & Correction 관련 노드 (dinki_color.py)
@@ -75,7 +76,10 @@ from .dinki_switch import (
     DINKI_String_Switch_RT,
 )
 
-
+# 7. 도구 관련
+from .dinki_tool import (
+    DINKI_Note,
+)
 
 
 from .dinki_lmstudio import DINKI_LMStudio
@@ -105,6 +109,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_PromptSelector": DINKI_PromptSelector,
     "DINKI_PromptSelectorLive": DINKI_PromptSelectorLive,
     "DINKI_random_prompt": DINKI_random_prompt,
+    "DINKI_Sampler_Preset": DINKI_Sampler_Preset,
 
     # Color & Correction
     "DINKI_adobe_xmp": DINKI_adobe_xmp,
@@ -129,6 +134,9 @@ NODE_CLASS_MAPPINGS = {
     # Switch
     "DINKI_Node_Switch": DINKI_Node_Switch,
     "DINKI_String_Switch_RT": DINKI_String_Switch_RT,
+
+    # Tool
+    "DINKI_Note": DINKI_Note,
 
 
     # Others
@@ -155,6 +163,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_PromptSelector": "DINKI CSV Prompt Selector",
     "DINKI_PromptSelectorLive": "DINKI CSV Prompt Selector (Live)",
     "DINKI_random_prompt": "DINKI Random Prompt",
+    "DINKI_Sampler_Preset": "DINKI Sampler Preset",
 
     # Color & Correction
     "DINKI_adobe_xmp": "DINKI Adobe XMP",
@@ -179,6 +188,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # Switch
     "DINKI_Node_Switch": "DINKI Node Switch",
     "DINKI_String_Switch_RT": "DINKI String Switch RT",
+
+    # Tool
+    "DINKI_Note": "DINKI Note",
 
 
     # Others

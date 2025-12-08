@@ -223,10 +223,12 @@ class DINKI_Image_Resize:
     CATEGORY = "DINKIssTyle/Image"
 
     def resize_image(self, width, height, interpolation, keep_proportion, condition, image=None):
-        # 1. 이미지가 입력되지 않았을 때 무시 (None 반환)
+        # 1. 이미지가 입력되지 않았을 때 (Bypass 포함) 처리
         if image is None:
-            print("[DINKI] Warning: No image input for DINKI Image Resize.")
-            return (None, 0, 0)
+            print("[DINKI] Warning: No image input for DINKI Image Resize. Sending 1x1 Dummy.")
+            # 1x1 검은색 텐서 생성 (B, H, W, C)
+            empty_image = torch.zeros((1, 1, 1, 3), dtype=torch.float32, device="cpu")
+            return (empty_image, 1, 1)
 
         # 현재 이미지 크기 가져오기
         # ComfyUI Image Shape: [Batch, Height, Width, Channel]
