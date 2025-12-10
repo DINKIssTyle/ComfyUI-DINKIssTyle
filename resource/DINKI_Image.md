@@ -52,7 +52,7 @@ To properly overlay a logo with a transparent background:
 
 
 ## 📸 DINKI Photo Specifications
-![Preview](resource/DINKI_photo_specifications.png)
+![Preview](DINKI_photo_specifications.png)
 
 A smart utility node designed to calculate the **optimal resolution** for AI generation by selecting target **megapixels** and **real-world standard aspect ratios**.
 
