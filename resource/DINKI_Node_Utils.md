@@ -9,20 +9,20 @@
 
 
 ## 📍 DINKI Anchor
-![Preview](DINKI_Anchor.gif)
+![Preview](DINKI_Anchor.gif)  
 This node lets you quickly jump to any desired location using a hotkey, and also allows a single shortcut to cycle through multiple zoom-in and zoom-out levels sequentially.
 
 ---
 
 ## 🧭 DINKI Auto Focus
-![Preview](DINKI_Auto_Focus.gif)
+![Preview](DINKI_Auto_Focus.gif)  
 Automatically moves to the selected node and applies a custom zoom level.
 
 ---
 
 
 ## 🎚️ DINKI Node Switch
-![Preview](DINKI_Node_Switch.gif)
+![Preview](DINKI_Node_Switch.gif)  
 A logic utility node that acts as a **remote control** for your workflow. It allows you to **toggle the Bypass status** of multiple target nodes simultaneously using a simple switch.
 
 Perfect for creating "Control Panels" in complex workflows, allowing you to turn entire sections (like Upscaling, Face Detailer, or LoRA stacks) on or off without hunting for individual nodes.
@@ -53,7 +53,7 @@ Perfect for creating "Control Panels" in complex workflows, allowing you to turn
 
 
 ## 🕵️ DINKI Node Check
-![Preview](DINKI_Node_Check.gif)
+![Preview](DINKI_Node_Check.gif)  
 This node for quickly checking the ID of any selected node—even when the global “Show Node ID” option is turned off.
 
 
