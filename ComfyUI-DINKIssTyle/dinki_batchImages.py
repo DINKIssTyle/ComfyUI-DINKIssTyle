@@ -64,11 +64,3 @@ class DINKI_BatchImages:
             batch = torch.cat(processed_images, dim=0)
             return (batch,)
 
-# 요청하신 매핑 규칙 적용
-NODE_CLASS_MAPPINGS = {
-    "DINKI_BatchImages": DINKI_BatchImages,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "DINKI_BatchImages": "DINKI Batch Images",
-}

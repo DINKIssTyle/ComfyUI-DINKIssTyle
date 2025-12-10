@@ -184,10 +184,10 @@ class DINKI_DepthParallax_MOV:
                 imageio.mimsave(full_path, generated_frames, format=format, **writer_kwargs)
 
             if not preview_mode:
-                print(f"DINKI Result saved to: {full_path}")
+                print(f"[🅳INKIssTyle - Result] saved to: {full_path}")
             
         except Exception as e:
-            print(f"Error saving result: {e}")
+            print(f"[🅳INKIssTyle - Error] saving result: {e}")
             return ("",)
 
         # 5. UI 업데이트 (type에 따라 temp/output 구분됨)

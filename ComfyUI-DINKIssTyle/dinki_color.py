@@ -21,7 +21,7 @@ if not os.path.exists(xmp_dir):
     try:
         os.makedirs(xmp_dir, exist_ok=True)
     except Exception as e:
-        print(f"Failed to create adobe_xmp directory: {e}")
+        print(f"[🅳INKIssTyle - Failed] to create adobe_xmp directory: {e}")
 folder_paths.add_model_folder_path("adobe_xmp", xmp_dir)
 
 # 2. LUTs
@@ -30,7 +30,7 @@ if not os.path.exists(luts_dir):
     try:
         os.makedirs(luts_dir, exist_ok=True)
     except Exception as e:
-        print(f"Failed to create luts directory: {e}")
+        print(f"[🅳INKIssTyle - Failed] to create luts directory: {e}")
 folder_paths.add_model_folder_path("luts", luts_dir)
 
 
@@ -178,7 +178,7 @@ class DINKI_adobe_xmp:
                         if tag in [f"ToneCurve{color}", f"ToneCurvePV2012{color}"]:
                             seq = child.find(".//{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Seq")
                             if seq: params[f"ToneCurve{color}"] = parse_seq(", ".join([li.text for li in seq.findall(".//{http://www.w3.org/1999/02/22-rdf-syntax-ns#}li")]))
-        except Exception as e: print(f"[Warning] Failed to parse XMP {file_path}: {e}")
+        except Exception as e: print(f"[🅳INKIssTyle - Warning] Failed to parse XMP {file_path}: {e}")
         return params
 
     def apply_hsl(self, img, p, device):
@@ -604,7 +604,7 @@ class DINKI_Color_Lut:
             self._loaded_luts[lut_path] = lut_tensor
             return lut_tensor
         except Exception as e:
-            print(f"[Error] Failed to load LUT {lut_name}: {e}")
+            print(f"[🅳INKIssTyle - Error] Failed to load LUT {lut_name}: {e}")
             return None
 
     def apply_lut(self, image, lut_name, strength):

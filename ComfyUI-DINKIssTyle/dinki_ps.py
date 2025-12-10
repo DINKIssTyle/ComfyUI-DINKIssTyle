@@ -199,7 +199,7 @@ class DINKI_Remove_Pad_From_Image:
             pad_info_tuple = pad_info[0]
             
         if not isinstance(pad_info_tuple, (tuple, list)) or len(pad_info_tuple) < 5:
-            print(f"[DINKI_Remove_Pad] Invalid pad_info: {pad_info}, bypassing.")
+            print(f"[🅳INKIssTyle - Remove_Pad] Invalid pad_info: {pad_info}, bypassing.")
             return (input_image,)
 
         left, top, right, bottom, original_size = pad_info_tuple[:5]

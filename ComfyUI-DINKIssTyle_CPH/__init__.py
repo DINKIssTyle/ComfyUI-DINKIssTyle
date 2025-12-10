@@ -34,10 +34,10 @@ def auto_clean_and_normalize_input():
         input_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../input"))
 
     if not os.path.exists(input_dir):
-        print(f"[DINKIssTyle] 'input' directory not found: {input_dir}")
+        print(f"[🅳INKIssTyle] 'input' directory not found: {input_dir}")
         return
 
-    print(f"\n[DINKIssTyle] Scanning input folder: {input_dir}")
+    print(f"\n[🅳INKIssTyle] Scanning input folder: {input_dir}")
     
     renamed_count = 0
     deleted_count = 0
@@ -87,14 +87,14 @@ def auto_clean_and_normalize_input():
                 
                 try:
                     os.rename(full_path, new_full_path)
-                    print(f"   [DINKIssTyle - RENAME] {fname} -> {os.path.basename(new_full_path)}")
+                    print(f"   [🅳INKIssTyle - RENAME] {fname} -> {os.path.basename(new_full_path)}")
                     renamed_count += 1
                 except Exception as e:
-                    print(f"   [DINKIssTyle - ERROR] Failed to rename {fname}: {e}")
+                    print(f"   [🅳INKIssTyle - ERROR] Failed to rename {fname}: {e}")
 
     # 결과 리포트
     if renamed_count > 0 or deleted_count > 0:
-        print(f"[DINKIssTyle] Done. Renamed: {renamed_count}, Deleted: {deleted_count} files.\n")
+        print(f"[🅳INKIssTyle] Done. Renamed: {renamed_count}, Deleted: {deleted_count} files.\n")
     else:
         # 변경사항 없으면 로그 생략 (원하면 주석 해제)
         # print("[DINKIssTyle] System Clean. No actions needed.\n")

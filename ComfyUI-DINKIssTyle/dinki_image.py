@@ -225,7 +225,7 @@ class DINKI_Image_Resize:
     def resize_image(self, width, height, interpolation, keep_proportion, condition, image=None):
         # 1. 이미지가 입력되지 않았을 때 (Bypass 포함) 처리
         if image is None:
-            print("[DINKI] Warning: No image input for DINKI Image Resize. Sending 1x1 Dummy.")
+            print("[🅳INKIssTyle - Warning]: No image input for DINKI Image Resize. Sending 1x1 Dummy.")
             # 1x1 검은색 텐서 생성 (B, H, W, C)
             empty_image = torch.zeros((1, 1, 1, 3), dtype=torch.float32, device="cpu")
             return (empty_image, 1, 1)

@@ -16,7 +16,7 @@ def is_installed(package):
     return spec is not None
 
 def install_package(package):
-    print(f"## DINKI Node: Installing missing package: {package}")
+    print(f"## 🅳INKIssTyle: Installing missing package: {package}")
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
 for package in packages:

@@ -45,7 +45,7 @@ class DINKI_LMStudio:
             pil_img.save(buf, format="PNG")
             return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
         except Exception as e:
-            print(f"Image conversion error: {e}")
+            print(f"[🅳INKIssTyle - Error]Image conversion: {e}")
             return None
 
     # --- main ---

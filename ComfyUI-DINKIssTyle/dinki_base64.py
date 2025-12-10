@@ -22,7 +22,7 @@ class DINKI_Img2Base64:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("base64_string",)
     FUNCTION = "encode_image"
-    CATEGORY = "DINKIssTyle/Util"
+    CATEGORY = "DINKIssTyle/Utils"
     
     def encode_image(self, image):
         # ComfyUI의 이미지는 Tensor (Batch, H, W, C) 형태이며 0-1 범위입니다.
@@ -57,7 +57,7 @@ class DINKI_Base64Input:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("base64_string",)
     FUNCTION = "pass_string"
-    CATEGORY = "DINKIssTyle/Util"
+    CATEGORY = "DINKIssTyle/Utils"
 
     def pass_string(self, base64_string):
         return (base64_string,)
@@ -80,7 +80,7 @@ class DINKI_Base64Viewer:
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode_and_view"
-    CATEGORY = "DINKIssTyle/Util"
+    CATEGORY = "DINKIssTyle/Utils"
     OUTPUT_NODE = True
 
     def decode_and_view(self, base64_string):
@@ -109,7 +109,7 @@ class DINKI_Base64Viewer:
             return {"ui": {"images": results}, "result": (image_tensor,)}
 
         except Exception as e:
-            print(f"[DINKI Error] Base64 decoding failed: {e}")
+            print(f"[🅳INKIssTyle - Error] Base64 decoding failed: {e}")
             # 에러 발생 시 빈 검정 이미지 반환 (크래시 방지)
             empty_img = torch.zeros((1, 512, 512, 3))
             return {"ui": {"images": []}, "result": (empty_img,)}

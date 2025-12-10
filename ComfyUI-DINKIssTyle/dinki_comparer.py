@@ -192,7 +192,7 @@ class DINKI_Image_Comparer_MOV:
         imageio.mimsave(full_path, frames, format=format, **writer_kwargs)
         
         if not preview_mode:
-            print(f"DINKI Comparer saved to: {full_path}")
+            print(f"🅳INKIssTyle - Comparer saved to: {full_path}")
 
         # UI 업데이트 및 파일 경로 리턴 (UI에 보여주기 위해 딕셔너리 구조 사용)
         return {"ui": {"images": [{"filename": file_name_with_ext, "subfolder": subfolder, "type": type_name}]}, 

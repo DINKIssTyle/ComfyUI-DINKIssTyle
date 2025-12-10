@@ -31,11 +31,11 @@ class PromptLoader:
                 if self.prompt_data:
                     pass 
                 else:
-                    print("⚠️ DINKI: DINKI_Prompt_List.csv is empty.")
+                    print("⚠️ 🅳INKIssTyle - DINKI_Prompt_List.csv is empty.")
             except Exception as e:
-                print(f"❌ DINKI: Error reading CSV: {e}")
+                print(f"❌ 🅳INKIssTyle - Error reading CSV: {e}")
         else:
-            print(f"⚠️ DINKI: CSV file not found at {file_path}")
+            print(f"⚠️ 🅳INKIssTyle - CSV file not found at {file_path}")
 
     def get_prompt_by_title(self, title):
         return self.prompt_data.get(title, "")
@@ -129,9 +129,9 @@ class DINKI_random_prompt:
                         if col_b and current_category:
                             categories[current_category].append(col_b)
             except Exception as e:
-                print(f"[DinkiRandomPrompt] Error reading CSV: {e}")
+                print(f"[🅳INKIssTyle - Random Prompt] Error reading CSV: {e}")
         else:
-            print(f"[DinkiRandomPrompt] CSV file not found at: {file_path}")
+            print(f"[🅳INKIssTyle - Random Prompt] CSV file not found at: {file_path}")
 
         inputs = {
             "required": {
@@ -275,7 +275,7 @@ def load_sampler_presets():
                         all_presets.add(display_name)
                         
         except Exception as e:
-            print(f"[DINKI] Sampler CSV Read Error: {e}")
+            print(f"[🅳INKIssTyle - Error] Sampler CSV Read: {e}")
             
     # set을 리스트로 변환하고 정렬
     ALL_PRESETS_LIST = sorted(list(all_presets))
