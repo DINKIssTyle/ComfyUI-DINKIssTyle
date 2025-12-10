@@ -4,6 +4,7 @@ import random
 from server import PromptServer
 from aiohttp import web
 import comfy.samplers
+import sys
 
 # ============================================================================
 # PART 1: Prompt Loader & Selectors (DINKI_Prompt_List.csv)
@@ -352,3 +353,9 @@ class DINKI_Sampler_Preset:
         info = f"Model: {model} | Preset: {preset}"
         
         return (target_sampler, target_scheduler, info)
+
+
+
+
+
+

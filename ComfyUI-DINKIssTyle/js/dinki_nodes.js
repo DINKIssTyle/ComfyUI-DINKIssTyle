@@ -1051,3 +1051,81 @@ app.registerExtension({
         }
     }
 });
+
+
+// ============================================================
+// 11. DINKI Node Check
+// ============================================================
+app.registerExtension({
+    name: "Dinki.NodeCheck",
+    async setup() {
+        // 그래프가 로드된 후 실행
+        const originalOnSelectionChange = LGraphCanvas.prototype.processNodeSelected;
+        const canvas = app.canvas;
+        const originalSelectionChange = canvas.onSelectionChange;
+        
+        canvas.onSelectionChange = function(nodes) {
+            // 원래 기능 실행
+            if (originalSelectionChange) {
+                originalSelectionChange.apply(this, arguments);
+            }
+
+            // 1. 현재 선택된 노드 찾기
+            let selectedNodeId = "None";
+            const selected = Object.values(canvas.selected_nodes || {});
+            
+            if (selected.length > 0) {
+                const targetNode = selected[selected.length - 1];
+                selectedNodeId = String(targetNode.id);
+                // 디버깅용: 콘솔에 선택된 ID 출력 (F12 눌러서 확인 가능)
+                console.log("DINKI Check: Selected ID =", selectedNodeId);
+            }
+
+            // 2. 화면에 있는 모든 'DINKI_Node_Check' 노드 찾기
+            const graph = app.graph;
+            if (!graph) return;
+
+            // [수정됨] findNodesByClass -> findNodesByType
+            // ComfyUI에서 노드 타입 문자열("DINKI_Node_Check")로 찾을 때는 ByType을 써야 합니다.
+            const checkNodes = graph.findNodesByType("DINKI_Node_Check");
+            
+            // 3. 찾은 노드들의 위젯 값 업데이트
+            if (checkNodes && checkNodes.length > 0) {
+                checkNodes.forEach(node => {
+                    if (node.widgets && node.widgets[0]) {
+                        // 값이 다를 때만 업데이트
+                        if (node.widgets[0].value !== selectedNodeId) {
+                            node.widgets[0].value = selectedNodeId;
+                            node.setDirtyCanvas(true, true); 
+                        }
+                    }
+                });
+            }
+        };
+    },
+    
+    nodeCreated(node, app) {
+        if (node.comfyClass === "DINKI_Node_Check") {
+            if (node.widgets && node.widgets[0]) {
+                setTimeout(() => {
+                    if (node.widgets[0].inputEl) {
+                        node.widgets[0].inputEl.readOnly = true;
+                        node.widgets[0].inputEl.style.opacity = 0.6;
+                    }
+                }, 100);
+            }
+        }
+    }
+});
+
+
+
+
+
+
+
+
+
+
+
+

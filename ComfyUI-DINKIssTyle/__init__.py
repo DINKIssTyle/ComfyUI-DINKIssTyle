@@ -79,6 +79,7 @@ from .dinki_switch import (
 # 7. 도구 관련
 from .dinki_tool import (
     DINKI_Note,
+    DINKI_Node_Check,
 )
 
 
@@ -137,6 +138,7 @@ NODE_CLASS_MAPPINGS = {
 
     # Tool
     "DINKI_Note": DINKI_Note,
+    "DINKI_Node_Check": DINKI_Node_Check,
 
 
     # Others
@@ -191,6 +193,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # Tool
     "DINKI_Note": "DINKI Note",
+    "DINKI_Node_Check": "DINKI Node Check",
 
 
     # Others
