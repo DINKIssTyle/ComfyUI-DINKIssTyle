@@ -2,7 +2,7 @@
 - [Comparison Video Tools](DINKI_Video_Tools.md)
 - [Image](DINKI_Image.md)
 - [Color Nodes](DINKI_Color_Nodes.md)
-- [LM Studio Assistant and Batch Images](DINKI_LM_Studio_Assistant.md)
+- [LM Studio Assistant](DINKI_LM_Studio_Assistant.md)
 - [Prompts and Strings](DINKI_Prompt_and_String.md)
 - [Node Utilities](DINKI_Node_Utils.md)
 - [Internal Processing](DINKI_PS.md)
