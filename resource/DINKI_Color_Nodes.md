@@ -1,5 +1,5 @@
 [Home](./README.md)
-- [Comprision Video Tools](DINKI_Video_Tools.md)
+- [Comparison Video Tools](DINKI_Video_Tools.md)
 - [Image](DINKI_Image.md)
 - [Color Nodes](DINKI_Color_Nodes.md)
 - [LM Studio Assistant and Batch Images](DINKI_LM_Studio_Assistant.md)

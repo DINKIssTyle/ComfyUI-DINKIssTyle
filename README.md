@@ -5,7 +5,7 @@ These nodes are primarily designed for my own workflow using **Qwen-Image**, **Z
 Using them with other models may cause unexpected issues.
 
 
-- [Comprision Video Tools](resource/DINKI_Video_Tools.md)
+- [Comparison Video Tools](resource/DINKI_Video_Tools.md)
 - [Image](resource/DINKI_Image.md)
 - [Color Nodes](resource/DINKI_Color_Nodes.md)
 - [LM Studio Assistant and Batch Images](resource/DINKI_LM_Studio_Assistant.md)
