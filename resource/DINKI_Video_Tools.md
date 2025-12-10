@@ -1,3 +1,12 @@
+[Home](./README.md)
+- [Comprision Video Tools](resource/DINKI_Video_Tools.md)
+- [Image](resource/DINKI_Image.md)
+- [Color Nodes](resource/DINKI_Color_Nodes.md)
+- [LM Studio Assistant and Batch Images](resource/DINKI_LM_Studio_Assistant.md)
+- [Prompts and Strings](resource/DINKI_Prompt_and_String.md)
+- [Node Utilities](resource/DINKI_Utils.md)
+- [Internal Processing](resource/DINKI_PS.md)
+
 ## 🎬 DINKI Video Tools
 ![Preview](resource/DINKI_comparer.gif)  
 ![Preview](resource/DINKI_comparer.png)  
@@ -44,46 +53,3 @@ To maintain the **original quality and resolution** of your input images:
 | Parameter | Description |
 | :--- | :--- |
 | **filename** | Connect the output `filename` string from the **Image Comparer** node here. |
-
-
----
-
-
-## 🖼️ DINKI Overlay
-![Preview](resource/DINKI_Overlay.png?v=2)
-
-A powerful and versatile ComfyUI node designed to add **watermarks, copyright text, subtitles, and logo overlays** to your generated images with professional precision.
-
-#### ✨ Key Features
-
-* **Dual Layering System:** Add **Text** and **Image** overlays simultaneously or independently using simple toggle switches.
-* **Advanced Text Styling:**
-    * **Custom Fonts:** Automatically detects `.ttf` and `.otf` files in the `fonts` folder for easy dropdown selection.
-    * **Stroke (Outline):** Add colored outlines to your text for better visibility on complex backgrounds.
-    * **Drop Shadow:** Create depth with adjustable shadow position (offset), blur (spread), and opacity.
-    * **Multiline Support:** Perfect for subtitles or long copyright notices with automatic line spacing handling.
-* **Precise Positioning:** Choose from **7 preset positions** (e.g., Top-Left, Bottom-Center, Center) and fine-tune with percentage-based **margins**.
-* **Adaptive Sizing:** Scale text and logos relative to the source image size (%) for consistent results across different resolutions (SDXL, Flux, etc.).
-* **Transparency Control:** Full support for **Alpha/Masks** (transparent PNGs) and adjustable opacity (0-100%) for both text and images.
-
-#### 📂 How to Add Custom Fonts
-1.  Go to the node's directory: `~/ComfyUI/custom_nodes/ComfyUI-DINKIssTyle/fonts/`
-2.  Paste your `.ttf` or `.otf` font files into this folder.
-3.  Restart ComfyUI. Your fonts will automatically appear in the **`font_name`** dropdown list.
-
-#### 💡 Usage Tip for Transparent PNGs (Logos)
-To properly overlay a logo with a transparent background:
-1.  Connect the `IMAGE` output of your **Load Image** node to `overlay_image`.
-2.  Connect the `MASK` output to `overlay_mask`.
-3.  *(Optional)* Use the `overlay_opacity` slider to blend the logo with the background.
-
-#### 🎛️ Input Parameters
-
-| Parameter | Description |
-| :--- | :--- |
-| **font_name** | Select a font from the `fonts` folder. |
-| **text_content** | Enter your text here. Supports multiple lines (enter key). |
-| **text_opacity** | Adjust text transparency (0-100). |
-| **enable_stroke** | Toggle text outline. Set color and width. |
-| **enable_shadow** | Toggle drop shadow. Adjust offset (X/Y), spread (blur), and opacity. |
-| **overlay_mask** | (Optional) Connect a mask here to support transparent PNG logos. |
