@@ -36,18 +36,39 @@ class DINKI_Node_Check:
     def INPUT_TYPES(s):
         return {
             "required": {
-                # 노드 ID를 보여줄 텍스트 창
                 "selected_node_id": ("STRING", {"default": "None", "multiline": False}),
             },
         }
 
-    # 출력 슬롯(Link) 제거
-    RETURN_TYPES = ()
+    RETURN_TYPES = ()      # 출력 없음
     FUNCTION = "get_id"
     CATEGORY = "DINKIssTyle/Utils"
-    # 출력이 없는 노드임을 명시
-    OUTPUT_NODE = True
+    # OUTPUT_NODE = True   # ← 이 줄을 지우거나 False 로
 
     def get_id(self, selected_node_id):
-        # 실행 시 아무것도 반환하지 않음
+        return ()
+
+
+class DINKI_Anchor:
+    def __init__(self):
+        pass
+    
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                # 단축키 입력 (예: 1, a, F2 등)
+                "shortcut_key": ("STRING", {"default": "1", "multiline": False}),
+                # 줌 레벨 목록 (콤마로 구분, % 단위)
+                "zoom_levels": ("STRING", {"default": "50, 75, 100", "multiline": False}),
+            },
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = "do_nothing"
+    CATEGORY = "DINKIssTyle/Utils"
+    OUTPUT_NODE = True
+
+    def do_nothing(self, shortcut_key, zoom_levels):
+        # 백엔드에서는 아무 작업도 하지 않음
         return ()

@@ -80,6 +80,7 @@ from .dinki_switch import (
 from .dinki_tool import (
     DINKI_Note,
     DINKI_Node_Check,
+    DINKI_Anchor,
 )
 
 
@@ -139,6 +140,7 @@ NODE_CLASS_MAPPINGS = {
     # Tool
     "DINKI_Note": DINKI_Note,
     "DINKI_Node_Check": DINKI_Node_Check,
+    "DINKI_Anchor": DINKI_Anchor,
 
 
     # Others
@@ -194,6 +196,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # Tool
     "DINKI_Note": "DINKI Note",
     "DINKI_Node_Check": "DINKI Node Check",
+    "DINKI_Anchor": "DINKI Anchor",
 
 
     # Others

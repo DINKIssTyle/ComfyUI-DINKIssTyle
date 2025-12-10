@@ -227,6 +227,9 @@ app.registerExtension({
     async nodeCreated(node, app) {
         if (node.comfyClass === "DINKI_Node_Switch") {
             
+            const size = node.computeSize();
+            node.setSize(size);
+            
             const onWidgetChange = function () {
                 try {
                     const idWidget = node.widgets.find(w => w.name === "node_ids");
@@ -1106,6 +1109,10 @@ app.registerExtension({
     
     nodeCreated(node, app) {
         if (node.comfyClass === "DINKI_Node_Check") {
+
+            const size = node.computeSize();
+            node.setSize(size);
+
             if (node.widgets && node.widgets[0]) {
                 setTimeout(() => {
                     if (node.widgets[0].inputEl) {
@@ -1120,10 +1127,77 @@ app.registerExtension({
 
 
 
+// ============================================================
+// 12. DINKI Anchor
+// ============================================================
+app.registerExtension({
+    name: "Dinki.Anchor",
+    setup() {
+        // 전역 키다운 이벤트 리스너 추가
+        window.addEventListener("keydown", (e) => {
+            // 1. 텍스트 입력 중일 때는 단축키 무시
+            const activeTag = document.activeElement.tagName.toUpperCase();
+            if (activeTag === "INPUT" || activeTag === "TEXTAREA") {
+                return;
+            }
 
+            const graph = app.graph;
+            if (!graph) return;
 
+            // 2. 모든 DINKI_Anchor 노드 찾기
+            const anchorNodes = graph.findNodesByType("DINKI_Anchor");
+            if (!anchorNodes || anchorNodes.length === 0) return;
 
+            // 3. 눌린 키와 매칭되는 노드 찾기
+            anchorNodes.forEach(node => {
+                const shortcutWidget = node.widgets[0]; // shortcut_key
+                const zoomWidget = node.widgets[1];     // zoom_levels
 
+                if (shortcutWidget && shortcutWidget.value === e.key) {
+                    // 단축키 매칭됨 -> 이동 실행
+                    handleAnchorMove(node, zoomWidget.value);
+                }
+            });
+        });
+    }
+});
+
+/**
+ * 화면 이동 및 줌 로직 처리 함수 (수정됨)
+ */
+function handleAnchorMove(node, zoomString) {
+    const canvas = app.canvas;
+
+    // 1. 줌 레벨 파싱
+    let zooms = zoomString.split(',')
+        .map(s => parseFloat(s.trim()))
+        .filter(n => !isNaN(n))
+        .map(n => n / 100); // %를 배율로 변환
+
+    if (zooms.length === 0) zooms = [1.0];
+
+    // 2. 현재 줌 인덱스 순환
+    if (typeof node._dinki_zoom_index === "undefined") {
+        node._dinki_zoom_index = 0;
+    } else {
+        node._dinki_zoom_index = (node._dinki_zoom_index + 1) % zooms.length;
+    }
+
+    const targetScale = zooms[node._dinki_zoom_index];
+
+    // 3. [수정됨] 위치 이동 (좌상단 기준)
+    // ds.offset은 '확대 비율'과 무관한 절대 좌표값이어야 합니다.
+    // 노드의 위치(pos)를 음수(-)로 주면 해당 위치가 캔버스의 (0,0)이 됩니다.
+    const targetX = -node.pos[0];
+    const targetY = -node.pos[1];
+
+    // 4. 적용
+    canvas.ds.scale = targetScale;
+    canvas.ds.offset = [targetX, targetY];
+
+    // 5. 화면 갱신 강제
+    canvas.setDirty(true, true);
+}
 
 
 
