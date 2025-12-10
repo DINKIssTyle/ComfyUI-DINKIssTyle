@@ -14,6 +14,12 @@ This node lets you quickly jump to any desired location using a hotkey, and also
 
 ---
 
+## 🧭 DINKI Auto Focus
+![Preview](DINKI_Auto_Focus.gif)
+Automatically moves to the selected node and applies a custom zoom level.
+
+---
+
 
 ## 🎚️ DINKI Node Switch
 ![Preview](DINKI_Node_Switch.gif)
