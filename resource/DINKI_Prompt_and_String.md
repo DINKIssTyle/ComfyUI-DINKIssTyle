@@ -9,7 +9,7 @@
 
 ## 🎲 DINKI Random Prompt
 
-![Random Prompt](resource/DINKI_Random_Prompt.gif)
+![Random Prompt](DINKI_Random_Prompt.gif)
 
 A versatile prompt generator that builds complex prompts using a custom CSV file. It allows you to organize tags by category and offers granular control over each section—choose a specific tag, randomize it, or skip it entirely.
 
