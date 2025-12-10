@@ -1,11 +1,11 @@
 [Home](./README.md)
-- [Comprision Video Tools](resource/DINKI_Video_Tools.md)
-- [Image](resource/DINKI_Image.md)
-- [Color Nodes](resource/DINKI_Color_Nodes.md)
-- [LM Studio Assistant and Batch Images](resource/DINKI_LM_Studio_Assistant.md)
-- [Prompts and Strings](resource/DINKI_Prompt_and_String.md)
-- [Node Utilities](resource/DINKI_Utils.md)
-- [Internal Processing](resource/DINKI_PS.md)
+- [Comprision Video Tools](DINKI_Video_Tools.md)
+- [Image](DINKI_Image.md)
+- [Color Nodes](DINKI_Color_Nodes.md)
+- [LM Studio Assistant and Batch Images](DINKI_LM_Studio_Assistant.md)
+- [Prompts and Strings](DINKI_Prompt_and_String.md)
+- [Node Utilities](DINKI_Utils.md)
+- [Internal Processing](DINKI_PS.md)
 
 ### 📐 DINKI Resize and Pad Image / Remove Pad
 
