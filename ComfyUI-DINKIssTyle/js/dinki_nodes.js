@@ -1205,20 +1205,57 @@ function handleAnchorMove(node, zoomString) {
 // ============================================================
 // 13. DINKI AutoFocus
 // ============================================================
+let isAnimating = false;
+let targetState = null; // { x, y, scale }
+
 app.registerExtension({
     name: "Dinki.AutoFocus",
     setup() {
+        // --------------------------------------------------------
+        // 1. 단축키 리스너 (ON/OFF 토글)
+        // --------------------------------------------------------
+        window.addEventListener("keydown", (e) => {
+            // 텍스트 입력 중일 때는 무시
+            const activeTag = document.activeElement.tagName.toUpperCase();
+            if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+
+            const graph = app.graph;
+            if (!graph) return;
+
+            const focusNodes = graph.findNodesByType("DINKI_Auto_Focus");
+            if (!focusNodes || focusNodes.length === 0) return;
+
+            // 모든 Auto Focus 노드에 대해 단축키 검사
+            focusNodes.forEach(node => {
+                const enableWidget = node.widgets[0];   // enable
+                const shortcutWidget = node.widgets[1]; // shortcut_key
+
+                if (shortcutWidget && shortcutWidget.value.toLowerCase() === e.key.toLowerCase()) {
+                    // 값 토글 (True <-> False)
+                    enableWidget.value = !enableWidget.value;
+                    
+                    // 시각적 피드백 (노드 업데이트)
+                    node.setDirtyCanvas(true, true);
+                    
+                    // (선택) 상태 변경 알림 로그
+                    // console.log(`Auto Focus ${enableWidget.value ? "Enabled" : "Disabled"}`);
+                }
+            });
+        });
+
+        // --------------------------------------------------------
+        // 2. 노드 선택 시 이동 로직
+        // --------------------------------------------------------
         const originalOnSelectionChange = LGraphCanvas.prototype.processNodeSelected;
         const canvas = app.canvas;
         const originalSelectionChange = canvas.onSelectionChange;
         
         canvas.onSelectionChange = function(nodes) {
-            // 1. 원래 ComfyUI 선택 기능 실행
             if (originalSelectionChange) {
                 originalSelectionChange.apply(this, arguments);
             }
 
-            // 2. 활성화된 Auto Focus 노드 찾기
+            // 활성화된 Auto Focus 노드 찾기
             const graph = app.graph;
             if (!graph) return;
             
@@ -1227,7 +1264,7 @@ app.registerExtension({
 
             let activeFocusNode = null;
             for (let node of focusNodes) {
-                // [0] enable, [1] zoom_level
+                // [0]: enable
                 if (node.widgets && node.widgets[0] && node.widgets[0].value === true) {
                     activeFocusNode = node;
                     break;
@@ -1236,45 +1273,95 @@ app.registerExtension({
 
             if (!activeFocusNode) return;
 
-            // 3. 타겟 노드 확인
+            // 타겟 노드 확인
             const selected = Object.values(canvas.selected_nodes || {});
             if (selected.length === 0) return;
             
             const targetNode = selected[selected.length - 1];
 
-            // 자기 자신 클릭 시 무시
+            // 자기 자신 클릭 시 이동 안 함
             if (targetNode.id === activeFocusNode.id) return;
 
-            // 4. 이동 실행
-            const zoomLevel = activeFocusNode.widgets[1].value || 1.0;
-            centerOnNode(canvas, targetNode, zoomLevel);
+            // 설정값 가져오기
+            const zoomLevel = activeFocusNode.widgets[2].value || 1.0;     // zoom_level
+            const smoothness = activeFocusNode.widgets[3].value || 0.2;    // smoothness
+
+            // 이동 시작
+            startSmoothMove(canvas, targetNode, zoomLevel, smoothness);
         };
     }
 });
 
 /**
- * [수정됨] 고해상도/DPI 오차를 보정한 중앙 정렬 함수
+ * 부드러운 이동을 위한 애니메이션 함수
  */
-function centerOnNode(canvas, node, zoom) {
-    // 1. 노드의 중심 좌표 (World Coordinate)
+function startSmoothMove(canvas, node, targetZoom, smoothness) {
+    // 1. 목표 좌표 계산 (이전과 동일한 중앙 정렬 로직)
     const nodeCenterX = node.pos[0] + node.size[0] / 2;
     const nodeCenterY = node.pos[1] + node.size[1] / 2;
-
-    // 2. [핵심 수정] 캔버스의 실제 표시 크기(DOM Client Size)를 가져옴
-    // canvas.width 대신 getBoundingClientRect()를 써야 배율 오차가 없음
+    
+    // 실제 뷰포트 크기
     const rect = canvas.canvas.getBoundingClientRect();
     const visibleWidth = rect.width;
     const visibleHeight = rect.height;
 
-    // 3. 목표 오프셋 계산
-    // 화면 중앙점(픽셀) / 줌 - 노드위치(월드)
-    const targetOffsetX = (visibleWidth / 2) / zoom - nodeCenterX;
-    const targetOffsetY = (visibleHeight / 2) / zoom - nodeCenterY;
+    // 최종 목표 Offset
+    const targetOffsetX = (visibleWidth / 2) / targetZoom - nodeCenterX;
+    const targetOffsetY = (visibleHeight / 2) / targetZoom - nodeCenterY;
 
-    // 4. 적용
-    canvas.ds.scale = zoom;
-    canvas.ds.offset = [targetOffsetX, targetOffsetY];
+    // 2. 목표 상태 저장
+    targetState = {
+        x: targetOffsetX,
+        y: targetOffsetY,
+        scale: targetZoom,
+        smoothness: smoothness
+    };
+
+    // 3. 애니메이션 루프 시작 (이미 돌고 있다면 타겟만 갱신됨)
+    if (!isAnimating) {
+        isAnimating = true;
+        requestAnimationFrame(() => animateLoop(canvas));
+    }
+}
+
+function animateLoop(canvas) {
+    if (!targetState) {
+        isAnimating = false;
+        return;
+    }
+
+    // 현재 상태
+    const currentX = canvas.ds.offset[0];
+    const currentY = canvas.ds.offset[1];
+    const currentScale = canvas.ds.scale;
+
+    // Lerp (선형 보간) 공식: A + (B - A) * t
+    // t가 작을수록 느리고 부드럽게(Elastic), 클수록 빠르게
+    const t = targetState.smoothness; 
     
-    // 5. 화면 갱신
+    // 다음 프레임 값 계산
+    const nextX = currentX + (targetState.x - currentX) * t;
+    const nextY = currentY + (targetState.y - currentY) * t;
+    const nextScale = currentScale + (targetState.scale - currentScale) * t;
+
+    // 적용
+    canvas.ds.offset = [nextX, nextY];
+    canvas.ds.scale = nextScale;
     canvas.setDirty(true, true);
+
+    // 종료 조건: 목표에 충분히 가까워졌으면 멈춤 (jitter 방지)
+    const dist = Math.abs(targetState.x - currentX) + Math.abs(targetState.y - currentY) + Math.abs(targetState.scale - currentScale);
+    
+    if (dist < 0.5) {
+        // 정확한 목표값으로 딱 맞추고 종료
+        canvas.ds.offset = [targetState.x, targetState.y];
+        canvas.ds.scale = targetState.scale;
+        canvas.setDirty(true, true);
+        
+        isAnimating = false;
+        targetState = null; // 타겟 해제
+    } else {
+        // 계속 반복
+        requestAnimationFrame(() => animateLoop(canvas));
+    }
 }
