@@ -27,19 +27,19 @@ When an **image is connected**, the node operates as a Vision Assistant.
 * **Use Case:** Connect a Vision model (like Qwen3-VL or Gemma3) in LM Studio to caption images, describe styles, or analyze composition.
 * *Note: If `user_prompt` is left empty, the LLM will default to "Describe the images."*
 
-![Preview](resource/DINKI_LM_Studio_Assistant_01.png)
+![Preview](DINKI_LM_Studio_Assistant_01.png)
 
 #### 2. Text Mode (Text Only)
 When **no image is connected**, the node functions as a pure text generator.
 * It generates text based solely on the `user_prompt` and `system_prompt`.
 * **Use Case:** Prompt expansion, style generation, or creative writing.
 
-![Preview](resource/DINKI_LM_Studio_Assistant_02.png)
+![Preview](DINKI_LM_Studio_Assistant_02.png)
 
 #### 3. Passthrough Mode
 By setting `assistant_enabled` to **False**, the node bypasses the LLM entirely and simply outputs your raw `user_prompt`. This is useful for A/B testing without removing the node.
 
-![Preview](resource/DINKI_LM_Studio_Assistant_03.png)
+![Preview](DINKI_LM_Studio_Assistant_03.png)
 
 
 ### 🛠️ Prerequisites & Setup

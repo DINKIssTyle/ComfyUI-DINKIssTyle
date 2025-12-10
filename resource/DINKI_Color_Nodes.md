@@ -8,7 +8,7 @@
 - [Internal Processing](resource/DINKI_PS.md)
 
 # DINKI Color Nodes
-![Preview](resource/DINKI_Color.png)
+![Preview](DINKI_Color.png)
 
 #### DINKI Auto Adjustment Node
 The **DINKI Auto Adjustment** node implements the following automatic correction features:

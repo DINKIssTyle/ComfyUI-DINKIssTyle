@@ -9,7 +9,7 @@
 
 
 ## 🖼️ DINKI Overlay
-![Preview](resource/DINKI_Overlay.png?v=2)
+![Preview](DINKI_Overlay.png?v=2)
 
 A powerful and versatile ComfyUI node designed to add **watermarks, copyright text, subtitles, and logo overlays** to your generated images with professional precision.
 
@@ -115,7 +115,7 @@ This node works perfectly with **DINKI LM Studio Assistant**. Use it to batch mu
 
 
 ## ▦ DINKI Grid
-![Preview](resource/DINKI_Grid.gif)
+![Preview](DINKI_Grid.gif)
 
 An essential ComfyUI node for compiling up to **10 images** into a customizable grid layout. Perfect for creating comparison sheets, storyboards, or organized image galleries.
 
@@ -161,7 +161,7 @@ If you set the grid to **2 Columns × 3 Rows** (Total 6 cells) but connect only 
 
 A robust preview node that handles empty signals gracefully. If no image is provided (e.g., a skipped step due to a switch), it automatically generates a **custom placeholder image** containing text instead of crashing or showing an error.
 
-![Preview](resource/DINKI_Image_Preview.png)
+![Preview](DINKI_Image_Preview.png)
 
 #### 🎛️ Parameters Guide
 
@@ -176,8 +176,8 @@ A robust preview node that handles empty signals gracefully. If no image is prov
 ---
 
 # 📦 DINKI Base64 Image Embedding Suite
-![Preview](resource/DINKI_Base64.png)  
-[Download DINKI_Base64_to_Image.json](sample_workflows/DINKI_Base64_to_Image.json)
+![Preview](DINKI_Base64.png)  
+[Download DINKI_Base64_to_Image.json](./sample_workflows/DINKI_Base64_to_Image.json)
 
 A set of nodes designed to make your ComfyUI workflows **fully self-contained and portable**. By converting images into Base64 strings, you can embed essential reference images, masks, or logos directly inside the workflow `.json` file. 
 

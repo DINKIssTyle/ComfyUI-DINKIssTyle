@@ -8,7 +8,7 @@
 - [Internal Processing](resource/DINKI_PS.md)
 
 ## 🎚️ DINKI Node Switch
-![Preview](resource/DINKI_Node_Switch.gif)
+![Preview](DINKI_Node_Switch.gif)
 A logic utility node that acts as a **remote control** for your workflow. It allows you to **toggle the Bypass status** of multiple target nodes simultaneously using a simple switch.
 
 Perfect for creating "Control Panels" in complex workflows, allowing you to turn entire sections (like Upscaling, Face Detailer, or LoRA stacks) on or off without hunting for individual nodes.

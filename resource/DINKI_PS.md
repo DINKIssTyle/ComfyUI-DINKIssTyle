@@ -20,10 +20,10 @@ This workflow prevents **pixel shifting artifacts** and distortion in models lik
 
 #### Comparison
 **Without Resize and Pad (Distorted/Shifted):**
-![Preview](resource/DINKI_Resize_and_Pad_Image_02.png)
+![Preview](DINKI_Resize_and_Pad_Image_02.png)
 
 **With DINKI Resize and Pad (Accurate):**
-![Preview](resource/DINKI_Resize_and_Pad_Image_01.png)
+![Preview](DINKI_Resize_and_Pad_Image_01.png)
 
 #### 🎛️ Parameters Guide
 
@@ -69,7 +69,7 @@ An enhanced latent upscaling node designed for flexibility and pipeline integrat
 
 A streamlined loader that combines **safetensors** and **GGUF** model loading into a single node. This removes the need to place separate loader nodes and rewire connections when switching between standard and quantized models.
 
-![Preview](resource/DINKI_UNet_Loader.png)
+![Preview](DINKI_UNet_Loader.png)
 
 #### 🎛️ Parameters Guide
 

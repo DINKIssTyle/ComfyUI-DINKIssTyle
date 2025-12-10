@@ -37,7 +37,7 @@ A versatile prompt generator that builds complex prompts using a custom CSV file
 
 ## 🔀 DINKI String Switch RT
 
-![String Switch RT](resource/DINKI_String_Switch_RT.gif)
+![String Switch RT](DINKI_String_Switch_RT.gif)
 
 A real-time text utility that converts multi-line text input into a dynamic dropdown menu. It allows you to switch between different text segments (such as prompt variations, styles, or parameters) instantly without disconnecting wires.
 
