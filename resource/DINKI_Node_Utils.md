@@ -38,6 +38,14 @@ Perfect for creating "Control Panels" in complex workflows, allowing you to turn
 ---
 
 
+## 🧐 DINKI Node Check
+![Preview](DINKI_Node_Check.gif)
+This node for quickly checking the ID of any selected node—even when the global “Show Node ID” option is turned off.
+
+
+---
+
+
 ## 🔀 DINKI Cross Output Switch
 
 A simple yet handy utility for A/B testing or routing logic. It swaps the two input images based on a boolean toggle.
