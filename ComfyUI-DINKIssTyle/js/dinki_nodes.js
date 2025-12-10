@@ -1202,4 +1202,79 @@ function handleAnchorMove(node, zoomString) {
 
 
 
+// ============================================================
+// 13. DINKI AutoFocus
+// ============================================================
+app.registerExtension({
+    name: "Dinki.AutoFocus",
+    setup() {
+        const originalOnSelectionChange = LGraphCanvas.prototype.processNodeSelected;
+        const canvas = app.canvas;
+        const originalSelectionChange = canvas.onSelectionChange;
+        
+        canvas.onSelectionChange = function(nodes) {
+            // 1. 원래 ComfyUI 선택 기능 실행
+            if (originalSelectionChange) {
+                originalSelectionChange.apply(this, arguments);
+            }
 
+            // 2. 활성화된 Auto Focus 노드 찾기
+            const graph = app.graph;
+            if (!graph) return;
+            
+            const focusNodes = graph.findNodesByType("DINKI_Auto_Focus");
+            if (!focusNodes || focusNodes.length === 0) return;
+
+            let activeFocusNode = null;
+            for (let node of focusNodes) {
+                // [0] enable, [1] zoom_level
+                if (node.widgets && node.widgets[0] && node.widgets[0].value === true) {
+                    activeFocusNode = node;
+                    break;
+                }
+            }
+
+            if (!activeFocusNode) return;
+
+            // 3. 타겟 노드 확인
+            const selected = Object.values(canvas.selected_nodes || {});
+            if (selected.length === 0) return;
+            
+            const targetNode = selected[selected.length - 1];
+
+            // 자기 자신 클릭 시 무시
+            if (targetNode.id === activeFocusNode.id) return;
+
+            // 4. 이동 실행
+            const zoomLevel = activeFocusNode.widgets[1].value || 1.0;
+            centerOnNode(canvas, targetNode, zoomLevel);
+        };
+    }
+});
+
+/**
+ * [수정됨] 고해상도/DPI 오차를 보정한 중앙 정렬 함수
+ */
+function centerOnNode(canvas, node, zoom) {
+    // 1. 노드의 중심 좌표 (World Coordinate)
+    const nodeCenterX = node.pos[0] + node.size[0] / 2;
+    const nodeCenterY = node.pos[1] + node.size[1] / 2;
+
+    // 2. [핵심 수정] 캔버스의 실제 표시 크기(DOM Client Size)를 가져옴
+    // canvas.width 대신 getBoundingClientRect()를 써야 배율 오차가 없음
+    const rect = canvas.canvas.getBoundingClientRect();
+    const visibleWidth = rect.width;
+    const visibleHeight = rect.height;
+
+    // 3. 목표 오프셋 계산
+    // 화면 중앙점(픽셀) / 줌 - 노드위치(월드)
+    const targetOffsetX = (visibleWidth / 2) / zoom - nodeCenterX;
+    const targetOffsetY = (visibleHeight / 2) / zoom - nodeCenterY;
+
+    // 4. 적용
+    canvas.ds.scale = zoom;
+    canvas.ds.offset = [targetOffsetX, targetOffsetY];
+    
+    // 5. 화면 갱신
+    canvas.setDirty(true, true);
+}

@@ -72,3 +72,30 @@ class DINKI_Anchor:
     def do_nothing(self, shortcut_key, zoom_levels):
         # 백엔드에서는 아무 작업도 하지 않음
         return ()
+
+
+
+class DINKI_Auto_Focus:
+    def __init__(self):
+        pass
+    
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                # 기능을 켜고 끄는 스위치
+                "enable": ("BOOLEAN", {"default": True, "label_on": "Active", "label_off": "Inactive"}),
+                # 이동할 때 적용할 줌 비율 (0.5 = 50%, 1.0 = 100%)
+                "zoom_level": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 3.0, "step": 0.1, "display": "slider"}),
+                # 이동 속도 (0이면 즉시 이동, 1에 가까울수록 부드럽게...지만 JS 구현 복잡도를 위해 일단 설정값만 둠)
+                # 이번 구현에서는 '즉시 이동'을 기본으로 합니다.
+            },
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = "do_nothing"
+    CATEGORY = "DINKIssTyle/Utils"
+    OUTPUT_NODE = True
+
+    def do_nothing(self, enable, zoom_level):
+        return ()

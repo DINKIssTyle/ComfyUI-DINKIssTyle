@@ -81,6 +81,7 @@ from .dinki_tool import (
     DINKI_Note,
     DINKI_Node_Check,
     DINKI_Anchor,
+    DINKI_Auto_Focus,
 )
 
 
@@ -141,6 +142,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Note": DINKI_Note,
     "DINKI_Node_Check": DINKI_Node_Check,
     "DINKI_Anchor": DINKI_Anchor,
+    "DINKI_Auto_Focus": DINKI_Auto_Focus,
 
 
     # Others
@@ -197,6 +199,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Note": "DINKI Note",
     "DINKI_Node_Check": "DINKI Node Check",
     "DINKI_Anchor": "DINKI Anchor",
+    "DINKI_Auto_Focus": "DINKI Auto Focus",
 
 
     # Others
