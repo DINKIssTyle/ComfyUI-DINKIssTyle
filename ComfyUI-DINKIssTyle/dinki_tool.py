@@ -83,12 +83,14 @@ class DINKI_Auto_Focus:
     def INPUT_TYPES(s):
         return {
             "required": {
-                # 기능을 켜고 끄는 스위치
+                # 기능 켜고 끄는 스위치
                 "enable": ("BOOLEAN", {"default": True, "label_on": "Active", "label_off": "Inactive"}),
-                # 이동할 때 적용할 줌 비율 (0.5 = 50%, 1.0 = 100%)
+                # [추가됨] ON/OFF 토글 단축키 (예: 'a')
+                "shortcut_key": ("STRING", {"default": "a", "multiline": False}),
+                # 줌 레벨
                 "zoom_level": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 3.0, "step": 0.1, "display": "slider"}),
-                # 이동 속도 (0이면 즉시 이동, 1에 가까울수록 부드럽게...지만 JS 구현 복잡도를 위해 일단 설정값만 둠)
-                # 이번 구현에서는 '즉시 이동'을 기본으로 합니다.
+                # [추가됨] 이동 부드러움 정도 (0.01: 매우 느림 ~ 0.5: 매우 빠름, 1.0: 즉시)
+                "smoothness": ("FLOAT", {"default": 0.2, "min": 0.01, "max": 1.0, "step": 0.01, "display": "slider"}),
             },
         }
 
@@ -97,5 +99,5 @@ class DINKI_Auto_Focus:
     CATEGORY = "DINKIssTyle/Utils"
     OUTPUT_NODE = True
 
-    def do_nothing(self, enable, zoom_level):
+    def do_nothing(self, enable, shortcut_key, zoom_level, smoothness):
         return ()
