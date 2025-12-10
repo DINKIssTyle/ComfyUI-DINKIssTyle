@@ -7,6 +7,49 @@
 - [Node Utilities](DINKI_Node_Utils.md)
 - [Internal Processing](DINKI_PS.md)
 
+### 🗂️ DINKI Sampler Preset
+
+This node simplifies the often confusing task of selecting the correct **Sampler** and **Scheduler** pairs for different diffusion models. Instead of manually selecting them every time, this node reads from a customizable CSV database to provide "Golden Settings" or recommended presets for models like SDXL, Flux, Pony, and more.
+
+It features a **Dynamic Javascript UI** that automatically filters the preset list based on the model you select.
+
+#### 💡 Why use this?
+* **No More Guessing:** eliminates the risk of using incompatible samplers (e.g., using an SD1.5 sampler on a Flux model).
+* **Workflow Cleanliness:** Replaces two separate dropdown widgets with a single, logical preset selector.
+* **Customizable:** You can add your own favorite combinations by editing the accompanying CSV file.
+
+![Preview](DINKI_Sampler_Preset.gif)
+
+#### 🎛️ Parameters Guide
+
+| Parameter | Description |
+| :--- | :--- |
+| **model** | Selects the category of the model (e.g., `Qwen-Image`, `Flux.1`, `Z-Image`). This selection filters the available options in the `preset` dropdown. |
+| **preset** | Selects the specific configuration. The UI displays the preset name along with the actual sampler/scheduler values (e.g., `Quality [dpmpp_2m / karras]`). |
+
+#### 🔌 Outputs
+
+| Output | Description |
+| :--- | :--- |
+| **sampler_name** | Outputs the sampler string (e.g., `euler`, `dpmpp_2m`). Connect this to any KSampler or SamplerCustom node. |
+| **scheduler_name** | Outputs the scheduler string (e.g., `normal`, `karras`, `simple`). |
+| **info** | Returns a string summary of the current selection for debugging or text display. |
+
+#### 📝 How to Customize (CSV)
+You can add your own presets by editing the file located at:
+`ComfyUI/custom_nodes/DINKI_Node/csv/DINKI_Sampler_Preset.csv`
+
+**CSV Format:**
+```csv
+Model, Preset Name, Sampler, Scheduler
+Flux.1, Dev Standard, euler, simple
+SDXL, Lightning 4-Step, dpmpp_sde, karras
+Pony, Realism, dpmpp_2m, karras
+```
+
+---
+
+
 ### 📐 DINKI Resize and Pad Image / Remove Pad
 
 This pair of nodes is essential for workflows involving image editing models (like **Qwen Image Edit**) that are sensitive to aspect ratio changes or resolution resizing.
