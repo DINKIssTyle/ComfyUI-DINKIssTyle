@@ -14,6 +14,6 @@ Using them with other models may cause unexpected issues.
 - [Internal Processing](resource/DINKI_PS.md)
 
 
-++ComfyUI-DINKIssTyle_CPH**(Cross-Platform Helper) performs the following tasks every time ComfyUI starts:
+**ComfyUI-DINKIssTyle_CPH**(Cross-Platform Helper) performs the following tasks every time ComfyUI starts:
 1. Fixes issues with Korean filenames uploaded from macOS to Windows.
 2. Removes macOS resource forks that appear when files uploaded from macOS are used on Windows.
