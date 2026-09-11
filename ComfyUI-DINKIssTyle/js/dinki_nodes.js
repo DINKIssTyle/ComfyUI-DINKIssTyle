@@ -222,53 +222,83 @@ app.registerExtension({
 // ============================================================
 // 4. DINKI Node Switch Logic
 // ============================================================
+function applyNodeSwitch(node, changedName, changedValue) {
+    // app.graph is the currently displayed graph, which may be a different subgraph.
+    const graph = node.graph;
+    if (!graph || app.configuringGraph) return;
+
+    const idWidget = getWidget(node, "node_ids");
+    const toggleWidget = getWidget(node, "active");
+    if (!idWidget || !toggleWidget) return;
+
+    // Some widget renderers notify before committing widget.value.
+    const idsText = changedName === "node_ids" ? changedValue : idWidget.value;
+    const isActive = changedName === "active" ? changedValue : toggleWidget.value;
+    const ids = new Set(String(idsText ?? "").split(",").map(id => id.trim()).filter(Boolean));
+    let changed = false;
+
+    for (const target of graph.nodes ?? graph._nodes ?? []) {
+        if (target === node || !ids.has(String(target.id))) continue;
+        const mode = isActive ? (target.mode === 4 ? 0 : target.mode) : 4;
+        if (target.mode !== mode) {
+            target.mode = mode;
+            changed = true;
+        }
+    }
+    if (changed) {
+        graph.change?.();
+        graph.setDirtyCanvas?.(true, true);
+    }
+}
+
 app.registerExtension({
     name: "DINKI.NodeSwitch",
-    async nodeCreated(node, app) {
-        if (node.comfyClass === "DINKI_Node_Switch") {
-            
-            const size = node.computeSize();
-            node.setSize(size);
-            
-            const onWidgetChange = function () {
-                try {
-                    const idWidget = node.widgets.find(w => w.name === "node_ids");
-                    const toggleWidget = node.widgets.find(w => w.name === "active");
+    nodeCreated(node) {
+        if (node.comfyClass !== "DINKI_Node_Switch") return;
 
-                    if (!idWidget || !toggleWidget) return;
+        // Nodes 2.0 and programmatic widget updates use the node notification.
+        const onWidgetChanged = node.onWidgetChanged;
+        node.onWidgetChanged = function (name, value) {
+            const result = onWidgetChanged?.apply(this, arguments);
+            if (name === "node_ids" || name === "active") {
+                applyNodeSwitch(this, name, value);
+            }
+            return result;
+        };
 
-                    const idsText = idWidget.value;
-                    const isActive = toggleWidget.value;
-
-                    const ids = idsText.split(",").map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-
-                    app.graph._nodes.forEach(targetNode => {
-                        if (ids.includes(targetNode.id)) {
-                            if (isActive) {
-                                if (targetNode.mode === 4) {
-                                    targetNode.mode = 0;
-                                }
-                            } else {
-                                targetNode.mode = 4;
-                            }
-                        }
-                    });
-                    
-                    app.graph.setDirtyCanvas(true, true);
-
-                } catch (error) {
-                    console.error("DINKI Switch Error:", error);
-                }
+        // Keep classic canvas widgets working and preserve other extensions' callbacks.
+        for (const name of ["node_ids", "active"]) {
+            const widget = getWidget(node, name);
+            if (!widget) continue;
+            const callback = widget.callback;
+            widget.callback = function (value) {
+                const result = callback?.apply(this, arguments);
+                applyNodeSwitch(node, name, value);
+                return result;
             };
-
-            const idWidget = node.widgets.find(w => w.name === "node_ids");
-            const toggleWidget = node.widgets.find(w => w.name === "active");
-
-            if (idWidget) idWidget.callback = onWidgetChange;
-            if (toggleWidget) toggleWidget.callback = onWidgetChange;
-            
-            setTimeout(onWidgetChange, 1000);
         }
+
+        // Defer until insertion/configuration has completed, without a fixed timer.
+        for (const hook of ["onAdded", "onConfigure"]) {
+            const original = node[hook];
+            node[hook] = function () {
+                const result = original?.apply(this, arguments);
+                queueMicrotask(() => applyNodeSwitch(this));
+                return result;
+            };
+        }
+    },
+    afterConfigureGraph() {
+        const visited = new Set();
+        const syncGraph = (graph) => {
+            if (!graph || visited.has(graph)) return;
+            visited.add(graph);
+            for (const node of graph.nodes ?? graph._nodes ?? []) {
+                if (node.comfyClass === "DINKI_Node_Switch") applyNodeSwitch(node);
+                if (node.subgraph) syncGraph(node.subgraph);
+            }
+        };
+        syncGraph(app.rootGraph ?? app.graph);
     }
 });
 
