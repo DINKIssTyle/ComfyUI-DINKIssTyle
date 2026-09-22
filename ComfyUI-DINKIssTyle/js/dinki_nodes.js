@@ -11,6 +11,57 @@ function ensureLater(fn) {
   requestAnimationFrame(() => setTimeout(fn, 0));
 }
 
+function previewImageActions(descriptor) {
+    const url = api.apiURL(`/view?${new URLSearchParams(descriptor)}`);
+    return [
+        { content: "Open Image", callback: () => window.open(url, "_blank", "noopener,noreferrer") },
+        { content: "Save Image", callback: async() => {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Image download failed (${response.status})`);
+            const objectUrl = URL.createObjectURL(await response.blob());
+            const link = document.createElement("a");
+            link.href = objectUrl;
+            link.download = descriptor.filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+        } },
+    ];
+}
+
+function showPreviewImageMenu(event, descriptor) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const menu = document.createElement("div");
+    Object.assign(menu.style, {
+        position: "fixed", zIndex: "100000", background: "#252525", color: "white",
+        padding: "5px", border: "1px solid #555", borderRadius: "6px",
+        left: `${Math.max(0, Math.min(event.clientX, window.innerWidth - 190))}px`,
+        top: `${Math.max(0, Math.min(event.clientY, window.innerHeight - 100))}px`,
+    });
+    const close = () => {
+        menu.remove();
+        document.removeEventListener("pointerdown", dismiss, true);
+        document.removeEventListener("keydown", escape, true);
+    };
+    const dismiss = e => { if (!menu.contains(e.target)) close(); };
+    const escape = e => { if (e.key === "Escape") close(); };
+    for (const action of previewImageActions(descriptor)) {
+        const button = document.createElement("button");
+        button.textContent = action.content;
+        Object.assign(button.style, { display: "block", width: "100%", padding: "9px 12px", textAlign: "left", background: "transparent", color: "inherit", border: "0", cursor: "pointer" });
+        button.onclick = async() => {
+            close();
+            try { await action.callback(); } catch (error) { alert(error.message); }
+        };
+        menu.appendChild(button);
+    }
+    document.body.appendChild(menu);
+    document.addEventListener("pointerdown", dismiss, true);
+    document.addEventListener("keydown", escape, true);
+}
+
 // ============================================================
 // 1. DINKI Prompt Selector Logic
 // ============================================================
@@ -1300,12 +1351,41 @@ app.registerExtension({
 // ============================================================
 app.registerExtension({
     name: "DINKI.PreviewImage.Resolution",
+    setup() {
+        // Nodes 2.0 renders the native preview as an HTML image.
+        document.addEventListener("contextmenu", (event) => {
+            const image = event.target.closest?.("img");
+            if (!image?.src) return;
+            const params = new URL(image.src, window.location.href).searchParams;
+            for (const node of app.graph?._nodes || []) {
+                if (node.comfyClass !== "DINKI_Preview_Image") continue;
+                const images = node.dkstPreviewDescriptors || app.nodeOutputs?.[node.id]?.images || [];
+                const descriptor = images.find(item => item.filename === params.get("filename")
+                    && (item.subfolder || "") === (params.get("subfolder") || "")
+                    && item.type === params.get("type"));
+                if (descriptor) {
+                    showPreviewImageMenu(event, descriptor);
+                    return;
+                }
+            }
+        }, true);
+    },
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== "DINKI_Preview_Image") return;
+
+        const getExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
+        nodeType.prototype.getExtraMenuOptions = function(canvas, options) {
+            const result = getExtraMenuOptions?.apply(this, arguments);
+            const images = this.dkstPreviewDescriptors || app.nodeOutputs?.[this.id]?.images || [];
+            const descriptor = images[this.imageIndex ?? 0] || images[0];
+            if (descriptor) options.unshift(...previewImageActions(descriptor));
+            return result;
+        };
 
         const onExecuted = nodeType.prototype.onExecuted;
         nodeType.prototype.onExecuted = function(message) {
             onExecuted?.apply(this, arguments);
+            this.dkstPreviewDescriptors = message?.images || [];
             const resolution = message?.resolution?.[0];
             if (resolution) {
                 this.dkstImageResolution = resolution;
@@ -1485,8 +1565,13 @@ app.registerExtension({
             };
 
             const originalFilenameCallback = filenameWidget.callback;
-            filenameWidget.callback = function(value) {
+            filenameWidget.callback = async function(value) {
                 originalFilenameCallback?.apply(this, arguments);
+                if (sourceTypeWidget.value === "temp" && value !== node.dkstTemporaryFilename) {
+                    await node.dkstDeleteTemporaryImage();
+                    await refreshFiles(categoryWidget.value, value);
+                    return;
+                }
                 showPreview(value);
             };
 
@@ -1618,7 +1703,8 @@ app.registerExtension({
 
             node.dkstDeleteTemporaryImage = async() => {
                 if (sourceTypeWidget.value !== "temp" || !filenameWidget.value) return;
-                const filename = filenameWidget.value;
+                const filename = node.dkstTemporaryFilename || filenameWidget.value;
+                node.dkstTemporaryFilename = null;
                 sourceTypeWidget.value = "input";
                 const response = await api.fetchApi("/dinki/image-load/delete-temp", {
                     method: "POST",
@@ -1639,7 +1725,12 @@ app.registerExtension({
                 );
                 await node.dkstDeleteTemporaryImage();
                 sourceTypeWidget.value = "temp";
-                setValues(filenameWidget, [data.name]);
+                node.dkstTemporaryFilename = data.name;
+                const params = new URLSearchParams({ category: categoryWidget.value || "" });
+                const response = await api.fetchApi(`/dinki/image-load/files?${params}`);
+                if (!response.ok) throw new Error(`Unable to load image list (${response.status})`);
+                const listing = await response.json();
+                setValues(filenameWidget, [data.name, ...(listing.files || []).filter(name => name !== data.name)]);
                 filenameWidget.value = data.name;
                 showPreview(data.name);
                 node.setDirtyCanvas(true, true);

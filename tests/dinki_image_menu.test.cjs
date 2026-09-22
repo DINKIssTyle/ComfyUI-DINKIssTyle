@@ -28,12 +28,14 @@ test('image menu opens original and passes temp source to mask editor; saved ref
         async fetchApi(url) {
             requests.push(url);
             return { ok: true, async json() {
+                if (url === '/upload/image') return { name: 'DKST_Paste_new.png' };
                 return url.endsWith('categories') ? { categories: ['', 'clipspace'] } : { files: ['edited.png'] };
             } };
         }
     };
     vm.runInNewContext(readFileSync(require('node:path').join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_nodes.js'), 'utf8').replace(/^import .*;\r?\n/gm, ''), {
         app, api, ComfyApp, URLSearchParams, console,
+        File: class {}, FormData: class { append() {} },
         document: { createElement: element, body: element('body'), addEventListener() {}, removeEventListener() {} },
         window: { innerWidth: 1000, innerHeight: 800, open: (...args) => { opened = args; } },
         Image: class {}, requestAnimationFrame() {}, alert: (message) => { throw new Error(message); }
@@ -69,4 +71,11 @@ test('image menu opens original and passes temp source to mask editor; saved ref
     assert.equal(node.widgets[1].value, 'edited.png');
     assert.equal(node.widgets[2].value, 'input');
     assert.ok(requests.includes('/dinki/image-load/delete-temp'));
+    await node.dkstUploadClipboardImage({ type: 'image/png' });
+    assert.deepEqual(Array.from(node.widgets[1].options.values), ['DKST_Paste_new.png', 'edited.png']);
+    assert.equal(node.widgets[2].value, 'temp');
+    node.widgets[1].value = 'edited.png';
+    await node.widgets[1].callback('edited.png');
+    assert.equal(node.widgets[2].value, 'input');
+    assert.equal(node.widgets[1].value, 'edited.png');
 });
