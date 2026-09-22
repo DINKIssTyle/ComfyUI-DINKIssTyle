@@ -66,7 +66,7 @@ class PreviewImageTests(unittest.TestCase):
 
                 call = self.folder_paths.get_save_image_path.call_args
                 self.assertEqual(call.args[1], expected_directory)
-                self.assertEqual(result["ui"]["images"][0]["type"], expected_type)
+                self.assertEqual(result["ui"]["dkst_images"][0]["type"], expected_type)
                 self.assertEqual(result["ui"]["resolution"], ["1280 × 720"])
                 self.assertIs(result["result"][0], images)
 

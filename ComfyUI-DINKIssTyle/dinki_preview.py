@@ -246,7 +246,7 @@ class DINKI_Preview_Image:
 
         return {
             "ui": {
-                "images": ui_images,
+                "dkst_images": ui_images,
                 "resolution": [f"{width} × {height}"],
             },
             "result": (images,),

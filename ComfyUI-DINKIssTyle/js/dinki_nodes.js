@@ -1351,65 +1351,88 @@ app.registerExtension({
 // ============================================================
 app.registerExtension({
     name: "DINKI.PreviewImage.Resolution",
-    setup() {
-        // Nodes 2.0 renders the native preview as an HTML image.
-        document.addEventListener("contextmenu", (event) => {
-            const image = event.target.closest?.("img");
-            if (!image?.src) return;
-            const params = new URL(image.src, window.location.href).searchParams;
-            for (const node of app.graph?._nodes || []) {
-                if (node.comfyClass !== "DINKI_Preview_Image") continue;
-                const images = node.dkstPreviewDescriptors || app.nodeOutputs?.[node.id]?.images || [];
-                const descriptor = images.find(item => item.filename === params.get("filename")
-                    && (item.subfolder || "") === (params.get("subfolder") || "")
-                    && item.type === params.get("type"));
-                if (descriptor) {
-                    showPreviewImageMenu(event, descriptor);
-                    return;
-                }
-            }
-        }, true);
-    },
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== "DINKI_Preview_Image") return;
-
-        const getExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
-        nodeType.prototype.getExtraMenuOptions = function(canvas, options) {
-            const result = getExtraMenuOptions?.apply(this, arguments);
-            const images = this.dkstPreviewDescriptors || app.nodeOutputs?.[this.id]?.images || [];
-            const descriptor = images[this.imageIndex ?? 0] || images[0];
-            if (descriptor) options.unshift(...previewImageActions(descriptor));
+        const created = nodeType.prototype.onNodeCreated;
+        nodeType.prototype.onNodeCreated = function() {
+            const result = created?.apply(this, arguments);
+            const container = document.createElement("div");
+            Object.assign(container.style, {
+                width: "100%", height: "100%", minHeight: "0", display: "flex",
+                flexDirection: "column", overflow: "hidden", background: "#181818",
+                contain: "size layout paint", borderRadius: "6px",
+            });
+            const image = document.createElement("img");
+            Object.assign(image.style, {
+                width: "100%", height: "0", minHeight: "0", flex: "1 1 0",
+                objectFit: "contain", display: "none", pointerEvents: "auto",
+            });
+            const resolution = document.createElement("div");
+            Object.assign(resolution.style, {
+                flex: "0 0 28px", textAlign: "center", lineHeight: "28px", color: "#eee",
+            });
+            const selector = document.createElement("select");
+            selector.style.display = "none";
+            container.append(image, resolution, selector);
+            const widget = this.addDOMWidget("dkst_preview_image", "DKST_IMAGE_PREVIEW", container, {
+                hideOnZoom: false, getMinHeight: () => 120,
+                getMaxHeight: () => 320, getHeight: () => 240,
+            });
+            widget.serialize = false;
+            widget.options.serialize = false;
+            let descriptors = [];
+            const selected = () => descriptors[Number(selector.value) || 0];
+            const display = () => {
+                const item = selected();
+                if (!item) {
+                    image.removeAttribute("src");
+                    image.style.display = "none";
+                    resolution.textContent = "";
+                    return;
+                }
+                image.src = api.apiURL(`/view?${new URLSearchParams({ ...item, t: String(Date.now()) })}`);
+                image.style.display = "block";
+            };
+            selector.onchange = display;
+            image.onload = () => {
+                resolution.textContent = `${image.naturalWidth} × ${image.naturalHeight}`;
+            };
+            for (const eventName of ["pointerdown", "mousedown"]) {
+                image.addEventListener(eventName, event => {
+                    if (event.button === 2) event.stopPropagation();
+                });
+            }
+            image.addEventListener("contextmenu", event => {
+                if (selected()) showPreviewImageMenu(event, selected());
+            });
+            this.dkstUpdatePreview = message => {
+                descriptors = message?.dkst_images || message?.images || [];
+                selector.replaceChildren();
+                descriptors.forEach((item, index) => {
+                    const option = document.createElement("option");
+                    option.value = String(index);
+                    option.textContent = `${index + 1} / ${descriptors.length}`;
+                    selector.appendChild(option);
+                });
+                selector.value = "0";
+                selector.style.display = descriptors.length > 1 ? "block" : "none";
+                resolution.textContent = message?.resolution?.[0] || "";
+                display();
+                this.setDirtyCanvas(true, true);
+            };
             return result;
         };
-
-        const onExecuted = nodeType.prototype.onExecuted;
+        const executed = nodeType.prototype.onExecuted;
         nodeType.prototype.onExecuted = function(message) {
-            onExecuted?.apply(this, arguments);
-            this.dkstPreviewDescriptors = message?.images || [];
-            const resolution = message?.resolution?.[0];
-            if (resolution) {
-                this.dkstImageResolution = resolution;
-                this.setDirtyCanvas(true, true);
-            }
+            executed?.apply(this, arguments);
+            this.dkstUpdatePreview?.(message);
         };
-
-        const onDrawForeground = nodeType.prototype.onDrawForeground;
-        nodeType.prototype.onDrawForeground = function(ctx) {
-            onDrawForeground?.apply(this, arguments);
-            if (!this.dkstImageResolution || this.flags?.collapsed) return;
-
-            const barHeight = 24;
-            const y = this.size[1] - barHeight;
-            ctx.save();
-            ctx.fillStyle = "rgba(24, 24, 24, 0.92)";
-            ctx.fillRect(0, y, this.size[0], barHeight);
-            ctx.fillStyle = "#f0f0f0";
-            ctx.font = "13px sans-serif";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(this.dkstImageResolution, this.size[0] / 2, y + barHeight / 2);
-            ctx.restore();
-        };
+    },
+    loadedGraphNode(node) {
+        if (node.comfyClass === "DINKI_Preview_Image") {
+            const output = app.nodeOutputs?.[node.id];
+            if (output) node.dkstUpdatePreview?.(output);
+        }
     },
 });
 
