@@ -34,7 +34,7 @@ class DINKI_Image_Comparer_MOV:
                 
                 # [New] 미리보기 모드 추가
                 "preview_mode": ("BOOLEAN", {"default": False}),
-                "filename_prefix": ("STRING", {"default": "DINKI_Compare"}),
+                "filename_prefix": ("STRING", {"default": "DKST_Compare"}),
             },
         }
 

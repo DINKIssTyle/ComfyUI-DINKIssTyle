@@ -1294,6 +1294,342 @@ app.registerExtension({
     }
 });
 
+
+// ============================================================
+// 13. DKST Preview (Image) resolution overlay
+// ============================================================
+app.registerExtension({
+    name: "DINKI.PreviewImage.Resolution",
+    async beforeRegisterNodeDef(nodeType, nodeData) {
+        if (nodeData.name !== "DINKI_Preview_Image") return;
+
+        const onExecuted = nodeType.prototype.onExecuted;
+        nodeType.prototype.onExecuted = function(message) {
+            onExecuted?.apply(this, arguments);
+            const resolution = message?.resolution?.[0];
+            if (resolution) {
+                this.dkstImageResolution = resolution;
+                this.setDirtyCanvas(true, true);
+            }
+        };
+
+        const onDrawForeground = nodeType.prototype.onDrawForeground;
+        nodeType.prototype.onDrawForeground = function(ctx) {
+            onDrawForeground?.apply(this, arguments);
+            if (!this.dkstImageResolution || this.flags?.collapsed) return;
+
+            const barHeight = 24;
+            const y = this.size[1] - barHeight;
+            ctx.save();
+            ctx.fillStyle = "rgba(24, 24, 24, 0.92)";
+            ctx.fillRect(0, y, this.size[0], barHeight);
+            ctx.fillStyle = "#f0f0f0";
+            ctx.font = "13px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(this.dkstImageResolution, this.size[0] / 2, y + barHeight / 2);
+            ctx.restore();
+        };
+    },
+});
+
+
+// ============================================================
+// 14. DKST Image (Load)
+// ============================================================
+app.registerExtension({
+    name: "DINKI.ImageLoad",
+    async beforeRegisterNodeDef(nodeType, nodeData) {
+        if (nodeData.name !== "DINKI_Image_Load") return;
+
+        const onNodeCreated = nodeType.prototype.onNodeCreated;
+        nodeType.prototype.onNodeCreated = function() {
+            const result = onNodeCreated?.apply(this, arguments);
+            const node = this;
+            const categoryWidget = getWidget(node, "category");
+            const filenameWidget = getWidget(node, "filename");
+            const sourceTypeWidget = getWidget(node, "source_type");
+            if (!categoryWidget || !filenameWidget || !sourceTypeWidget) return result;
+
+            sourceTypeWidget.type = "converted-widget";
+            sourceTypeWidget.computeSize = () => [0, -4];
+
+            const previewContainer = document.createElement("div");
+            Object.assign(previewContainer.style, {
+                width: "100%",
+                height: "100%",
+                minHeight: "0",
+                display: "none",
+                flexDirection: "column",
+                alignItems: "stretch",
+                justifyContent: "center",
+                overflow: "hidden",
+                background: "#181818",
+                borderRadius: "6px",
+                boxSizing: "border-box",
+                pointerEvents: "none",
+                contain: "size layout paint",
+            });
+
+            const previewElement = document.createElement("img");
+            Object.assign(previewElement.style, {
+                width: "100%",
+                height: "0",
+                minHeight: "0",
+                maxHeight: "100%",
+                flex: "1 1 0",
+                objectFit: "contain",
+                display: "block",
+            });
+
+            const resolutionElement = document.createElement("div");
+            Object.assign(resolutionElement.style, {
+                flex: "0 0 28px",
+                lineHeight: "28px",
+                textAlign: "center",
+                color: "#f0f0f0",
+                font: "13px sans-serif",
+                background: "#181818",
+            });
+            previewContainer.append(previewElement, resolutionElement);
+
+            if (typeof node.addDOMWidget === "function") {
+                const previewWidget = node.addDOMWidget(
+                    "dkst_image_preview",
+                    "DKST_IMAGE_PREVIEW",
+                    previewContainer,
+                    {
+                        hideOnZoom: false,
+                        getMinHeight: () => 120,
+                        getMaxHeight: () => 320,
+                        getHeight: () => 240,
+                    },
+                );
+                previewWidget.serialize = false;
+            }
+
+            const setValues = (widget, values) => {
+                widget.options ??= {};
+                widget.options.values = values.length ? values : [""];
+            };
+
+            const showPreview = (filename = filenameWidget.value) => {
+                if (!filename) {
+                    node.dkstLoadedImage = null;
+                    node.dkstImageResolution = "";
+                    previewElement.removeAttribute("src");
+                    resolutionElement.textContent = "";
+                    previewContainer.style.display = "none";
+                    node.setDirtyCanvas(true, true);
+                    return;
+                }
+
+                const params = new URLSearchParams({
+                    filename,
+                    subfolder: sourceTypeWidget.value === "temp" ? "" : (categoryWidget.value || ""),
+                    type: sourceTypeWidget.value || "input",
+                    t: String(Date.now()),
+                });
+                const image = new Image();
+                image.onload = () => {
+                    node.dkstLoadedImage = image;
+                    node.dkstImageResolution = `${image.naturalWidth} × ${image.naturalHeight}`;
+                    previewElement.src = image.src;
+                    resolutionElement.textContent = node.dkstImageResolution;
+                    previewContainer.style.display = "flex";
+                    node.setDirtyCanvas(true, true);
+                };
+                image.onerror = () => {
+                    node.dkstLoadedImage = null;
+                    node.dkstImageResolution = "Unable to preview image";
+                    previewElement.removeAttribute("src");
+                    resolutionElement.textContent = node.dkstImageResolution;
+                    previewContainer.style.display = "flex";
+                    node.setDirtyCanvas(true, true);
+                };
+                image.src = api.apiURL(`/view?${params.toString()}`);
+            };
+
+            const refreshFiles = async(category, preferredFilename = null) => {
+                sourceTypeWidget.value = "input";
+                const params = new URLSearchParams({ category: category || "" });
+                const response = await api.fetchApi(`/dinki/image-load/files?${params.toString()}`);
+                if (!response.ok) throw new Error(`Unable to load image list (${response.status})`);
+                const data = await response.json();
+                setValues(filenameWidget, data.files || []);
+                filenameWidget.value = data.files?.includes(preferredFilename)
+                    ? preferredFilename
+                    : (data.files?.[0] || "");
+                showPreview(filenameWidget.value);
+                node.setDirtyCanvas(true, true);
+            };
+
+            const refreshCategories = async(preferredCategory = null, preferredFilename = null) => {
+                const response = await api.fetchApi("/dinki/image-load/categories");
+                if (!response.ok) throw new Error(`Unable to load image categories (${response.status})`);
+                const data = await response.json();
+                const categories = data.categories || [""];
+                setValues(categoryWidget, categories);
+                categoryWidget.value = categories.includes(preferredCategory)
+                    ? preferredCategory
+                    : "";
+                await refreshFiles(categoryWidget.value, preferredFilename);
+            };
+
+            const originalCategoryCallback = categoryWidget.callback;
+            categoryWidget.callback = async function(value) {
+                originalCategoryCallback?.apply(this, arguments);
+                await node.dkstDeleteTemporaryImage?.();
+                refreshFiles(value).catch(console.error);
+            };
+
+            const originalFilenameCallback = filenameWidget.callback;
+            filenameWidget.callback = function(value) {
+                originalFilenameCallback?.apply(this, arguments);
+                showPreview(value);
+            };
+
+            node.dkstRefreshImageLoader = refreshCategories;
+            const extensionForBlob = (blob) => ({
+                "image/jpeg": "jpg",
+                "image/webp": "webp",
+                "image/gif": "gif",
+                "image/avif": "avif",
+            })[blob.type] || "png";
+
+            const uploadImage = async(file, type, uploadName) => {
+                const upload = new File([file], uploadName, { type: file.type || "image/png" });
+                const body = new FormData();
+                body.append("image", upload);
+                body.append("subfolder", type === "input" ? (categoryWidget.value || "") : "");
+                body.append("type", type);
+                body.append("overwrite", "false");
+
+                const response = await api.fetchApi("/upload/image", { method: "POST", body });
+                if (!response.ok) throw new Error(`Image upload failed (${response.status})`);
+                return response.json();
+            };
+
+            node.dkstDeleteTemporaryImage = async() => {
+                if (sourceTypeWidget.value !== "temp" || !filenameWidget.value) return;
+                const filename = filenameWidget.value;
+                sourceTypeWidget.value = "input";
+                const response = await api.fetchApi("/dinki/image-load/delete-temp", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ filename }),
+                });
+                if (!response.ok) {
+                    console.warn(`Unable to delete temporary pasted image (${response.status})`);
+                }
+            };
+
+            node.dkstUploadClipboardImage = async(blob) => {
+                const extension = extensionForBlob(blob);
+                const data = await uploadImage(
+                    blob,
+                    "temp",
+                    `DKST_Paste_${Date.now()}.${extension}`,
+                );
+                await node.dkstDeleteTemporaryImage();
+                sourceTypeWidget.value = "temp";
+                setValues(filenameWidget, [data.name]);
+                filenameWidget.value = data.name;
+                showPreview(data.name);
+                node.setDirtyCanvas(true, true);
+            };
+
+            node.dkstUploadDroppedImage = async(file) => {
+                const data = await uploadImage(file, "input", file.name);
+                await node.dkstDeleteTemporaryImage();
+                sourceTypeWidget.value = "input";
+                await refreshCategories(data.subfolder || "", data.name);
+            };
+
+            node.onDragOver = (event) => Array.from(event.dataTransfer?.files || []).some(
+                (file) => file.type.startsWith("image/"),
+            );
+            node.onDragDrop = async(event) => {
+                const image = Array.from(event.dataTransfer?.files || []).find(
+                    (file) => file.type.startsWith("image/"),
+                );
+                if (!image) return false;
+                try {
+                    await node.dkstUploadDroppedImage(image);
+                } catch (error) {
+                    console.error(error);
+                    alert(`Unable to drop image: ${error.message}`);
+                }
+                return true;
+            };
+
+            ensureLater(() => {
+                refreshCategories(categoryWidget.value, filenameWidget.value).catch(console.error);
+            });
+            return result;
+        };
+
+        const onConfigure = nodeType.prototype.onConfigure;
+        nodeType.prototype.onConfigure = function() {
+            const result = onConfigure?.apply(this, arguments);
+            ensureLater(() => {
+                const category = getWidget(this, "category")?.value || "";
+                const filename = getWidget(this, "filename")?.value || "";
+                const sourceType = getWidget(this, "source_type");
+                if (sourceType) sourceType.value = "input";
+                this.dkstRefreshImageLoader?.(category, filename).catch(console.error);
+            });
+            return result;
+        };
+
+        const onSelected = nodeType.prototype.onSelected;
+        nodeType.prototype.onSelected = function() {
+            const result = onSelected?.apply(this, arguments);
+            const sourceType = getWidget(this, "source_type")?.value || "input";
+            if (sourceType === "temp") return result;
+            const category = getWidget(this, "category")?.value || "";
+            const filename = getWidget(this, "filename")?.value || "";
+            this.dkstRefreshImageLoader?.(category, filename).catch(console.error);
+            return result;
+        };
+
+        const onExecuted = nodeType.prototype.onExecuted;
+        nodeType.prototype.onExecuted = function(message) {
+            onExecuted?.apply(this, arguments);
+            const resolution = message?.resolution?.[0];
+            if (resolution) this.dkstImageResolution = resolution;
+        };
+    },
+
+    setup() {
+        window.addEventListener("paste", async(event) => {
+            const activeElement = document.activeElement;
+            if (activeElement?.matches?.("input, textarea, [contenteditable='true']")) return;
+
+            const selected = Object.values(app.canvas?.selected_nodes || {}).find(
+                (node) => node.comfyClass === "DINKI_Image_Load",
+            );
+            if (!selected?.dkstUploadClipboardImage) return;
+
+            const imageItem = Array.from(event.clipboardData?.items || []).find(
+                (item) => item.type.startsWith("image/"),
+            );
+            if (!imageItem) return;
+
+            const image = imageItem.getAsFile();
+            if (!image) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            try {
+                await selected.dkstUploadClipboardImage(image);
+            } catch (error) {
+                console.error(error);
+                alert(`Unable to paste image: ${error.message}`);
+            }
+        }, true);
+    },
+});
+
 /**
  * 화면 이동 및 줌 로직 처리 함수 (수정됨)
  */
