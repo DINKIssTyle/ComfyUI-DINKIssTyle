@@ -1567,8 +1567,8 @@ app.registerExtension({
                     };
                     menu.appendChild(button);
                 };
-                addAction("사진 열기", () => window.open(node.dkstLoadedImage.src, "_blank", "noopener,noreferrer"));
-                addAction("마스킹 창 열기", () => {
+                addAction("Open Image", () => window.open(node.dkstLoadedImage.src, "_blank", "noopener,noreferrer"));
+                addAction("Open Mask Editor", () => {
                     if (typeof ComfyApp.open_maskeditor !== "function") {
                         throw new Error("ComfyUI mask editor is unavailable.");
                     }
