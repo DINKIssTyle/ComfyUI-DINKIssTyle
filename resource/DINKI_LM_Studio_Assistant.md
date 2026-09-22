@@ -14,7 +14,7 @@
 ### ✨ Key Features
 
 * **Multimodal Capabilities:** Supports both **Text-to-Text** and **Image-to-Text** (Vision) generation.
-* **Local & Private:** Runs entirely on your local machine via LM Studio server—no API keys or internet required.
+* **Local & Private:** Runs via your LM Studio server, with optional API key authentication.
 * **Batch Support:** Automatically processes image batches, sending them individually to the LLM for analysis.
 * **Memory Management:** Includes an `auto_unload` feature to free up VRAM for Stable Diffusion generation after the LLM task is finished.
 * **Flexible Control:** Full access to LLM parameters like `temperature`, `max_tokens`, and `system_prompt`.
@@ -60,14 +60,14 @@ By setting `assistant_enabled` to **False**, the node bypasses the LLM entirely 
 | **assistant_enabled** | Master toggle. If `False`, passes input text directly to output without calling the LLM. |
 | **ip_address** | The IP of the LM Studio server (Default: `127.0.0.1`). |
 | **port** | The port of the LM Studio server (Default: `1234`). |
+| **api_key** | API key sent as `Authorization: Bearer …` for generation and automatic unloading. Leave empty when server authentication is disabled. |
 | **model_key** | The model identifier string (e.g., `qwen/qwen3-vl-8b`). Can often be left generic depending on LM Studio version. |
 | **system_prompt** | Defines the AI's persona (e.g., "You are a prompt engineer..."). |
 | **user_prompt** | Your specific instruction or query. |
-| **max_tokens** | Maximum length of the generated response. |
+| **max_tokens** | Maximum output tokens (0–2,147,483,647). `0` omits the parameter and uses the server default. Actual output is limited by the model and available context. |
 | **temperature** | Creativity control (0.0 = Precise/Deterministic, 1.0+ = Creative/Random). |
 | **auto_unload** | If `True`, sends a request to unload the model from VRAM after generation. Essential for GPUs with limited VRAM. |
 | **unload_delay** | Seconds to wait before unloading the model (if `auto_unload` is True). |
 
 
 [With the DINKI Batch Images node, you can request up to 10 image assistants from an LLM.](DINKI_Image.md#-dinki-batch-images)
-

@@ -87,15 +87,46 @@ app.registerExtension({
     nodeType.prototype.__dinki_live_patched = true;
 
     async function attach(node) {
-      if (node.__dinki_live_attached) return;
-      node.__dinki_live_attached = true;
+      if (node.__dinki_live_attached || node.__dinki_live_attach_pending) return;
+      node.__dinki_live_attach_pending = true;
 
-      ensureLater(() => {
+      const attachWhenReady = (attempt = 0) => {
         const titleW = getWidget(node, "title");
         const textW  = getWidget(node, "text");
         const modeW  = getWidget(node, "mode");
         const sepW   = getWidget(node, "separator");
-        if (!titleW || !textW) return;
+        if (!titleW || !textW) {
+          // Vue/Nodes 2.0 may create widgets after the node lifecycle hook.
+          if (attempt < 120) requestAnimationFrame(() => attachWhenReady(attempt + 1));
+          else node.__dinki_live_attach_pending = false;
+          return;
+        }
+        node.__dinki_live_attached = true;
+        node.__dinki_live_attach_pending = false;
+
+        const setTextValue = (value) => {
+          const oldValue = textW.value;
+
+          // `value` is enough for classic widgets. Nodes 2.0 multiline
+          // widgets additionally keep their value in a Vue/DOM value store.
+          textW.value = value;
+          textW.options?.setValue?.(value);
+
+          const inputEl = textW.inputEl || textW.element;
+          if (inputEl && "value" in inputEl && inputEl.value !== value) {
+            inputEl.value = value;
+            inputEl.dispatchEvent?.(new Event("input", { bubbles: true }));
+            inputEl.dispatchEvent?.(new Event("change", { bubbles: true }));
+          }
+
+          try {
+            textW.callback?.call(textW, value, app.canvas, node);
+          } catch (e) {
+            console.warn("DINKI Live text callback error:", e);
+          }
+          node.onWidgetChanged?.("text", value, oldValue, textW);
+          node.graph?.incrementVersion?.();
+        };
 
         if (!node.__dinki_live_clear_added) {
           node.addWidget("button", "Clear", null, () => {
@@ -111,7 +142,8 @@ app.registerExtension({
         if (!node.__dinki_live_refresh_added) {
           node.addWidget("button", "🔄 Refresh Prompts", null, async () => {
             try {
-              const res = await fetch("/get-csv-prompts");
+              const res = await api.fetchApi("/get-csv-prompts");
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
               const titles = await res.json();
 
               if (!titleW.options) titleW.options = {};
@@ -132,34 +164,56 @@ app.registerExtension({
 
         if (!node.__dinki_live_cb_wrapped) {
           const origCb = titleW.callback;
+          let observedTitle = titleW.value;
 
-          titleW.callback = async (value) => {
+          const loadSelectedPrompt = async (value) => {
+            titleW.value = value;
+            observedTitle = value;
             const sepVal = sepW?.value ?? "\n";
             const sig = JSON.stringify([value, modeW?.value || "append", sepVal, textW.value]);
             if (node.__dinki_last_apply_sig === sig) return;
             node.__dinki_last_apply_sig = sig;
-
-            if (origCb) origCb(value);
+            const requestId = (node.__dinki_live_request_id || 0) + 1;
+            node.__dinki_live_request_id = requestId;
 
             try {
-              const res = await fetch("/dinki/prompts");
+              const res = await api.fetchApi("/dinki/prompts");
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
               const map = await res.json();
-              const picked = (map && value && map[value]) ? (map[value] || "") : "";
+              // Ignore a slow response if another preset was selected while
+              // this request was in flight.
+              if (requestId !== node.__dinki_live_request_id || titleW.value !== value) return;
+              const selectedTitle = String(value ?? titleW.value ?? "").trim();
+              let picked = (map && selectedTitle) ? (map[selectedTitle] || "") : "";
+              if (!picked && map && typeof map === "object") {
+                const matchedTitle = Object.keys(map).find(
+                  key => key.trim().toLocaleLowerCase() === selectedTitle.toLocaleLowerCase()
+                );
+                if (matchedTitle) picked = map[matchedTitle] || "";
+              }
               const mode = modeW?.value || "append";
               let sep = sepVal;
               if (sep === "\\n") sep = "\n";
               if (sep === "\\n\\n") sep = "\n\n";
-              if (!picked) return;
+              if (!picked) {
+                if (selectedTitle && selectedTitle !== "-- None --") {
+                  console.warn("[DINKI Live] Selected title was not found in /dinki/prompts:", selectedTitle);
+                }
+                return;
+              }
 
               if (mode === "replace") {
-                textW.value = picked;
+                setTextValue(picked);
               } else if (mode === "append") {
-                if (!textW.value) textW.value = picked;
-                else textW.value = (sep && !textW.value.endsWith(sep))
+                let nextValue;
+                if (!textW.value) nextValue = picked;
+                else nextValue = (sep && !textW.value.endsWith(sep))
                   ? textW.value + sep + picked
                   : textW.value + picked;
+                setTextValue(nextValue);
               }
-              node.setDirtyCanvas(true);
+              node.setDirtyCanvas(true, true);
+              console.info("[DINKI Live] Prompt applied:", selectedTitle, `(${picked.length} chars)`);
             } catch (e) {
               console.error("DINKI Live fetch/prompts error:", e);
             } finally {
@@ -167,9 +221,44 @@ app.registerExtension({
             }
           };
 
+          titleW.callback = function (value, ...args) {
+            // Some ComfyUI widget implementations expect their callback's
+            // `this` value to be the widget.  A callback error must not stop
+            // the live prompt lookup.
+            try {
+              origCb?.call(titleW, value, ...args);
+            } catch (e) {
+              console.warn("DINKI Live original title callback error:", e);
+            }
+            return loadSelectedPrompt(value);
+          };
+
+          // Nodes 2.0 reports widget edits through the node notification and
+          // may not invoke the classic widget callback at all.
+          const origWidgetChanged = node.onWidgetChanged;
+          node.onWidgetChanged = function (name, value) {
+            const result = origWidgetChanged?.apply(this, arguments);
+            if (name === "title") loadSelectedPrompt(value);
+            return result;
+          };
+
+          // Final compatibility path: a few Nodes 2.0 renderers update the
+          // store-backed combo without calling either legacy hook.
+          const origDrawForeground = node.onDrawForeground;
+          node.onDrawForeground = function () {
+            const result = origDrawForeground?.apply(this, arguments);
+            if (titleW.value !== observedTitle) {
+              observedTitle = titleW.value;
+              loadSelectedPrompt(observedTitle);
+            }
+            return result;
+          };
+
           node.__dinki_live_cb_wrapped = true;
         }
-      });
+      };
+
+      ensureLater(() => attachWhenReady());
     }
 
     const origCreated = nodeType.prototype.onNodeCreated;
@@ -885,6 +974,19 @@ app.registerExtension({
                 } else {
                     comboWidget = originalWidget;
                 }
+
+                // Keep slash-separated strings as literal values, including model IDs.
+                comboWidget.options.getOptionLabel = value => value ?? "";
+                const originalComboCallback = comboWidget.callback;
+                comboWidget.callback = function (value, ...args) {
+                    const values = comboWidget.options.values;
+                    if (typeof value === "string" && !values.includes(value)) {
+                        const matches = values.filter(line => line.endsWith("/" + value));
+                        if (matches.length === 1) value = matches[0];
+                    }
+                    comboWidget.value = value;
+                    return originalComboCallback?.call(this, value, ...args);
+                };
 
                 // [핵심 변경] 3. 줄 바꿈 기준으로 드랍다운 목록 업데이트
                 const updateCombo = () => {

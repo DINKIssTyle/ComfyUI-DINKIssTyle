@@ -61,6 +61,13 @@ class DINKI_String_Switch_RT:
     # 함수 인자도 input_text로 변경
     def switch_and_combine(self, select_string, input_text, text_in=None):
         current_text = select_string
+        # Some combo menus return only the leaf label for slash-separated values.
+        # Recover only an unambiguous match; never guess between duplicate leaves.
+        lines = [line.strip() for line in input_text.splitlines() if line.strip()]
+        if current_text and current_text not in lines:
+            matches = [line for line in lines if line.endswith("/" + current_text)]
+            if len(matches) == 1:
+                current_text = matches[0]
 
         if text_in is None:
             text_in = ""
