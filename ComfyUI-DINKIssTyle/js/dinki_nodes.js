@@ -1,6 +1,6 @@
 // ComfyUI/custom_nodes/ComfyUI-DINKIssTyle/js/dinki_nodes.js
 
-import { app } from "/scripts/app.js";
+import { app, ComfyApp } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
 // 공통 헬퍼
@@ -1380,6 +1380,7 @@ app.registerExtension({
                 flex: "1 1 0",
                 objectFit: "contain",
                 display: "block",
+                pointerEvents: "auto",
             });
 
             const resolutionElement = document.createElement("div");
@@ -1490,6 +1491,111 @@ app.registerExtension({
             };
 
             node.dkstRefreshImageLoader = refreshCategories;
+            // The native mask editor reads/writes a widget named `image`.
+            // Keep this bridge out of the visible controls and prompt inputs.
+            const editorWidget = node.addWidget("combo", "image", "", () => {}, { values: [] });
+            editorWidget.type = "converted-widget";
+            editorWidget.computeSize = () => [0, -4];
+            editorWidget.serialize = false;
+            editorWidget.options.serialize = false;
+            let editorValue = "";
+            Object.defineProperty(editorWidget, "value", {
+                configurable: true,
+                get: () => editorValue,
+                set: (value) => {
+                    if (typeof value !== "string" || value === editorValue) return;
+                    editorValue = value;
+                    const match = value.match(/^(.*?)(?: \[(input|temp|output)\])?$/);
+                    const path = match[1].replaceAll("\\", "/");
+                    const slash = path.lastIndexOf("/");
+                    const descriptor = {
+                        filename: path.slice(slash + 1),
+                        subfolder: slash < 0 ? "" : path.slice(0, slash),
+                        type: match[2] || "input",
+                    };
+                    const applyEditedImage = async() => {
+                        if (descriptor.type === "input") {
+                            await node.dkstDeleteTemporaryImage?.();
+                            await refreshCategories(descriptor.subfolder, descriptor.filename);
+                        } else {
+                            const response = await api.fetchApi(`/view?${new URLSearchParams(descriptor)}`);
+                            if (!response.ok) throw new Error("Unable to load edited image");
+                            await node.dkstUploadClipboardImage(await response.blob());
+                        }
+                    };
+                    applyEditedImage().catch((error) => {
+                        console.error(error);
+                        alert(`Unable to apply edited image: ${error.message}`);
+                    });
+                },
+            });
+
+            let closeImageMenu = () => {};
+            previewElement.addEventListener("contextmenu", (event) => {
+                if (!node.dkstLoadedImage) return;
+                event.preventDefault();
+                event.stopPropagation();
+                closeImageMenu();
+                const menu = document.createElement("div");
+                Object.assign(menu.style, {
+                    position: "fixed", zIndex: "100000", background: "#252525",
+                    color: "white", padding: "5px", border: "1px solid #555",
+                    borderRadius: "6px", minWidth: "180px",
+                    left: `${Math.max(0, Math.min(event.clientX, window.innerWidth - 200))}px`,
+                    top: `${Math.max(0, Math.min(event.clientY, window.innerHeight - 100))}px`,
+                });
+                menu.setAttribute("role", "menu");
+                const dismiss = (e) => { if (!menu.contains(e.target)) closeImageMenu(); };
+                const escape = (e) => { if (e.key === "Escape") closeImageMenu(); };
+                closeImageMenu = () => {
+                    menu.remove();
+                    document.removeEventListener("pointerdown", dismiss, true);
+                    document.removeEventListener("keydown", escape, true);
+                };
+                const addAction = (label, action) => {
+                    const button = document.createElement("button");
+                    button.textContent = label;
+                    button.setAttribute("role", "menuitem");
+                    Object.assign(button.style, {
+                        display: "block", width: "100%", padding: "9px 12px",
+                        textAlign: "left", color: "inherit", background: "transparent",
+                        border: "0", cursor: "pointer",
+                    });
+                    button.onclick = () => {
+                        closeImageMenu();
+                        try { action(); } catch (error) { alert(error.message); }
+                    };
+                    menu.appendChild(button);
+                };
+                addAction("사진 열기", () => window.open(node.dkstLoadedImage.src, "_blank", "noopener,noreferrer"));
+                addAction("마스킹 창 열기", () => {
+                    if (typeof ComfyApp.open_maskeditor !== "function") {
+                        throw new Error("ComfyUI mask editor is unavailable.");
+                    }
+                    const descriptor = {
+                        filename: filenameWidget.value,
+                        subfolder: sourceTypeWidget.value === "temp" ? "" : (categoryWidget.value || ""),
+                        type: sourceTypeWidget.value || "input",
+                    };
+                    editorValue = `${descriptor.subfolder ? descriptor.subfolder + "/" : ""}${descriptor.filename} [${descriptor.type}]`;
+                    node.imgs = [node.dkstLoadedImage];
+                    node.imageIndex = 0;
+                    ComfyApp.copyToClipspace(node);
+                    ComfyApp.clipspace.images = [descriptor];
+                    ComfyApp.clipspace_return_node = node;
+                    ComfyApp.open_maskeditor();
+                });
+                document.body.appendChild(menu);
+                document.addEventListener("pointerdown", dismiss, true);
+                document.addEventListener("keydown", escape, true);
+                menu.querySelector("button")?.focus();
+            });
+            const onRemoved = node.onRemoved;
+            node.onRemoved = function() {
+                closeImageMenu();
+                return onRemoved?.apply(this, arguments);
+            };
+
             const extensionForBlob = (blob) => ({
                 "image/jpeg": "jpg",
                 "image/webp": "webp",
