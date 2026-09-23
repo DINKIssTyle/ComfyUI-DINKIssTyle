@@ -52,6 +52,26 @@ Perfect for creating "Control Panels" in complex workflows, allowing you to turn
 ---
 
 
+## 🔀 DKST Node Change
+
+Switch between two groups of nodes using comma-separated IDs in `node_ids_1`
+and `node_ids_2` (for example, `5, 12, 44`).
+
+* **Group 1 / On:** Enable group 1 and bypass group 2.
+* **Group 2 / Off:** Bypass group 1 and enable group 2.
+* Enabled nodes use normal execution mode; disabled nodes use Bypass, as in Node Switch.
+* Empty fields and unknown IDs are ignored. IDs in both groups stay enabled.
+* The control ignores its own ID and resolves targets within its own graph/subgraph.
+* Supports classic widgets and Nodes 2.0. Saved settings apply when a workflow loads.
+* Controls promoted to a subgraph's outer interface are synchronized within about
+  100 ms, including nested subgraphs. Target IDs still refer to the control's own
+  graph. Unchanged values do not trigger redraws.
+
+This control changes node modes in the ComfyUI frontend, like Node Switch.
+For predictable results, avoid targeting the same node with conflicting controls.
+
+---
+
 ## 🕵️ DINKI Node Check
 ![Preview](DINKI_Node_Check.gif)  
 This node for quickly checking the ID of any selected node—even when the global “Show Node ID” option is turned off.

@@ -73,6 +73,7 @@ from .dinki_viewer import (
 # 6. 스위치 관련
 from .dinki_switch import (
     DINKI_Node_Switch,
+    DINKI_Node_Change,
     DINKI_String_Switch_RT,
 )
 
@@ -139,6 +140,7 @@ NODE_CLASS_MAPPINGS = {
 
     # Switch
     "DINKI_Node_Switch": DINKI_Node_Switch,
+    "DINKI_Node_Change": DINKI_Node_Change,
     "DINKI_String_Switch_RT": DINKI_String_Switch_RT,
 
     # Tool
@@ -202,6 +204,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # Switch
     "DINKI_Node_Switch": "DKST Node Switch",
+    "DINKI_Node_Change": "DKST Node Change",
     "DINKI_String_Switch_RT": "DKST String Switch RT",
 
     # Tool

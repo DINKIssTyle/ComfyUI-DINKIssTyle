@@ -429,7 +429,7 @@ app.registerExtension({
 // ============================================================
 // 4. DINKI Node Switch Logic
 // ============================================================
-function applyNodeSwitch(node, changedName, changedValue) {
+function applyNodeSwitch(node, changedName, changedValue, values = {}) {
     // app.graph is the currently displayed graph, which may be a different subgraph.
     const graph = node.graph;
     if (!graph || app.configuringGraph) return;
@@ -439,8 +439,8 @@ function applyNodeSwitch(node, changedName, changedValue) {
     if (!idWidget || !toggleWidget) return;
 
     // Some widget renderers notify before committing widget.value.
-    const idsText = changedName === "node_ids" ? changedValue : idWidget.value;
-    const isActive = changedName === "active" ? changedValue : toggleWidget.value;
+    const idsText = changedName === "node_ids" ? changedValue : (values.node_ids ?? idWidget.value);
+    const isActive = changedName === "active" ? changedValue : (values.active ?? toggleWidget.value);
     const ids = new Set(String(idsText ?? "").split(",").map(id => id.trim()).filter(Boolean));
     let changed = false;
 
@@ -458,29 +458,132 @@ function applyNodeSwitch(node, changedName, changedValue) {
     }
 }
 
+function applyNodeChange(node, changedName, changedValue, values = {}) {
+    const graph = node.graph;
+    if (!graph || app.configuringGraph) return;
+    const names = ["node_ids_1", "node_ids_2", "active"];
+    if (names.some(name => !getWidget(node, name))) return;
+    const value = name => name === changedName ? changedValue : (values[name] ?? getWidget(node, name).value);
+    const parseIds = text => new Set(String(text ?? "").split(",").map(id => id.trim()).filter(Boolean));
+    const first = parseIds(value("node_ids_1"));
+    const second = parseIds(value("node_ids_2"));
+    const enabled = value("active") ? first : second;
+    const disabled = value("active") ? second : first;
+    let changed = false;
+    for (const target of graph.nodes ?? graph._nodes ?? []) {
+        if (target === node) continue;
+        const id = String(target.id);
+        // Shared IDs stay enabled whichever group is selected.
+        const mode = enabled.has(id) ? 0 : disabled.has(id) ? 4 : target.mode;
+        if (target.mode !== mode) {
+            target.mode = mode;
+            changed = true;
+        }
+    }
+    if (changed) {
+        graph.change?.();
+        graph.setDirtyCanvas?.(true, true);
+    }
+}
+
+// Read promoted input values through their real links rather than display labels
+// (which users can rename). New frontends keep these values only on the host.
+function nodeModePromotedValues(host, inherited) {
+    const graph = host.subgraph;
+    const result = new Map();
+    // Earlier frontends expose proxy widgets instead of linked graph inputs.
+    const widgets = host.widgets ?? [];
+    const proxies = host.properties?.proxyWidgets ?? [];
+    for (const [index, widget] of widgets.entries()) {
+        const source = widget._overlay;
+        const [id, name] = source?.isProxyWidget
+            ? [source.nodeId, source.widgetName] : (proxies[index] ?? []);
+        if (id == null || String(id) === "-1" || !name) continue;
+        const target = (graph.nodes ?? graph._nodes ?? []).find(node => String(node.id) === String(id));
+        const value = inherited[widget.name] ?? widget.value;
+        if (target && value !== undefined) {
+            if (!result.has(target)) result.set(target, {});
+            result.get(target)[name] = value;
+        }
+    }
+    for (const input of host.inputs ?? []) {
+        if (input.link != null) continue; // A connected runtime input is not a manual control.
+        const widget = host.getWidgetFromSlot?.(input) ?? input._widget ?? getWidget(host, input.widget?.name ?? input.name);
+        const value = inherited[input.name] ?? widget?.value;
+        if (value === undefined) continue;
+        const slot = graph.inputNode?.slots?.find(slot => slot.name === input.name);
+        for (const id of slot?.linkIds ?? []) {
+            const link = graph.getLink?.(id) ?? graph.links?.[id];
+            if (!link) continue;
+            const resolved = link.resolve?.(graph);
+            const target = resolved?.inputNode ?? graph.getNodeById?.(link.target_id);
+            const targetInput = resolved?.input ?? target?.inputs?.[link.target_slot];
+            if (!target || !targetInput) continue;
+            const targetWidget = target.getWidgetFromSlot?.(targetInput);
+            const name = target.subgraph ? targetInput.name : (targetWidget?.name ?? targetInput.widget?.name);
+            if (!name) continue;
+            if (!result.has(target)) result.set(target, {});
+            result.get(target)[name] = value;
+        }
+    }
+    return result;
+}
+
+// Both controls need the same classic/Nodes 2.0 and workflow lifecycle hooks.
+function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
+    const previous = new WeakMap();
+    let monitor;
+    const syncSubgraphs = () => {
+        if (app.configuringGraph) return;
+        const visiting = new Set();
+        const visit = (graph, overrides = new Map(), nested = false) => {
+            if (!graph || visiting.has(graph)) return;
+            visiting.add(graph);
+            for (const node of graph.nodes ?? graph._nodes ?? []) {
+                const values = overrides.get(node) ?? {};
+                if (nested && node.comfyClass === nodeClass) {
+                    const effective = Object.fromEntries(widgetNames.map(name => [name, values[name] ?? getWidget(node, name)?.value]));
+                    const old = previous.get(node);
+                    if (!old || old.graph !== graph || widgetNames.some(name => !Object.is(old.values[name], effective[name]))) {
+                        apply(node, undefined, undefined, effective);
+                        previous.set(node, { graph, values: effective });
+                    }
+                }
+                if (node.subgraph) visit(node.subgraph, nodeModePromotedValues(node, values), true);
+            }
+            visiting.delete(graph);
+        };
+        visit(app.rootGraph ?? app.graph);
+    };
 app.registerExtension({
-    name: "DINKI.NodeSwitch",
+    name: extensionName,
+    setup() {
+        // Promoted widgets can update only a Vue value store, without invoking
+        // either the inner callback or a value setter. Observe effective values
+        // without replacing framework accessors; redraw only when they change.
+        if (monitor === undefined) monitor = setInterval(syncSubgraphs, 100);
+    },
     nodeCreated(node) {
-        if (node.comfyClass !== "DINKI_Node_Switch") return;
+        if (node.comfyClass !== nodeClass) return;
 
         // Nodes 2.0 and programmatic widget updates use the node notification.
         const onWidgetChanged = node.onWidgetChanged;
         node.onWidgetChanged = function (name, value) {
             const result = onWidgetChanged?.apply(this, arguments);
-            if (name === "node_ids" || name === "active") {
-                applyNodeSwitch(this, name, value);
+            if (widgetNames.includes(name)) {
+                apply(this, name, value);
             }
             return result;
         };
 
         // Keep classic canvas widgets working and preserve other extensions' callbacks.
-        for (const name of ["node_ids", "active"]) {
+        for (const name of widgetNames) {
             const widget = getWidget(node, name);
             if (!widget) continue;
             const callback = widget.callback;
             widget.callback = function (value) {
                 const result = callback?.apply(this, arguments);
-                applyNodeSwitch(node, name, value);
+                apply(node, name, value);
                 return result;
             };
         }
@@ -490,7 +593,7 @@ app.registerExtension({
             const original = node[hook];
             node[hook] = function () {
                 const result = original?.apply(this, arguments);
-                queueMicrotask(() => applyNodeSwitch(this));
+                queueMicrotask(() => apply(this));
                 return result;
             };
         }
@@ -501,13 +604,18 @@ app.registerExtension({
             if (!graph || visited.has(graph)) return;
             visited.add(graph);
             for (const node of graph.nodes ?? graph._nodes ?? []) {
-                if (node.comfyClass === "DINKI_Node_Switch") applyNodeSwitch(node);
+                if (node.comfyClass === nodeClass) apply(node);
                 if (node.subgraph) syncGraph(node.subgraph);
             }
         };
         syncGraph(app.rootGraph ?? app.graph);
+        syncSubgraphs();
     }
 });
+}
+
+registerNodeModeControl("DINKI.NodeSwitch", "DINKI_Node_Switch", ["node_ids", "active"], applyNodeSwitch);
+registerNodeModeControl("DINKI.NodeChange", "DINKI_Node_Change", ["node_ids_1", "node_ids_2", "active"], applyNodeChange);
 
 
 // ============================================================

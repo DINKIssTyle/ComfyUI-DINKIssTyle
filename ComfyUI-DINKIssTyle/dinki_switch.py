@@ -34,6 +34,29 @@ class DINKI_Node_Switch:
 
 
 
+class DINKI_Node_Change:
+    """Activate one group of node IDs and bypass the other in the frontend."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "node_ids_1": ("STRING", {"default": "", "multiline": False,
+                                      "tooltip": "Group 1 node IDs, separated by commas."}),
+            "node_ids_2": ("STRING", {"default": "", "multiline": False,
+                                      "tooltip": "Group 2 node IDs, separated by commas."}),
+            "active": ("BOOLEAN", {"default": True, "label_on": "Group 1",
+                                   "label_off": "Group 2"}),
+        }}
+
+    RETURN_TYPES = ()
+    FUNCTION = "do_nothing"
+    CATEGORY = "DINKIssTyle/Util"
+    OUTPUT_NODE = True
+
+    def do_nothing(self, node_ids_1, node_ids_2, active):
+        return ()
+
+
 class DINKI_String_Switch_RT:
     def __init__(self):
         pass
