@@ -57,9 +57,14 @@ Perfect for creating "Control Panels" in complex workflows, allowing you to turn
 Switch between two groups of nodes using comma-separated IDs in `node_ids_1`
 and `node_ids_2` (for example, `5, 12, 44`).
 
-* **Group 1 / On:** Enable group 1 and bypass group 2.
-* **Group 2 / Off:** Bypass group 1 and enable group 2.
-* Enabled nodes use normal execution mode; disabled nodes use Bypass, as in Node Switch.
+* **Group 1 / On:** Enable group 1 and disable group 2.
+* **Group 2 / Off:** Disable group 1 and enable group 2.
+* **disable_mode:** `Bypass` (default) passes inputs through the disabled nodes;
+  `Mute` stops their execution and output. Use Mute to exclude a text branch from
+  DKST Text (Concatenate).
+* **group_1_label / group_2_label:** Customize the toggle's two labels, including
+  promoted subgraph controls. Empty names fall back to Group 1 / Group 2.
+* Enabled nodes use normal execution mode. Existing workflows default to Bypass.
 * Empty fields and unknown IDs are ignored. IDs in both groups stay enabled.
 * The control ignores its own ID and resolves targets within its own graph/subgraph.
 * Supports classic widgets and Nodes 2.0. Saved settings apply when a workflow loads.

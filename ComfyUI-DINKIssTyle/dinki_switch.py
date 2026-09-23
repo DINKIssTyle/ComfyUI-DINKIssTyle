@@ -35,7 +35,7 @@ class DINKI_Node_Switch:
 
 
 class DINKI_Node_Change:
-    """Activate one group of node IDs and bypass the other in the frontend."""
+    """Activate one group and bypass or mute the other in the frontend."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -46,6 +46,9 @@ class DINKI_Node_Change:
                                       "tooltip": "Group 2 node IDs, separated by commas."}),
             "active": ("BOOLEAN", {"default": True, "label_on": "Group 1",
                                    "label_off": "Group 2"}),
+            "disable_mode": (["Bypass", "Mute"], {"default": "Bypass"}),
+            "group_1_label": ("STRING", {"default": "Group 1", "multiline": False, "dynamicPrompts": False}),
+            "group_2_label": ("STRING", {"default": "Group 2", "multiline": False, "dynamicPrompts": False}),
         }}
 
     RETURN_TYPES = ()
@@ -53,7 +56,8 @@ class DINKI_Node_Change:
     CATEGORY = "DINKIssTyle/Util"
     OUTPUT_NODE = True
 
-    def do_nothing(self, node_ids_1, node_ids_2, active):
+    def do_nothing(self, node_ids_1, node_ids_2, active, disable_mode="Bypass",
+                   group_1_label="Group 1", group_2_label="Group 2"):
         return ()
 
 
