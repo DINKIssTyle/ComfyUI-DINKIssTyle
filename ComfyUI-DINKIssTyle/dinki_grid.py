@@ -21,6 +21,10 @@ class DINKI_Grid:
                 "limit_output": ("BOOLEAN", {"default": False}),
                 "max_output_width": ("INT", {"default": 3840, "min": 512, "max": 8192}),
                 "max_output_height": ("INT", {"default": 2160, "min": 512, "max": 8192}),
+                "reference_image": ("INT", {
+                    "default": 1, "min": 1, "max": 10, "step": 1,
+                    "tooltip": "Image slot (1–10) used for the grid cell size. If unconnected, uses the first connected image.",
+                }),
             },
             "optional": img_inputs
         }
@@ -47,25 +51,28 @@ class DINKI_Grid:
         return torch.from_numpy(img).unsqueeze(0) # (1, H, W, C)
 
     def generate_grid(self, cols, rows, frame_thickness, bg_color_hex, resize_method, 
-                     limit_output, max_output_width, max_output_height, **kwargs):
+                     limit_output, max_output_width, max_output_height, reference_image=1, **kwargs):
         
         # 1. 입력 이미지 수집 (image_1 ~ image_10)
         images = []
+        reference = None
         for i in range(1, 11):
             key = f"image_{i}"
             if key in kwargs and kwargs[key] is not None:
-                images.append(self.tensor_to_pil(kwargs[key]))
+                image = self.tensor_to_pil(kwargs[key])
+                images.append(image)
+                if i == reference_image:
+                    reference = image
 
         if not images:
             # 이미지가 하나도 없으면 512x512 검은 화면 반환
             return (torch.zeros((1, 512, 512, 3)),)
 
-        # 2. 기준 셀 크기 결정 (1번 이미지 기준)
-        base_w, base_h = images[0].size
+        # 2. 선택한 입력 슬롯의 크기 사용 (빈 슬롯이면 첫 연결 이미지)
+        base_w, base_h = (reference if reference is not None else images[0]).size
         
         # 프레임 두께를 포함한 셀 크기 (이미지 영역 + 프레임)
-        # 1번 이미지의 크기를 '프레임을 제외한 순수 이미지 영역'으로 볼지, 
-        # '셀 전체 크기'로 볼지에 따라 다르지만, 여기서는 1번 이미지 크기 = 셀 크기로 설정합니다.
+        # 기준 이미지 크기 = 프레임을 포함한 셀 전체 크기입니다.
         # 즉, 프레임이 있으면 이미지가 그만큼 작아집니다.
         cell_w, cell_h = base_w, base_h
         

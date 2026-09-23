@@ -220,7 +220,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_photo_specifications": "DKST Photo Specifications",
     "DINKI_Overlay": "DKST Overlay",
     "DINKI_Image_Comparer_MOV": "DKST Image Comparer (to Video)",
-    "DINKI_Grid": "DKST Grid",
+    "DINKI_Grid": "DKST Image (Grid)",
     "DINKI_Img2Base64": "DKST Image To Base64",
     "DINKI_Base64Input": "DKST Base64 String Input",
     "DINKI_Base64Viewer": "DKST Base64 Image Viewer",

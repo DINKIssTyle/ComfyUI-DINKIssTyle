@@ -114,7 +114,7 @@ This node works perfectly with **DINKI LM Studio Assistant**. Use it to batch mu
 ---
 
 
-## ▦ DINKI Grid
+## ▦ DKST Image (Grid)
 ![Preview](DINKI_Grid.gif)
 
 An essential ComfyUI node for compiling up to **10 images** into a customizable grid layout. Perfect for creating comparison sheets, storyboards, or organized image galleries.
@@ -123,7 +123,7 @@ An essential ComfyUI node for compiling up to **10 images** into a customizable 
 
 * **Flexible Matrix Layout:** Define your own grid structure by setting **Columns** and **Rows** (e.g., 2x3, 4x4). Images fill the grid from Left-to-Right, Top-to-Bottom.
 * **Smart Resolution Handling:**
-    * **Base Resolution:** The grid cell size is automatically determined by the resolution of **Image 1**.
+    * **Base Resolution:** Choose an input slot from **1–10** with `reference_image` to determine the grid cell size (including frames). Defaults to **1**. If that slot is unconnected, the first connected image is used. Image placement order is unchanged.
     * **Adaptive Resizing:** Subsequent images are automatically resized to fit the cell using methods like **Fit**, **Crop**, or **Stretch**.
 * **Upscale Comparison Mode:**
     * **No Resize (Top-Left):** A specialized mode where images are placed at their original scale without resizing. Ideal for comparing **Upcaled vs. Original** images side-by-side to visualize detail enhancement.
@@ -147,6 +147,7 @@ If you set the grid to **2 Columns × 3 Rows** (Total 6 cells) but connect only 
 | :--- | :--- |
 | **image_1 ~ 10** | Connect up to 10 images. Unconnected slots are ignored. |
 | **cols / rows** | Set the number of columns and rows for the grid. |
+| **reference_image** | Input slot number (1–10) used for cell dimensions. An empty slot falls back to the first connected image. |
 | **frame_thickness** | Width of the border around each image (in pixels). Set to 0 for no gap. |
 | **bg_color_hex** | Hex color code for the background/frame (e.g., `#000000`, `#FFFFFF`). |
 | **resize_method** | Choose how images fit the cell: `Fit`, `Crop`, `Stretch`, or `No Resize`. |
@@ -230,6 +231,5 @@ Unpacks and restores the embedded image data for use in generation. It visualize
 > **Smart Decoding:** Automatically handles standard Base64 headers.
 >
 > **Output:** Returns a standard `IMAGE` tensor, allowing the embedded image to be used immediately in KSampler, ControlNet, or Image-to-Image processes.
-
 
 
