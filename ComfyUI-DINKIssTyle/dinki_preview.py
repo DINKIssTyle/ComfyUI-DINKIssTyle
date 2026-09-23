@@ -258,5 +258,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "DINKI_Preview_Image": "DKST Preview (Image)",
+    "DINKI_Preview_Image": "DKST Image (Viewer)",
 }

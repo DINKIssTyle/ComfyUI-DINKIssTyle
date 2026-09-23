@@ -3,6 +3,23 @@
 import { app, ComfyApp } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
+// Convert the old orientation dropdown when loading existing workflows.
+app.registerExtension({
+    name: "DINKI.PhotoSpecifications.Orientation",
+    beforeRegisterNodeDef(nodeType, nodeData) {
+        if (nodeData.name !== "DINKI_photo_specifications") return;
+        const onConfigure = nodeType.prototype.onConfigure;
+        nodeType.prototype.onConfigure = function() {
+            const result = onConfigure?.apply(this, arguments);
+            const widget = getWidget(this, "orientation");
+            if (widget?.value === "Portrait" || widget?.value === "Landscape") {
+                widget.value = widget.value === "Landscape";
+            }
+            return result;
+        };
+    },
+});
+
 // 공통 헬퍼
 function getWidget(node, name) {
   return node.widgets?.find(w => w.name === name);
@@ -11,10 +28,60 @@ function ensureLater(fn) {
   requestAnimationFrame(() => setTimeout(fn, 0));
 }
 
+async function clipboardImagePNG(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Image download failed (${response.status})`);
+    const blob = await response.blob();
+    if (blob.type === "image/png") return blob;
+    const bitmap = await createImageBitmap(blob);
+    try {
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        canvas.getContext("2d").drawImage(bitmap, 0, 0);
+        return await new Promise((resolve, reject) => canvas.toBlob(
+            png => png ? resolve(png) : reject(new Error("Unable to convert image to PNG.")), "image/png",
+        ));
+    } finally {
+        bitmap.close();
+    }
+}
+
+function copyImageToClipboard(url) {
+    if (!globalThis.navigator?.clipboard?.write || typeof ClipboardItem === "undefined") {
+        throw new Error("Copy Image requires clipboard support and HTTPS or localhost.");
+    }
+    // Start write during the click gesture; Safari also requires this before
+    // the asynchronous image download/conversion completes.
+    return navigator.clipboard.write([new ClipboardItem({ "image/png": clipboardImagePNG(url) })]);
+}
+
+async function pasteImageFromClipboard(node) {
+    if (!globalThis.navigator?.clipboard?.read) {
+        throw new Error("Paste Image requires HTTPS or localhost and clipboard support. Select this node and press Ctrl+V / Cmd+V instead.");
+    }
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+        const type = item.types.find(type => type === "image/png") || item.types.find(type => type.startsWith("image/"));
+        if (type) {
+            await node.dkstUploadClipboardImage(await item.getType(type));
+            return;
+        }
+    }
+    throw new Error("No image found in the clipboard. Copy an image first.");
+}
+
+function clipboardMenuAction(content, action) {
+    return { content, callback: async() => {
+        try { await action(); } catch (error) { alert(`${content}: ${error.message}`); }
+    } };
+}
+
 function previewImageActions(descriptor) {
     const url = api.apiURL(`/view?${new URLSearchParams(descriptor)}`);
     return [
         { content: "Open Image", callback: () => window.open(url, "_blank", "noopener,noreferrer") },
+        { content: "Copy Image", callback: () => copyImageToClipboard(url) },
         { content: "Save Image", callback: async() => {
             const response = await fetch(url);
             if (!response.ok) throw new Error(`Image download failed (${response.status})`);
@@ -1245,49 +1312,54 @@ app.registerExtension({
 app.registerExtension({
     name: "Dinki.NodeCheck",
     async setup() {
-        // 그래프가 로드된 후 실행
-        const originalOnSelectionChange = LGraphCanvas.prototype.processNodeSelected;
         const canvas = app.canvas;
-        const originalSelectionChange = canvas.onSelectionChange;
-        
-        canvas.onSelectionChange = function(nodes) {
-            // 원래 기능 실행
-            if (originalSelectionChange) {
-                originalSelectionChange.apply(this, arguments);
-            }
+        if (!canvas || canvas.__dinki_node_check_attached) return;
+        canvas.__dinki_node_check_attached = true;
 
-            // 1. 현재 선택된 노드 찾기
-            let selectedNodeId = "None";
-            const selected = Object.values(canvas.selected_nodes || {});
-            
-            if (selected.length > 0) {
-                const targetNode = selected[selected.length - 1];
-                selectedNodeId = String(targetNode.id);
-                // 디버깅용: 콘솔에 선택된 ID 출력 (F12 눌러서 확인 가능)
-                console.log("DINKI Check: Selected ID =", selectedNodeId);
-            }
-
-            // 2. 화면에 있는 모든 'DINKI_Node_Check' 노드 찾기
-            const graph = app.graph;
+        const updateSelection = () => {
+            const graph = canvas.graph || app.graph;
             if (!graph) return;
+            // selectedItems preserves selection order and also contains groups
+            // and reroutes. Only actual nodes in the displayed graph count.
+            const nodes = graph.nodes || graph._nodes || [];
+            const nodeSet = new Set(nodes);
+            const selected = Array.from(canvas.selectedItems ?? Object.values(canvas.selected_nodes || {}))
+                .filter(item => nodeSet.has(item));
+            const selectedNodeId = selected.length ? String(selected[selected.length - 1].id) : "None";
 
-            // [수정됨] findNodesByClass -> findNodesByType
-            // ComfyUI에서 노드 타입 문자열("DINKI_Node_Check")로 찾을 때는 ByType을 써야 합니다.
-            const checkNodes = graph.findNodesByType("DINKI_Node_Check");
-            
-            // 3. 찾은 노드들의 위젯 값 업데이트
-            if (checkNodes && checkNodes.length > 0) {
-                checkNodes.forEach(node => {
-                    if (node.widgets && node.widgets[0]) {
-                        // 값이 다를 때만 업데이트
-                        if (node.widgets[0].value !== selectedNodeId) {
-                            node.widgets[0].value = selectedNodeId;
-                            node.setDirtyCanvas(true, true); 
-                        }
-                    }
-                });
+            for (const node of nodes) {
+                if (node.comfyClass !== "DINKI_Node_Check" && node.type !== "DINKI_Node_Check") continue;
+                const widget = getWidget(node, "selected_node_id");
+                if (!widget || widget.value === selectedNodeId) continue;
+                const oldValue = widget.value;
+                widget.value = selectedNodeId;
+                widget.options?.setValue?.(selectedNodeId);
+                widget.callback?.call(widget, selectedNodeId, canvas, node);
+                node.onWidgetChanged?.(widget.name, selectedNodeId, oldValue, widget);
+                node.setDirtyCanvas?.(true, true);
             }
         };
+
+        // Vue nodes call select/deselect directly, bypassing onSelectionChange.
+        // Batch deselectAll + select into one update after selection settles.
+        let pending = false;
+        const scheduleUpdate = () => {
+            if (pending) return;
+            pending = true;
+            queueMicrotask(() => {
+                pending = false;
+                updateSelection();
+            });
+        };
+        for (const name of ["select", "deselect", "deselectAll", "onSelectionChange"]) {
+            const original = canvas[name];
+            if (name !== "onSelectionChange" && typeof original !== "function") continue;
+            canvas[name] = function(...args) {
+                const result = original?.apply(this, args);
+                scheduleUpdate();
+                return result;
+            };
+        }
     },
     
     nodeCreated(node, app) {
@@ -1296,11 +1368,12 @@ app.registerExtension({
             const size = node.computeSize();
             node.setSize(size);
 
-            if (node.widgets && node.widgets[0]) {
+            const widget = getWidget(node, "selected_node_id");
+            if (widget) {
                 setTimeout(() => {
-                    if (node.widgets[0].inputEl) {
-                        node.widgets[0].inputEl.readOnly = true;
-                        node.widgets[0].inputEl.style.opacity = 0.6;
+                    if (widget.inputEl) {
+                        widget.inputEl.readOnly = true;
+                        widget.inputEl.style.opacity = 0.6;
                     }
                 }, 100);
             }
@@ -1347,7 +1420,7 @@ app.registerExtension({
 
 
 // ============================================================
-// 13. DKST Preview (Image) resolution overlay
+// 13. DKST Image (Viewer) resolution overlay
 // ============================================================
 app.registerExtension({
     name: "DINKI.PreviewImage.Resolution",
@@ -1382,6 +1455,13 @@ app.registerExtension({
             widget.options.serialize = false;
             let descriptors = [];
             const selected = () => descriptors[Number(selector.value) || 0];
+            const extraMenu = this.getExtraMenuOptions;
+            this.getExtraMenuOptions = function(canvas, options) {
+                const result = extraMenu?.apply(this, arguments);
+                if (selected()) options.push(clipboardMenuAction("Copy Image", () =>
+                    copyImageToClipboard(api.apiURL(`/view?${new URLSearchParams(selected())}`))));
+                return result;
+            };
             const display = () => {
                 const item = selected();
                 if (!item) {
@@ -1638,7 +1718,36 @@ app.registerExtension({
                 },
             });
 
+            let fileInput;
+            const openImageFilePicker = () => {
+                if (!fileInput) {
+                    fileInput = document.createElement("input");
+                    fileInput.type = "file";
+                    fileInput.accept = "image/*";
+                    fileInput.style.display = "none";
+                    fileInput.onchange = async() => {
+                        const file = fileInput.files?.[0];
+                        fileInput.value = ""; // Allow choosing the same file again.
+                        if (!file) return;
+                        try {
+                            await node.dkstUploadDroppedImage(file);
+                        } catch (error) {
+                            alert(`Unable to upload image: ${error.message}`);
+                        }
+                    };
+                    document.body.appendChild(fileInput);
+                }
+                // Keep this synchronous with the menu click so the browser can
+                // open the OS file picker without losing user activation.
+                fileInput.click();
+            };
+
             let closeImageMenu = () => {};
+            for (const eventName of ["pointerdown", "mousedown"]) {
+                previewElement.addEventListener(eventName, event => {
+                    if (event.button === 2) event.stopPropagation();
+                });
+            }
             previewElement.addEventListener("contextmenu", (event) => {
                 if (!node.dkstLoadedImage) return;
                 event.preventDefault();
@@ -1650,7 +1759,7 @@ app.registerExtension({
                     color: "white", padding: "5px", border: "1px solid #555",
                     borderRadius: "6px", minWidth: "180px",
                     left: `${Math.max(0, Math.min(event.clientX, window.innerWidth - 200))}px`,
-                    top: `${Math.max(0, Math.min(event.clientY, window.innerHeight - 100))}px`,
+                    top: `${Math.max(0, Math.min(event.clientY, window.innerHeight - 180))}px`,
                 });
                 menu.setAttribute("role", "menu");
                 const dismiss = (e) => { if (!menu.contains(e.target)) closeImageMenu(); };
@@ -1669,12 +1778,14 @@ app.registerExtension({
                         textAlign: "left", color: "inherit", background: "transparent",
                         border: "0", cursor: "pointer",
                     });
-                    button.onclick = () => {
+                    button.onclick = async() => {
                         closeImageMenu();
-                        try { action(); } catch (error) { alert(error.message); }
+                        try { await action(); } catch (error) { alert(error.message); }
                     };
                     menu.appendChild(button);
                 };
+                addAction("Upload Image", openImageFilePicker);
+                addAction("Paste Image", () => pasteImageFromClipboard(node));
                 addAction("Open Image", () => window.open(node.dkstLoadedImage.src, "_blank", "noopener,noreferrer"));
                 addAction("Open Mask Editor", () => {
                     if (typeof ComfyApp.open_maskeditor !== "function") {
@@ -1701,6 +1812,7 @@ app.registerExtension({
             const onRemoved = node.onRemoved;
             node.onRemoved = function() {
                 closeImageMenu();
+                fileInput?.remove();
                 return onRemoved?.apply(this, arguments);
             };
 
@@ -1757,6 +1869,15 @@ app.registerExtension({
                 filenameWidget.value = data.name;
                 showPreview(data.name);
                 node.setDirtyCanvas(true, true);
+            };
+
+            // Also available from the node menu before any image is loaded.
+            const extraMenu = node.getExtraMenuOptions;
+            node.getExtraMenuOptions = function(canvas, options) {
+                const result = extraMenu?.apply(this, arguments);
+                options.push({ content: "Upload Image", callback: openImageFilePicker });
+                options.push(clipboardMenuAction("Paste Image", () => pasteImageFromClipboard(node)));
+                return result;
             };
 
             node.dkstUploadDroppedImage = async(file) => {

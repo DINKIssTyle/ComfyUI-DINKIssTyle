@@ -230,7 +230,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # Text
     "DINKI_Text_Multiline": "DKST Text (Multiline)",
     "DINKI_Text_Concatenate": "DKST Text (Concatenate)",
-    "DINKI_Preview_Image": "DKST Preview (Image)",
+    "DINKI_Preview_Image": "DKST Image (Viewer)",
     "DINKI_Image_Load": "DKST Image (Load)",
 
 

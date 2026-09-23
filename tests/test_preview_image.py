@@ -36,7 +36,7 @@ class PreviewImageTests(unittest.TestCase):
             module = runpy.run_path(str(ROOT / "dinki_preview.py"))
         self.assertEqual(
             module["NODE_DISPLAY_NAME_MAPPINGS"]["DINKI_Preview_Image"],
-            "DKST Preview (Image)",
+            "DKST Image (Viewer)",
         )
 
     def test_uses_temp_or_output_directory_and_reports_resolution(self):

@@ -40,7 +40,11 @@ class DINKI_photo_specifications:
                     ],
                     {"default": "Basic 1:1"}
                 ),
-                "orientation": (["Portrait", "Landscape"], {"default": "Portrait"}),
+                "orientation": ("BOOLEAN", {
+                    "default": False,
+                    "label_off": "Portrait",
+                    "label_on": "Landscape",
+                }),
             },
         }
 
@@ -78,7 +82,8 @@ class DINKI_photo_specifications:
         height = round(height_val / 8) * 8
 
         # 5. 방향(Orientation) 적용
-        is_portrait = "Portrait" in orientation
+        # Accept saved/API values from the former dropdown as well.
+        is_portrait = orientation == "Portrait" if isinstance(orientation, str) else not orientation
         
         if is_portrait:
             if width > height:

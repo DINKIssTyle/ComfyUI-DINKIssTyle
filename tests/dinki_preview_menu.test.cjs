@@ -5,7 +5,8 @@ const { join } = require('node:path');
 const vm = require('node:vm');
 
 test('DOM preview menu uses selected batch image and blocks ordinary menu', async () => {
-    let extension, opened;
+    let extension, opened, copied, fetched;
+    const blob = { type: 'image/png' };
     const elements = [];
     function createElement(tag) {
         const el = { tag, style: {}, events: {}, children: [], value: '',
@@ -20,6 +21,9 @@ test('DOM preview menu uses selected batch image and blocks ordinary menu', asyn
     const app = { registerExtension(ext) { if (ext.name === 'DINKI.PreviewImage.Resolution') extension = ext; } };
     vm.runInNewContext(readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_nodes.js'), 'utf8').replace(/^import .*;\r?\n/gm, ''), {
         app, api: { apiURL: url => url }, URLSearchParams,
+        fetch: async(url) => { fetched = url; return { ok: true, blob: async() => blob }; },
+        ClipboardItem: class { constructor(data) { this.data = data; } },
+        navigator: { clipboard: { write: async(items) => { copied = await items[0].data['image/png']; } } },
         document: { createElement, body: createElement('body'), addEventListener() {}, removeEventListener() {} },
         window: { innerWidth: 1000, innerHeight: 1000, open: url => { opened = url; } }
     });
@@ -48,7 +52,17 @@ test('DOM preview menu uses selected batch image and blocks ordinary menu', asyn
     image.events.contextmenu(event);
     assert.ok(event.prevented);
     const buttons = elements.filter(el => el.tag === 'button');
-    assert.deepEqual(buttons.map(el => el.textContent), ['Open Image', 'Save Image']);
+    assert.deepEqual(buttons.map(el => el.textContent), ['Open Image', 'Copy Image', 'Save Image']);
     await buttons[0].onclick();
     assert.match(opened, /two.png/);
+    await buttons[1].onclick();
+    assert.match(fetched, /two.png/);
+    assert.match(fetched, /type=output/);
+    assert.equal(copied, blob);
+    const options = [];
+    node.getExtraMenuOptions(null, options);
+    assert.equal(options[0].content, 'Copy Image');
+    select.value = '0'; select.onchange();
+    await options[0].callback();
+    assert.match(fetched, /one.png/);
 });
