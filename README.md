@@ -5,13 +5,14 @@ These nodes are primarily designed for my own workflow using **Qwen-Image**, **Z
 Using them with other models may cause unexpected issues.
 
 
-- [All Nodes (43)](resource/Node_Catalog.md)
+- [All Nodes (44)](resource/Node_Catalog.md)
 - [Comparison Video Tools](resource/DINKI_Video_Tools.md)
 - [Image](resource/DINKI_Image.md)
 - [Color Nodes](resource/DINKI_Color_Nodes.md)
 - [LM Studio Assistant](resource/DINKI_LM_Studio_Assistant.md)
 - [Prompts and Strings](resource/DINKI_Prompt_and_String.md)
 - [Node Utilities](resource/DINKI_Node_Utils.md)
+- [System Monitor (Windows / NVIDIA)](resource/DKST_System_Monitor.md)
 - [Internal Processing](resource/DINKI_PS.md)
 
 

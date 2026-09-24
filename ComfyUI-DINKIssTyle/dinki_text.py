@@ -16,6 +16,37 @@ class DINKI_Text_Multiline:
         return (text,)
 
 
+class DINKI_Text_Split:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "text": ("STRING", {"forceInput": True}),
+                "delimiter": ("STRING", {"default": ",", "multiline": True}),
+                "clean_whitespace": (
+                    "BOOLEAN",
+                    {"default": True, "label_on": "true", "label_off": "false"},
+                ),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",) * 10
+    RETURN_NAMES = tuple(f"text_{index}" for index in range(1, 11))
+    FUNCTION = "split_text"
+    CATEGORY = "DINKIssTyle/Text"
+    DESCRIPTION = (
+        "Split text at an exact delimiter into up to ten outputs. "
+        "Enter an actual line break to split lines. Empty delimiters leave text unsplit. "
+        "Empty sections keep their positions; output 10 contains any remaining text."
+    )
+
+    def split_text(self, text, delimiter=",", clean_whitespace=True):
+        parts = text.split(delimiter, 9) if delimiter else [text]
+        if clean_whitespace:
+            parts = [part.strip() for part in parts]
+        return tuple(parts + [""] * (10 - len(parts)))
+
+
 class DINKI_Text_Concatenate:
     @classmethod
     def INPUT_TYPES(cls):

@@ -1,6 +1,6 @@
 # Node Catalog
 
-43 nodes across 9 categories. Display names use `DKST Category (Function)`.
+44 nodes across 9 categories. Display names use `DKST Category (Function)`.
 Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` is now `DINKIssTyle/Util`.
 
 | Category | Display name | Internal node ID |
@@ -31,6 +31,7 @@ Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` 
 | `DINKIssTyle/Prompt` | DKST Prompt (Random) | `DINKI_random_prompt` |
 | `DINKIssTyle/Text` | DKST Text (Concatenate) | `DINKI_Text_Concatenate` |
 | `DINKIssTyle/Text` | DKST Text (Multiline) | `DINKI_Text_Multiline` |
+| `DINKIssTyle/Text` | DKST Text (Split) | `DINKI_Text_Split` |
 | `DINKIssTyle/Util` | DKST Util (Anchor) | `DINKI_Anchor` |
 | `DINKIssTyle/Util` | DKST Util (Auto Focus) | `DINKI_Auto_Focus` |
 | `DINKIssTyle/Util` | DKST Util (Base64 Input) | `DINKI_Base64Input` |

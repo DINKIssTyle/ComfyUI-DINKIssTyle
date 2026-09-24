@@ -1,398 +1,866 @@
-pose:,Standing straight with relaxed shoulders
-,Slight three-quarter turn toward the camera
-,Looking back over the shoulder
-,Seated with hands resting on knees
-,Sitting cross-legged on the floor
-,"Leaning slightly forward, elbows on table"
-,Leaning back casually with one hand behind
-,"One hand in pocket, relaxed stance"
-,"Both hands in pockets, confident posture"
-,Arms crossed softly
+prefix:,"Render the image with these photographic qualities: ultra-realistic, high-resolution photography, natural lighting, crisp textures, lifelike depth and detail, cinematic clarity."
+,"Render the image with these photographic qualities: photorealistic rendering, fine surface detail, balanced highlights and shadows, premium lens quality, true-to-life color grading."
+,"Render the image with these photographic qualities: high-fidelity realism, detailed micro-textures, accurate optical depth, clean contrast, studio-grade clarity."
+,"Render the image with these photographic qualities: real-world photographic quality, subtle imperfections, detailed lighting interactions, natural diffusion and reflection."
+,"Render the image with these photographic qualities: hyper-realistic image style, refined depth of field, realistic shadows, high-precision visual detail, immersive lighting."
+,"Render the image with these photographic qualities: professional photography aesthetic, ultra-sharp detail, realistic materials, smooth gradients, high dynamic range."
+,"Render the image with these photographic qualities: true-to-life realism, realistic proportions and structure, advanced shading, accurate lens distortion, natural color tones."
+,"Render the image with these photographic qualities: premium photoreal quality, highly detailed surfaces, smooth bokeh depth, dynamic highlights, balanced tonal range."
+,"Render the image with these photographic qualities: natural photographic texture, finely rendered materials, realistic spatial depth, detailed luminance, clean perspective."
+,"Render the image with these photographic qualities: authentic real-world appearance, advanced realism shading, rich micro-details, film-grade clarity, physically accurate lighting."
 ,
-,Touching chin with fingertips
-,One hand resting gently on cheek
-,Both hands framing the face
-,Playing with hair casually
-,Holding hair up with one hand
-,Hands clasped together in front
-,"Hands behind the back, soft pose"
-,Arms raised above the head
-,Stretching upward naturally
-,Tilting head slightly to the side
+angies & orientations:,Position the camera below the subject's eye level and aim upward for a low-angle view that emphasizes stature.
+,Position the camera above eye level and aim downward to show the subject within the surrounding space.
+,"Place the camera at the subject's eye level for a neutral, natural perspective."
+,Place the camera very close to the ground and aim steeply upward for a towering extreme low-angle view.
+,"Place the camera far above the subject and aim steeply downward, making the subject small within the environment."
+,Use a worm's-eye view from ground level with strong upward perspective and pronounced height.
+,"Use an elevated bird's-eye view angled downward, showing the subject and the layout of the setting."
+,Roll the camera slightly to create a subtle Dutch angle with a gently slanted horizon.
+,Use a pronounced Dutch tilt with a slanted horizon and diagonal visual tension.
+,Tilt the camera sideways for a canted composition with deliberately off-balance framing.
+,Place the camera directly overhead and point straight down to emphasize spatial patterns around the subject.
+,Use a top-down view with the camera perpendicular to the ground plane and the scene arranged graphically below.
+,Position the camera obliquely to the subject to reveal depth across multiple visible surfaces.
+,Place the camera directly to the subject's side for a clean lateral view.
+,Place the camera directly in front of the subject for a frontal view with balanced perspective.
+,Place the camera behind the subject and show the rear view together with the scene ahead.
+,"Use a three-quarter view from approximately 45 degrees to the subject, showing both front and side."
+,Capture a pure side profile with a readable facial outline and body contour.
+,Arrange the subject along a strong diagonal through the frame to create visual energy.
+,"Angle the camera upward from a low position, emphasizing the subject's vertical form in a single frame."
+,"Angle the camera downward from a high position, emphasizing the scene below in a single frame."
+,"Show the scene through the subject's eyes, using a first-person viewpoint instead of an external portrait."
+,Use a reverse point-of-view shot looking back toward the observer from the position of what they are watching.
+,Show the subject with their back toward the camera and their attention directed into the scene.
 ,
-,Walking forward mid-step
-,"Walking away from camera, head turned back"
-,Looking up slightly with lifted chin
-,"Looking down softly, contemplative"
-,Sitting sideways on a chair
-,Kneeling with relaxed posture
-,"Lying down on one side, head propped on hand"
-,Leaning against a wall with one shoulder
-,Leaning on railings with arms resting
-,Sitting on stairs with relaxed arms
+framing & distance:,Use an extreme wide shot with the subject small within a vast environment.
+,Use a wide shot showing the entire subject and enough surrounding space to establish the location.
+,Use a long shot that shows the subject from head to toe with substantial environmental context.
+,Frame the subject's full body with the head and feet entirely visible and comfortable margins.
+,Use a medium-long shot framed from just above the knees to above the head.
+,"Use a medium shot framed from the waist upward, including the head, torso, and visible gestures."
+,"Use a medium close-up framed from the chest upward, emphasizing the face and shoulders."
+,"Use a close-up of the face with minimal background, keeping the eyes and mouth visible."
+,"Use an extreme close-up of one important detail, such as an eye or hand, filling most of the frame."
+,"Use a macro close-up of a small visible feature or object, revealing fine surface textures with shallow focus."
+,Use a cowboy shot framed from mid-thigh upward to emphasize the subject's stance and hands.
+,"Frame the subject from the knees upward, retaining clear facial and upper-body detail."
+,Frame the subject from the shoulders upward for an intimate facial portrait.
+,"Use a bust portrait framed from the chest upward, including the head, neck, and upper torso."
+,"Frame a tight headshot from the top of the head to just below the chin, emphasizing facial detail."
+,Use tight framing around the subject with very little surrounding space.
 ,
-,Holding an object close to the chest
-,Holding a cup with both hands
-,Holding a book partially covering face
-,Reaching out toward the camera
-,Hand extended outward as if touching light
-,"Light mid-jump, dynamic pose"
-,"Twirling slightly, dress or hair moving"
-,"Hands behind head, elbows wide"
-,One knee pulled up while seated
-,Sitting with legs stretched forward
+composition style shot tags:,Position the subject at the center of the frame with balanced visual weight on either side.
+,"Place the subject along a rule-of-thirds line or intersection, balancing it with the surrounding scene."
+,Arrange visible scene elements symmetrically around the central axis.
+,"Use an asymmetrical composition, balancing an offset subject with contrasting shapes or negative space."
+,Simplify the composition to a few essential shapes and ample empty space around the subject.
+,Fill the frame with layered environmental details while keeping the main subject visually identifiable.
+,Emphasize negative space around the subject to create breathing room and a clear focal point.
+,Use visible lines in the setting to lead the viewer's eye toward the subject.
+,"Frame the subject with foreground elements, adding depth without obscuring the focal point."
+,Position the camera behind one person's shoulder and focus on another person facing them.
+,"Show the subject reacting to an off-screen event, emphasizing the face and visible body language."
+,Frame two subjects together with a clear spatial relationship and readable interaction.
+,Frame three subjects together in a balanced triangular arrangement with each person clearly visible.
+,Frame a group of subjects together with balanced spacing and readable faces.
 ,
-,Side profile with hands clasped in front
-,Soft pose with one leg slightly bent
-,Half-turn with torso twisted gently
-,Standing with hands folded in front
-,Holding a jacket draped over shoulder
-,Sitting on ground leaning on one arm
-,Standing with arms loosely hanging
-,Holding an item at chest height
-,Looking out a window with hand on glass
-,Arms open slightly as if feeling breeze
+movement related camera shots:,Create a still frame with a lateral tracking-shot feel: keep the moving subject relatively sharp and give the background directional motion blur.
+,"Create a still frame with a dolly-shot feel, using strong foreground-to-background depth and a clear central subject."
+,"Create a crane-shot-style still from an elevated camera position, showing broad spatial relationships around the subject."
+,Create a boom-shot-style still with an elevated viewpoint and foreground layers that suggest a vertical reveal.
+,Create a zoom-burst still with subtle radial blur extending outward from a sharply defined focal subject.
+,"Create a push-in-style still with close, intent framing and converging visual lines toward the subject."
+,Create a pull-back-style still with generous surrounding context that reveals the subject's place in the scene.
+,Create a panning still with horizontal background blur while retaining a readable main subject.
+,Create a tilt-shot-style still with strong vertical framing that emphasizes the subject's height and the space above or below.
+,Create an orbiting arc-shot feel in a single still with a three-quarter view and slight curved background motion blur.
+,Suggest an orbiting 360-degree camera move in a single still using subtle rotational background blur around one clearly defined subject; do not create multiple views.
+,"Use a fixed-camera still with stable framing, a level horizon, and no camera-induced motion blur."
 ,
+lens & perspective type tags:,Use a wide-angle lens look with a broad field of view and pronounced foreground-to-background depth.
+,Use an ultra-wide lens look with an expansive field of view and strong spatial exaggeration near the frame edges.
+,"Use a fisheye lens look with visibly curved straight lines and a rounded, bulging perspective."
+,"Use a telephoto lens look from a distant camera position, with compressed apparent depth and a softly isolated background."
+,"Use a portrait-lens look with natural facial proportions, sharp subject focus, and soft background bokeh."
+,"Use a macro-lens look with high magnification of a small feature, fine texture detail, and a narrow plane of focus."
+,Use a tilt-shift miniature effect with a narrow focus band and progressively blurred areas above and below it.
+,"Use an anamorphic lens look with widescreen framing, oval background bokeh, and restrained horizontal light flares."
 ,
-hairstyle:,Long Wavy Hair
-,Straight Long Hair
-,Soft Curls
-,Loose Beach Waves
-,Layered Cut
-,Feathered Layers
-,Blunt Cut
-,Bob Cut
-,A-Line Bob
-,French Bob
-,Lob (Long Bob)
-,Pixie Cut
-,Tousled Pixie
-,Shag Cut
-,Modern Wolf Cut
-,Curtain Bangs
-,Side-Swept Bangs
-,Blunt Bangs
-,Wispy Bangs
-,High Ponytail
-,Low Ponytail
-,Messy Bun
-,High Bun
-,Braided Ponytail
-,French Braid
-,Dutch Braid
-,Fishtail Braid
-,Half-Up Half-Down
-,Top Knot
-,Space Buns
-,Sleek High Bun
-,Curly Updo
-,Vintage Hollywood Waves
-,Flipped Ends
-,Textured Waves
-,
-,
-expression:,Joyful
-,Happy
-,Delighted
-,Excited
-,Playful
-,Amused
-,Laughing
-,Cheerful
-,Smiling Softly
-,Warm Smile
-,
-,Sad
-,Tearful
-,Heartbroken
-,Melancholic
-,Lonely
-,Sorrowful
-,Gloomy
-,Grieving
-,Nostalgic
-,Bitter-Sweet
-,
-,Angry
-,Furious
-,Annoyed
-,Irritated
-,Resentful
-,Displeased
-,Frustrated
-,Stern
-,Intense Glare
-,Cold Expression
-,
-,Surprised
-,Shocked
-,Astonished
-,Startled
-,Wide-Eyed Wonder
-,Curious
-,Intrigued
-,Confused
-,Bewildered
-,Perplexed
-,
-,Calm
-,Peaceful
-,Serene
-,Thoughtful
-,Contemplative
-,Relaxed
-,Gentle
-,Neutral
-,Focused
-,Determined
+special pov & perspective tags:,"Show a first-person view through the subject's eyes, including hands or nearby body details only where naturally visible."
+,"Show the subject from an external third-person camera viewpoint, clearly placing them within the scene."
+,Place the viewpoint at the location of an inanimate object in the scene and look outward toward the subject.
+,Use a high aerial drone viewpoint with broad environmental coverage and coherent ground perspective.
+,Use a surveillance-camera view from a high room corner with wide-angle distortion and a small timestamp-style overlay.
+,"Use a fixed high-angle CCTV view with coarse detail, mild image noise, and wide coverage of the scene."
+,"Use a forward-facing dashboard-camera view through a vehicle windshield, including a small part of the dashboard along the lower edge."
+,Use a chest-mounted body-camera viewpoint with wide-angle perspective and naturally visible lower-frame body details.
+,Use a head-mounted helmet-camera viewpoint with wide-angle first-person framing and a slight helmet edge where appropriate.
+,"Render a microscope-style view of a tiny feature or specimen with extreme magnification, fine texture, and a circular vignette."
+,"Render a telescope-style view of a distant subject with strong magnification, compressed apparent depth, and a circular vignette."
 ,
 ,
-outfit:,White Button-Up Shirt
-,Oversized Knit Sweater
-,Linen Blouse
-,Satin Slip Dress
-,Silk Blouse
-,Ruffled Blouse
-,Off-Shoulder Top
-,Crop Top
-,Floral Dress
-,Maxi Dress
-,
-,Midi Skirt
-,Pleated Skirt
-,Denim Jacket
-,Leather Jacket
-,Trench Coat
-,Blazer
-,Oversized Hoodie
-,Zip-Up Hoodie
-,Wool Coat
-,Cardigan
-,
-,Denim Jeans
-,High-Waisted Pants
-,Cargo Pants
-,Wide-Leg Trousers
-,Tailored Suit
-,Knit Two-Piece Set
-,Sporty Tracksuit
-,Bomber Jacket
-,Puffer Jacket
-,Faux Fur Coat
-,
-,Knit Dress
-,Lace Dress
-,Bohemian Dress
-,Peasant Blouse
-,Tube Top
-,Halter Neck Top
-,Graphic Tee
-,Simple Crewneck Tee
-,Cable Knit Sweater
-,Silk Camisole
-,
-,Layered Sundress
-,Denim Overalls
-,Jumpsuit
-,Romper
-,Long Coat with Belt
-,Sheer Blouse
-,Knit Vest
-,Satin Robe
-,Winter Scarf & Coat Set
-,Tweed Jacket
 ,
 ,
-composition:,Rule of Thirds
-,Center-Framed Portrait
-,Symmetrical Composition
-,Asymmetrical Balance
-,Leading Lines Toward Subject
-,Diagonal Composition
-,Golden Ratio Layout
-,Minimalist Negative Space
-,Close-Up Tight Framing
-,Extreme Close-Up Focus
-,
-,Over-the-Shoulder View
-,Three-Quarter Angle Composition
-,Profile Side View
-,High-Angle Shot
-,Low-Angle Dramatic Shot
-,Dutch Tilt (Slight Angle)
-,Wide Environmental Portrait
-,Full-Body Vertical Composition
-,Half-Body Midshot
-,Foreground–Subject–Background Layering
-,
-,Subject in Motion Blur
-,Depth-of-Field Isolation
-,Soft Bokeh Background
-,Silhouette Against Bright Background
-,Rim-Light Edge Composition
-,Dynamic Off-Center Framing
-,Framed Within a Frame (door/window)
-,Reflections in Glass or Water
-,Subject Partially Obscured
-,Tight Crop on Expression
-,
-,Backlit Glow Composition
-,Atmospheric Perspective Depth
-,Cinematic Widescreen Crop
 ,
 ,
-background:,modern minimalist living room with clean lines and bright natural light
-,cozy wooden cabin interior with warm fireplace glow
-,elegant hotel lobby with marble flooring and soft ambient lighting
-,futuristic sci-fi control room with holographic panels
-,Japanese-style tatami room with sliding shoji doors
-,high-end fashion boutique interior with glossy displays
-,modern kitchen island with stainless steel appliances
-,vintage study room filled with books and warm desk lamps
-,spacious art gallery with white walls and spotlights
-,classic European ballroom with chandeliers
-,contemporary office workspace with large windows
-,minimalist studio apartment with neutral colors
-,cinema room with dimmed lights and large projection screen
-,retro 80s arcade with neon lights and pixel cabinets
-,industrial loft with brick walls and metal beams
-,luxury spa interior with warm candles and stone textures
-,photography studio with softboxes and seamless backdrop
-,modern conference hall with LED wall
-,bakery interior with wooden shelves and warm tones
-,high-tech laboratory with monitors and blue lighting
-,university library reading zone with soft seating
-,rooftop lounge bar with warm evening lighting
-,cozy café corner with plants and soft sunlight
-,artist workshop filled with canvases and brushes
-,greenhouse interior with lush greenery and soft mist
-,
-,modern city skyline at golden hour
-,neon-lit downtown street on a rainy night
-,quiet residential alley with soft warm streetlights
-,rooftop view overlooking skyscrapers
-,European old-town street with cobblestone roads
-,peaceful suburban neighborhood under clear sky
-,bustling open marketplace with colorful stalls
-,futuristic megacity with flying vehicles
-,vintage street scene with classic cars
-,seaside promenade with pastel buildings
-,riverside park walkway with sunset lighting
-,street café terrace with umbrellas
-,modern business district with glass towers
-,graffiti-filled urban backstreet
-,high-speed train station platform
-,palm-lined boulevard in warm coastal city
-,night festival street filled with lanterns
-,snowy city street with soft falling snow
-,industrial shipping docks with cranes
-,hilltop overlook above a glowing city
-,old stone bridge crossing a quiet canal
-,urban park with fountains and benches
-,tram street intersection in morning light
-,harbor skyline with sailboats
-,wide pedestrian plaza in a modern city
-,
-,serene lakeside with mist and soft morning light
-,dense green forest with sunbeams through trees
-,snowy mountain peak under clear blue sky
-,wide open meadow with wildflowers
-,desert dunes with soft golden sunset
-,tropical beach with turquoise water
-,autumn forest trail with falling leaves
-,dramatic cliffside overlooking the ocean
-,lavender field at golden hour
-,bamboo forest with soft filtered light
-,waterfall valley surrounded by mossy rocks
-,northern lights shimmering over snowy ground
-,peaceful riverside with slow flowing water
-,volcanic landscape with black rocks
-,quiet countryside road after rain
-,panoramic canyon under bright sunlight
-,lush rice terraces with morning fog
-,sunflower field with clear sky
-,glacial lake with floating ice
-,tropical rainforest canopy
-,misty hills at dawn
-,rocky shoreline with crashing waves
-,alpine village in the mountains
-,serene orchard with blooming trees
-,starry night sky above open grassland
-,
-,Eiffel Tower view from Trocadéro gardens
-,Times Square with glowing billboards
-,Santorini white cliffside houses with blue domes
-,Machu Picchu ancient terraces at sunrise
-,Taj Mahal reflecting in the water pool
-,Great Wall of China stretching along mountain ridge
-,Sydney Opera House and harbor skyline
-,London Tower Bridge at sunset
-,Dubai skyline with Burj Khalifa
-,Rome Colosseum under warm evening light
-,Kyoto torii gate path through the forest
-,Iguazu Falls panorama
-,Petra rose-red canyon city
-,Seoul Namsan Tower cityscape
-,Maldives overwater villas above clear ocean
-,Swiss Alps village with snowy peaks
-,Sahara desert caravan scene
-,Golden Gate Bridge with fog rolling in
-,Icelandic black sand beach with basalt cliffs
-,Angkor Wat temple reflected on water
-,Havana colorful colonial street
-,Morocco blue city alley of Chefchaouen
-,Amsterdam canal houses with boats
-,Cairo pyramids under golden sunlight
-,Singapore Marina Bay skyline at night
 ,
 ,
-style:,cinematic film look with rich contrast
-,analog 35mm film grain
-,soft pastel aesthetic with gentle tones
-,high-key bright photography
-,low-key dramatic lighting
-,vintage sepia-toned photograph
-,HDR hyper-detailed photography
-,minimalist clean aesthetic
-,dreamy bokeh with shallow depth of field
-,black and white fine art photography
-,neon cyberpunk color palette
-,documentary street photography
-,retro 80s photo filter
-,Polaroid instant photo look
-,soft natural light with warm tones
-,glossy fashion editorial style
-,surrealistic artistic photo treatment
-,dark moody cinematic lighting
-,high-contrast monochrome
-,cottagecore warm nostalgic tone
-,pastel film fade with low saturation
-,golden hour warm sunlight glow
-,cool blue urban night photography
-,matte muted color grading
-,modern smartphone portrait mode look
-,classic Hollywood glamour lighting
-,macro photography with sharp detail
-,luxury magazine cover style
-,futuristic sci-fi light streaks
-,tilt-shift miniature effect
-,watercolor-like soft texture
-,vibrant travel photography aesthetic
-,natural documentary wildlife style
-,editorial street-style fashion
-,crisp commercial product photography
-,warm sunset flare aesthetic
-,soft-focus dreamy portrait
-,film noir dramatic shadows
-,pastel overexposed light leak
 ,
-,ultra-realistic 8K sharp clarity
-,muted earth-tone lifestyle photography
-,high saturation pop-art color style
-,nostalgic Y2K digital camera look
-,soft artistic bloom-effect style
-,black-and-gold luxury visual style
-,foggy atmospheric landscape tone
-,monochrome clay-like texture style
-,faded vintage postcard look
-,natural candid lifestyle moment
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+style:,"Restyle the image as an oil painting with layered brushstrokes, rich pigment, and visible canvas texture."
+,"Restyle the image as an acrylic painting with opaque color, crisp edges, and textured brushwork."
+,"Restyle the image as a watercolor illustration with translucent washes, soft pigment blooms, and paper texture."
+,Restyle the image as a gouache painting with opaque matte colors and softly layered shapes.
+,"Restyle the image as a charcoal sketch with expressive dark strokes, smudged shading, and grainy paper."
+,"Restyle the image as a pencil drawing with fine graphite lines, cross-hatching, and subtle tonal shading."
+,"Restyle the image as ink line art with varied line weight, clean contours, and deliberate hatching."
+,"Restyle the image as a comic-book illustration with bold outlines, dynamic shadow shapes, and halftone shading."
+,"Restyle the image as a manga illustration with expressive linework, screen tones, and graphic black-and-white contrast."
+,"Restyle the image as an anime illustration with clean contours, flat color regions, and sharply separated cel-shaded shadows."
+,"Restyle the image as a webtoon illustration with crisp digital linework, smooth colors, and simplified shading."
+,"Restyle the image as a vintage cartoon with rounded shapes, lively outlines, and a muted printed-color finish."
+,"Restyle the image as a Disney-style animated illustration with expressive character shapes, flowing linework, and polished painted colors."
+,"Restyle the image as a Pixar-inspired 3D animated image with appealing stylized forms, detailed materials, and soft cinematic lighting."
+,"Restyle the image as 8-bit pixel art with a restricted palette, coarse pixel clusters, and hard pixel edges."
+,"Restyle the image as 16-bit pixel art with richer color ramps, deliberate dithering, and crisp pixel clusters."
+,"Restyle the image as isometric pixel art with consistent isometric projection, aligned pixel edges, and readable small-scale forms."
+,"Restyle the image as a flat vector illustration with clean geometric shapes, solid fills, and precise edges."
+,Restyle the image as a minimalist line illustration with economical contours and generous untouched space.
+,"Restyle the image as a chibi illustration with an oversized head, compact body proportions, and simplified expressive features."
+,"Restyle the image as a storybook illustration with warm painted textures, gentle shapes, and narrative detail."
+,"Restyle the image as fantasy concept art with imaginative material design, atmospheric depth, and painterly detail."
+,"Restyle the image as a dark fantasy illustration with brooding light, weathered textures, and deep atmospheric shadows."
+,Restyle the image as a surrealist painting with dreamlike spatial relationships and unexpected yet coherent visual transformations.
+,"Restyle the image as an expressionist painting with emotionally distorted forms, vigorous brushwork, and intense color relationships."
+,"Restyle the image as an impressionist painting with broken brushstrokes, luminous color, and softly suggested detail."
+,"Restyle the image as a realistic digital painting with carefully modeled light, believable materials, and subtle brushwork."
+,Restyle the image as a semi-realistic illustration balancing believable anatomy with simplified shapes and stylized shading.
+,"Restyle the image as a cinematic matte painting with detailed environmental surfaces, atmospheric depth, and unified lighting."
+,"Restyle the image as a portrait illustration with carefully drawn facial features, expressive contours, and layered color shading."
+,"Restyle the image as retro poster art with simplified bold shapes, a limited ink palette, and aged print texture without added lettering."
+,"Restyle the image as pop art with saturated color blocks, bold outlines, and halftone dots."
+,"Restyle the image as a neo-noir graphic illustration with hard shadow shapes, selective bright accents, and dramatic contrast."
+,"Restyle the image as a cyberpunk illustration with electric neon accents, high-tech surface detail, and moody shadows."
+,"Restyle the image as a steampunk illustration with intricate brass and copper details, mechanical ornament, and aged material texture."
+,"Restyle the image as an East Asian ink-wash painting with fluid black ink, diluted gray washes, and expressive empty space."
+,"Restyle the image as a traditional East Asian painting with controlled brush lines, delicate pigments, and textured paper or silk."
+,"Restyle the image as a Korean minhwa-inspired painting with flattened perspective, decorative forms, and vivid mineral-pigment colors."
+,"Restyle the image as a Japanese ukiyo-e woodblock print with flowing outlines, flat color regions, and subtle print texture."
+,"Restyle the image as a Chinese shan shui ink painting with layered landscape forms, atmospheric ink washes, and spacious composition."
+,"Restyle the image as a calligraphic brush illustration with varied stroke pressure, flowing marks, and expressive ink texture without added writing."
+,"Restyle the image as a pastel chalk drawing with powdery pigment, soft blended edges, and textured paper."
+,Restyle the image as stained-glass art with translucent jewel-colored shapes divided by dark lead outlines.
+,"Restyle the image as a woodblock print with carved line texture, bold shapes, and slight ink irregularities."
+,"Restyle the image as a mixed-media collage with layered paper pieces, torn edges, printed textures, and visible material overlap."
+,"Restyle the image as graffiti street art with spray-painted gradients, energetic outlines, and textured wall surfaces without added lettering."
+,"Restyle the image as a 3D toon-shaded render with solid sculpted forms, graphic shadow bands, and clear contours."
+,"Restyle the image as low-poly art with faceted geometric surfaces, simplified forms, and distinct polygonal shading."
+,"Restyle the image as a storybook crayon drawing with waxy textured strokes, playful shapes, and visible paper grain."
+,"Restyle the image as a vaporwave illustration with pastel pink and cyan tones, retro digital textures, and a dreamy synthetic glow."
+,"Restyle the image as retro-futurist art with streamlined shapes, mid-century color palettes, and optimistic vintage science-fiction design."
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+,
+pose:,Pose the subject as follows: standing straight with relaxed shoulders. Keep the anatomy and balance natural.
+,Pose the subject as follows: slight three-quarter turn toward the camera. Keep the anatomy and balance natural.
+,Pose the subject as follows: looking back over the shoulder. Keep the anatomy and balance natural.
+,Pose the subject as follows: seated with hands resting on knees. Keep the anatomy and balance natural.
+,Pose the subject as follows: sitting cross-legged on the floor. Keep the anatomy and balance natural.
+,"Pose the subject as follows: leaning slightly forward, elbows on table. Keep the anatomy and balance natural."
+,Pose the subject as follows: leaning back casually with one hand behind. Keep the anatomy and balance natural.
+,"Pose the subject as follows: one hand in pocket, relaxed stance. Keep the anatomy and balance natural."
+,"Pose the subject as follows: both hands in pockets, confident posture. Keep the anatomy and balance natural."
+,Pose the subject as follows: arms crossed softly. Keep the anatomy and balance natural.
+,
+,Pose the subject as follows: touching chin with fingertips. Keep the anatomy and balance natural.
+,Pose the subject as follows: one hand resting gently on cheek. Keep the anatomy and balance natural.
+,Pose the subject as follows: both hands framing the face. Keep the anatomy and balance natural.
+,Pose the subject as follows: playing with hair casually. Keep the anatomy and balance natural.
+,Pose the subject as follows: holding hair up with one hand. Keep the anatomy and balance natural.
+,Pose the subject as follows: hands clasped together in front. Keep the anatomy and balance natural.
+,"Pose the subject as follows: hands behind the back, soft pose. Keep the anatomy and balance natural."
+,Pose the subject as follows: arms raised above the head. Keep the anatomy and balance natural.
+,Pose the subject as follows: stretching upward naturally. Keep the anatomy and balance natural.
+,Pose the subject as follows: tilting head slightly to the side. Keep the anatomy and balance natural.
+,
+,Pose the subject as follows: walking forward mid-step. Keep the anatomy and balance natural.
+,"Pose the subject as follows: walking away from camera, head turned back. Keep the anatomy and balance natural."
+,Pose the subject as follows: looking up slightly with lifted chin. Keep the anatomy and balance natural.
+,"Pose the subject as follows: looking down softly, contemplative. Keep the anatomy and balance natural."
+,Pose the subject as follows: sitting sideways on a chair. Keep the anatomy and balance natural.
+,Pose the subject as follows: kneeling with relaxed posture. Keep the anatomy and balance natural.
+,"Pose the subject as follows: lying down on one side, head propped on hand. Keep the anatomy and balance natural."
+,Pose the subject as follows: leaning against a wall with one shoulder. Keep the anatomy and balance natural.
+,Pose the subject as follows: leaning on railings with arms resting. Keep the anatomy and balance natural.
+,Pose the subject as follows: sitting on stairs with relaxed arms. Keep the anatomy and balance natural.
+,
+,Pose the subject as follows: holding an object close to the chest. Keep the anatomy and balance natural.
+,Pose the subject as follows: holding a cup with both hands. Keep the anatomy and balance natural.
+,Pose the subject as follows: holding a book partially covering face. Keep the anatomy and balance natural.
+,Pose the subject as follows: reaching out toward the camera. Keep the anatomy and balance natural.
+,Pose the subject as follows: hand extended outward as if touching light. Keep the anatomy and balance natural.
+,"Pose the subject as follows: light mid-jump, dynamic pose. Keep the anatomy and balance natural."
+,"Pose the subject as follows: twirling slightly, dress or hair moving. Keep the anatomy and balance natural."
+,"Pose the subject as follows: hands behind head, elbows wide. Keep the anatomy and balance natural."
+,Pose the subject as follows: one knee pulled up while seated. Keep the anatomy and balance natural.
+,Pose the subject as follows: sitting with legs stretched forward. Keep the anatomy and balance natural.
+,
+,Pose the subject as follows: side profile with hands clasped in front. Keep the anatomy and balance natural.
+,Pose the subject as follows: soft pose with one leg slightly bent. Keep the anatomy and balance natural.
+,Pose the subject as follows: half-turn with torso twisted gently. Keep the anatomy and balance natural.
+,Pose the subject as follows: standing with hands folded in front. Keep the anatomy and balance natural.
+,Pose the subject as follows: holding a jacket draped over shoulder. Keep the anatomy and balance natural.
+,Pose the subject as follows: sitting on ground leaning on one arm. Keep the anatomy and balance natural.
+,Pose the subject as follows: standing with arms loosely hanging. Keep the anatomy and balance natural.
+,Pose the subject as follows: holding an item at chest height. Keep the anatomy and balance natural.
+,Pose the subject as follows: looking out a window with hand on glass. Keep the anatomy and balance natural.
+,Pose the subject as follows: arms open slightly as if feeling breeze. Keep the anatomy and balance natural.
+,
+,
+hairstyle:,Style the subject's hair into long waves with flowing S-shaped strands.
+,Style the subject's hair into long straight hair with a smooth fall and defined ends.
+,Style the subject's hair into soft curls with rounded loose ringlets.
+,Style the subject's hair into loose beach waves with uneven tousled texture.
+,Style the subject's hair into a layered cut with graduated lengths and natural volume.
+,Style the subject's hair into feathered layers with softly tapered outward-swept ends.
+,Style the subject's hair into a blunt cut with a clean even hemline.
+,Style the subject's hair into a chin-length bob with a defined silhouette.
+,Style the subject's hair into an A-line bob that is shorter at the back and longer in front.
+,Style the subject's hair into a French bob ending near the jaw with softly textured ends.
+,Style the subject's hair into a long bob ending around the shoulders.
+,Style the subject's hair into a short pixie cut with cropped sides and a textured top.
+,Style the subject's hair into a tousled pixie with separated textured strands.
+,Style the subject's hair into a shag cut with choppy layers and airy volume.
+,Style the subject's hair into a modern wolf cut with a full layered crown and longer tapered lengths.
+,Style the subject's hair into curtain bangs that part at the center and frame both sides of the face.
+,Style the subject's hair into side-swept bangs falling diagonally across the forehead.
+,Style the subject's hair into straight blunt bangs with an even edge across the forehead.
+,Style the subject's hair into wispy bangs with fine separated strands across the forehead.
+,Style the subject's hair into a high ponytail secured near the crown with naturally falling lengths.
+,Style the subject's hair into a low ponytail secured at the nape.
+,Style the subject's hair into a loose messy bun with a few naturally escaping strands.
+,Style the subject's hair into a high bun gathered neatly at the crown.
+,Style the subject's hair into a ponytail braided along its length with visible interwoven sections.
+,Style the subject's hair into a French braid with strands woven inward from the crown.
+,Style the subject's hair into a Dutch braid with a raised braid woven outward from the scalp.
+,Style the subject's hair into a fishtail braid with fine alternating interwoven strands.
+,Style the subject's hair into a half-up half-down hairstyle with the upper section secured and the rest loose.
+,Style the subject's hair into a compact top knot gathered at the top of the head.
+,Style the subject's hair into two balanced space buns on either side of the crown.
+,Style the subject's hair into a sleek high bun with smoothly combed hair and a clean outline.
+,Style the subject's hair into a curly updo with pinned curls and soft volume.
+,Style the subject's hair into vintage Hollywood waves with polished sculpted S-shaped curves.
+,Style the subject's hair into a smooth hairstyle with the ends flipped outward.
+,Style the subject's hair into textured waves with distinct separated strands and natural volume.
+,
+,
+expression:,Give the subject a joyful expression with a broad smile and lifted cheeks.
+,Give the subject a happy expression with relaxed eyes and upturned lips.
+,Give the subject a delighted expression with raised eyebrows and an open smile.
+,Give the subject an excited expression with bright wide eyes and parted smiling lips.
+,Give the subject a playful expression with a mischievous grin and one eyebrow slightly raised.
+,Give the subject an amused expression with a restrained grin and gently narrowed eyes.
+,Give the subject a laughing expression with an open mouth and naturally crinkled eyes.
+,Give the subject a cheerful expression with lifted cheeks and a lively smile.
+,Give the subject a soft smile with gently raised mouth corners and relaxed eyes.
+,Give the subject a warm welcoming smile with soft eyes and naturally lifted cheeks.
+,
+,Give the subject a sad expression with lowered mouth corners and raised inner eyebrows.
+,Give the subject a tearful expression with moist eyes and visible tears on the cheeks.
+,Give the subject a heartbroken expression with trembling lips and deeply furrowed inner brows.
+,Give the subject a melancholic expression with subdued eyes and a faint downward curve of the lips.
+,Give the subject a lonely expression with a distant gaze and softly downturned lips.
+,Give the subject a sorrowful expression with knitted inner brows and a tense lower lip.
+,Give the subject a gloomy expression with heavy eyelids and a slight frown.
+,Give the subject a grieving expression with tear-filled eyes and tightly pressed trembling lips.
+,Give the subject a nostalgic expression with a faraway gaze and a faint wistful smile.
+,Give the subject a bittersweet expression combining a small smile with sadness in the eyes.
+,
+,Give the subject an angry expression with lowered eyebrows and tightly pressed lips.
+,Give the subject a furious expression with deeply furrowed brows and a visibly clenched jaw.
+,Give the subject an annoyed expression with narrowed eyes and a slightly tightened mouth.
+,Give the subject an irritated expression with a small scowl and pinched eyebrows.
+,Give the subject a resentful expression with a guarded gaze and compressed lips.
+,Give the subject a displeased expression with a slight frown and lowered eyebrows.
+,Give the subject a frustrated expression with knitted brows and tense parted lips.
+,Give the subject a stern expression with steady eyes and a firm unsmiling mouth.
+,Give the subject an intense glare with sharply focused eyes and lowered brows.
+,Give the subject a cold expression with an impassive gaze and tightly controlled lips.
+,
+,Give the subject a surprised expression with raised eyebrows and slightly parted lips.
+,Give the subject a shocked expression with wide eyes and a slack open mouth.
+,Give the subject an astonished expression with high eyebrows and a softly open mouth.
+,Give the subject a startled expression with suddenly widened eyes and tense parted lips.
+,Give the subject an expression of wonder with wide luminous eyes and a slight open smile.
+,Give the subject a curious expression with gently raised eyebrows and attentive eyes.
+,Give the subject an intrigued expression with a subtle half-smile and a focused gaze.
+,Give the subject a confused expression with unevenly raised eyebrows and slightly parted lips.
+,Give the subject a bewildered expression with wide uncertain eyes and furrowed inner brows.
+,Give the subject a perplexed expression with knitted brows and pursed lips.
+,
+,Give the subject a calm expression with relaxed eyelids and an unstrained mouth.
+,Give the subject a peaceful expression with softened eyes and a barely perceptible smile.
+,Give the subject a serene expression with smooth brows and gently upturned lips.
+,Give the subject a thoughtful expression with attentive eyes and lightly pressed lips.
+,Give the subject a contemplative expression with an inward-looking gaze and relaxed lips.
+,Give the subject a relaxed expression with loose facial muscles and naturally resting lips.
+,Give the subject a gentle expression with soft eyes and a tender slight smile.
+,Give the subject a neutral expression with relaxed eyebrows and naturally closed lips.
+,Give the subject a focused expression with concentrated eyes and a steady firm mouth.
+,Give the subject a determined expression with resolute eyes and firmly set lips.
+,
+,
+home dress,"Dress the subject in the following outfit: soft cotton loungewear set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: lightweight knit home dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: relaxed fit long tee. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cozy fleece pajamas. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: breathable linen lounge outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: oversized hoodie and shorts. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft jersey dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: ribbed homewear top and pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: fluffy robe with relaxed fit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: comfortable two-piece lounge set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: waffle-texture homewear. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: silky satin loungewear set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: knitted home cardigan outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: pastel-toned home dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: loose long-sleeve lounge set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: lightweight cardigan and soft pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft-touch home leggings outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: simple monochrome lounge outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: short-sleeve comfy home dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: minimal homewear in neutral colors. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: thermal homewear set for warmth. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft velour homewear outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: breathable cotton tank and pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: fluffy cozy matching home set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: minimal sleeveless home dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: relaxed long home skirt outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: ultra-light homewear for summer. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: warm knit loungewear for winter. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: loose fit home tee and joggers. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: everyday comfort home outfit. Render the garment shapes, fabric textures, and folds clearly."
+,
+office look,"Dress the subject in the following outfit: classic tailored blazer outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: crisp white shirt and slacks. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: fitted pencil skirt and blouse. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: structured blazer and dress pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: simple monochrome office outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: knit top and midi skirt combination. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: business-casual blazer over tee. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: button-up blouse with tailored trousers. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: long cardigan with office slacks. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: minimal office dress with clean lines. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: tucked blouse with belt and skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft pastel office shirt and pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: double-breasted blazer outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: office knit top with tailored fit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: straight trousers and simple top. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: pleated midi skirt office outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: layered office vest with blouse. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: chic office wrap dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: fine-knit sweater with slacks. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: muted-tone office wear. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: structured shirt dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: modern business-casual set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: striped office shirt tucked neatly. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: long-sleeve blouse with wide-leg pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: scarf-accent office styling. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: blazer paired with a-line skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: smart casual button cardigan outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: neutral-tone office ensemble. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: sleeveless office top and slim pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: tailored monochrome suit set. Render the garment shapes, fabric textures, and folds clearly."
+,
+spring outfit,"Dress the subject in the following outfit: light cardigan over soft pastel dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: floral blouse with flowy skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: lightweight trench coat look. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: pastel knit top with jeans. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: layered outfit with spring scarf. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cropped jacket with soft tones. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: breathable spring dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cotton blouse with wide-leg pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: light shirt dress in spring colors. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft knit cardigan outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: pastel hoodie with light skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: denim jacket over spring dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: chiffon blouse and long skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft spring trench with minimal layers. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: bright-tone knit with light trousers. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: lightweight bomber jacket outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: embroidered spring top and skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: simple pastel t-shirt with jeans. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: striped spring long-sleeve outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: breezy linen shirt with soft pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: short-sleeve spring sweater. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: neutral-tone spring outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft pink cardigan styling. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: minimal spring monochrome outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cropped spring sweater and midi skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cotton jacket and fresh-tone shirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: light turtleneck and spring skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: layered spring knitwear outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: casual spring denim look. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft pastel two-piece set. Render the garment shapes, fabric textures, and folds clearly."
+,
+summer outfit,"Dress the subject in the following outfit: breathable cotton t-shirt and shorts. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: sleeveless top with airy skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: lightweight linen shirt outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: crop top and casual denim shorts. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: thin-strapped summer dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: mesh cardigan over tank top. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: relaxed summer two-piece set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: lightweight button-up shirt outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: vibrant summer t-shirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: loose-fit linen pants and tank. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: airy pleated skirt with summer top. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: simple white tee with light jeans. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: sleeveless summer knit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: open-collar summer shirt outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: ultra-light hoodie for summer. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: denim skirt and breezy top. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: thin cardigan over short sleeves. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: flowy summer maxi dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: minimal monochrome summer outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft-tone sleeveless blouse. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: tropical-style summer shirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: elastic-waist summer pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: breathable athletic summer set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: textured cotton tank outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cooling fabric shirt and shorts. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: simple oversized summer tee. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: linen coat with minimal layers. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: bright color-block summer outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: basic summer polo shirt style. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: relaxed resort-style summer wear. Render the garment shapes, fabric textures, and folds clearly."
+,
+autumn outfit,"Dress the subject in the following outfit: light knit sweater with midi skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: trench coat layered over knitwear. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: plaid shirt with autumn tones. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: ribbed knit top and slacks. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: layered cardigan with inner shirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: warm-toned knit dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: lightweight jacket with scarf. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: corduroy pants with knit sweater. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: long-sleeve tee under soft jacket. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: classic beige trench styling. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: long knit cardigan outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: simple autumn dress with tights. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: button knit top with skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: autumn coat with warm palette. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft turtleneck with long skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: brown-tone layered outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: check-pattern autumn outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: suede jacket styling. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: knit vest layered over shirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: warm-toned hoodie outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: knitted sweater dress. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: pleated skirt with autumn sweater. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: light puffer vest for fall. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: ribbed cardigan autumn styling. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: casual autumn denim look. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: long-sleeve autumn blouse. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: warm neutral knit set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cozy fleece jacket for fall. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: corduroy skirt and knit outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: classic fall layered ensemble. Render the garment shapes, fabric textures, and folds clearly."
+,
+winter outfit,"Dress the subject in the following outfit: padded jacket with warm layers. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: long wool coat with scarf. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: heavy knit sweater outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: thermal innerwear and outer coat. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: winter fleece jacket outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: thick turtleneck sweater styling. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: fur-lined winter coat. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: long padded coat look. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: shearling jacket with winter tones. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: knit dress with winter leggings. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: quilted jacket winter outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: layered knitwear for warmth. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: winter parka style. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cable-knit sweater and warm pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: heavy wool cardigan outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: winter muffler with minimal outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: snow-ready insulated coat. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: thick hoodie with winter padding. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: winter knit vest over long sleeves. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: thermal leggings with winter top. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: warm wool trousers outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: layered coat with inner padding. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: down-filled jacket outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cozy fleece-lined outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: full winter knit set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: classic winter trench coat. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: puffer jacket with chunky knit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: warm-toned winter outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: winter coat with faux fur trim. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: heavyweight winter ensemble. Render the garment shapes, fabric textures, and folds clearly."
+,
+casual,"Dress the subject in the following outfit: basic t-shirt with denim pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: oversized hoodie outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: simple long-sleeve with jogger pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: striped tee and casual jeans. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: loose sweatshirt outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: casual knit top and denim skirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: simple monochrome casual set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cargo pants with relaxed top. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: casual button-up shirt outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: minimalist tee with soft pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cropped hoodie casual style. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: classic denim jacket casual look. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft fleece top with casual pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: loose fit tee and shorts. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: modern casual cardigan outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: comfortable tracksuit style. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: graphic tee with simple jeans. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: casual layered shirt outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft tone sweatshirt casual outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: casual vest with inner shirt. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cotton shirt with relaxed trousers. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: casual knit sweater. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: everyday casual denim set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: neutral casual outfit with easy fit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: relaxed casual two-piece outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: casual polo shirt with jeans. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: basic hoodie and straight pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: comfy casual jacket outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: loose casual knit top. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: weekend casual outfit with soft materials. Render the garment shapes, fabric textures, and folds clearly."
+,
+sports,"Dress the subject in the following outfit: moisture-wicking athletic top and leggings. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: lightweight running outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: breathable training t-shirt and shorts. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: compression top and workout leggings. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: sporty hoodie with active pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: mesh-panel athletic tank outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: high-performance gym wear. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: stretchy sports bra and leggings set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: athletic jacket and running tights. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: quick-dry sports t-shirt outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: yoga top and soft-flex leggings. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: sporty two-tone activewear set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: warm-up tracksuit outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: sleeveless gym top with shorts. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: fitted long-sleeve training top. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: sporty windbreaker outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: flexible fitness leggings. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: breathable sports tank outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: aerobics-style colorful activewear. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: cooling fabric sportswear. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: minimal monochrome gym outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: training jacket with matching pants. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: tight-fit running top. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: lightweight sports parka. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: technical fabric sports set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: soft training hoodie and leggings. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: sporty seamless outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: modern gym crop top set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: outdoor hiking activewear. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: indoor fitness minimal set. Render the garment shapes, fabric textures, and folds clearly."
+,
+uniform,"Dress the subject in the following outfit: classic military fatigues. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: modern tactical combat uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: camouflage-pattern field uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: digital camo combat outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: formal dress uniform with insignia. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: lightweight duty uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: navy-style uniform set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: air force-style flight uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: tactical vest integrated uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: riot control protective uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: police patrol uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: police tactical response outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: firefighter turnout gear. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: rescue team high-visibility uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: paramedic emergency uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: ceremonial military dress uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: security guard standard uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: coast guard uniform set. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: mountain rescue uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: SWAT-style tactical black uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: desert camo uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: winter military cold-weather outfit. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: pilot jumpsuit uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: armored tactical outerwear uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: navy officer dress uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: gendarmerie-style uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: field engineer utility uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: border patrol uniform. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: law enforcement formal attire. Render the garment shapes, fabric textures, and folds clearly."
+,"Dress the subject in the following outfit: military parade uniform. Render the garment shapes, fabric textures, and folds clearly."
+,
+,
+composition:,Compose the image using the rule of thirds; place the subject near a grid intersection and balance the surrounding space.
+,Center the subject in the frame with balanced space on either side.
+,Use a symmetrical composition with the subject aligned to the central axis.
+,Use asymmetrical balance; offset the subject and counterbalance it with background shapes or empty space.
+,Arrange visible lines in the scene so they lead the eye toward the subject.
+,Build the composition around diagonal lines to create movement through the frame.
+,Use a golden-ratio-inspired layout with the subject near the spiral focal area.
+,Leave generous uncluttered negative space around the subject.
+,Frame a close-up of the subject's face with minimal surrounding space.
+,Use an extreme close-up that emphasizes the eyes and fine facial details.
+,
+,"Position the camera behind the subject's shoulder, including the shoulder in the foreground and the scene beyond."
+,Photograph the subject from a three-quarter camera angle to show depth across the face and body.
+,Place the camera to the side for a clear profile view of the subject.
+,Position the camera above the subject and angle it downward for a high-angle view.
+,Position the camera below the subject and angle it upward for a dramatic low-angle view.
+,Tilt the camera slightly to create a subtle Dutch-angle composition.
+,Use a wide environmental portrait that shows the subject clearly within the surrounding location.
+,Use a vertical full-body composition with the entire subject visible and space above the head and below the feet.
+,Frame a half-body portrait from approximately the waist upward.
+,"Build depth with distinct foreground, subject, and background layers."
+,
+,Use controlled motion blur along the subject's movement while keeping the main silhouette readable.
+,"Isolate the subject with shallow depth of field, sharp subject detail, and a softly defocused background."
+,Render background highlights as soft bokeh while keeping the subject in focus.
+,Place the subject against a much brighter background to form a clean readable silhouette.
+,Use edge lighting to trace the subject's outline and separate it from the background.
+,Place the subject off-center with extra space in the direction of the gaze or movement.
+,"Use a doorway, window, or existing architectural opening as a frame around the subject."
+,Include a coherent reflection of the subject or scene in nearby glass or water with matching perspective.
+,Partially obscure the subject with a softly focused foreground element while keeping the face recognizable.
+,Crop tightly around the face to emphasize the expression while retaining the eyes and mouth.
+,
+,Place the main light behind the subject to create a soft glow around the silhouette.
+,Create atmospheric depth by reducing contrast and detail in progressively more distant background layers.
+,Use a cinematic widescreen composition with deliberate horizontal spacing around the subject.
+,
+,
+background:,"Set the scene around the subject to depict modern minimalist living room with clean lines and bright natural light. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict cozy wooden cabin interior with warm fireplace glow. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict elegant hotel lobby with marble flooring and soft ambient lighting. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict futuristic sci-fi control room with holographic panels. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Japanese-style tatami room with sliding shoji doors. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict high-end fashion boutique interior with glossy displays. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict modern kitchen island with stainless steel appliances. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict vintage study room filled with books and warm desk lamps. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict spacious art gallery with white walls and spotlights. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict classic European ballroom with chandeliers. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict contemporary office workspace with large windows. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict minimalist studio apartment with neutral colors. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict cinema room with dimmed lights and large projection screen. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict retro 80s arcade with neon lights and pixel cabinets. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict industrial loft with brick walls and metal beams. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict luxury spa interior with warm candles and stone textures. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict photography studio with softboxes and seamless backdrop. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict modern conference hall with LED wall. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict bakery interior with wooden shelves and warm tones. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict high-tech laboratory with monitors and blue lighting. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict university library reading zone with soft seating. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict rooftop lounge bar with warm evening lighting. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict cozy café corner with plants and soft sunlight. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict artist workshop filled with canvases and brushes. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict greenhouse interior with lush greenery and soft mist. Match the subject's lighting, scale, and perspective to the setting."
+,
+,"Set the scene around the subject to depict modern city skyline at golden hour. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict neon-lit downtown street on a rainy night. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict quiet residential alley with soft warm streetlights. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict rooftop view overlooking skyscrapers. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict European old-town street with cobblestone roads. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict peaceful suburban neighborhood under clear sky. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict bustling open marketplace with colorful stalls. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict futuristic megacity with flying vehicles. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict vintage street scene with classic cars. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict seaside promenade with pastel buildings. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict riverside park walkway with sunset lighting. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict street café terrace with umbrellas. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict modern business district with glass towers. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict graffiti-filled urban backstreet. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict high-speed train station platform. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict palm-lined boulevard in warm coastal city. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict night festival street filled with lanterns. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict snowy city street with soft falling snow. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict industrial shipping docks with cranes. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict hilltop overlook above a glowing city. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict old stone bridge crossing a quiet canal. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict urban park with fountains and benches. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict tram street intersection in morning light. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict harbor skyline with sailboats. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict wide pedestrian plaza in a modern city. Match the subject's lighting, scale, and perspective to the setting."
+,
+,"Set the scene around the subject to depict serene lakeside with mist and soft morning light. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict dense green forest with sunbeams through trees. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict snowy mountain peak under clear blue sky. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict wide open meadow with wildflowers. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict desert dunes with soft golden sunset. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict tropical beach with turquoise water. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict autumn forest trail with falling leaves. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict dramatic cliffside overlooking the ocean. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict lavender field at golden hour. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict bamboo forest with soft filtered light. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict waterfall valley surrounded by mossy rocks. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict northern lights shimmering over snowy ground. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict peaceful riverside with slow flowing water. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict volcanic landscape with black rocks. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict quiet countryside road after rain. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict panoramic canyon under bright sunlight. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict lush rice terraces with morning fog. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict sunflower field with clear sky. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict glacial lake with floating ice. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict tropical rainforest canopy. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict misty hills at dawn. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict rocky shoreline with crashing waves. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict alpine village in the mountains. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict serene orchard with blooming trees. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict starry night sky above open grassland. Match the subject's lighting, scale, and perspective to the setting."
+,
+,"Set the scene around the subject to depict Eiffel Tower view from Trocadéro gardens. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Times Square with glowing billboards. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Santorini white cliffside houses with blue domes. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Machu Picchu ancient terraces at sunrise. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Taj Mahal reflecting in the water pool. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Great Wall of China stretching along mountain ridge. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Sydney Opera House and harbor skyline. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict London Tower Bridge at sunset. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Dubai skyline with Burj Khalifa. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Rome Colosseum under warm evening light. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Kyoto torii gate path through the forest. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Iguazu Falls panorama. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Petra rose-red canyon city. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Seoul Namsan Tower cityscape. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Maldives overwater villas above clear ocean. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Swiss Alps village with snowy peaks. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Sahara desert caravan scene. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Golden Gate Bridge with fog rolling in. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Icelandic black sand beach with basalt cliffs. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Angkor Wat temple reflected on water. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Havana colorful colonial street. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Morocco blue city alley of Chefchaouen. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Amsterdam canal houses with boats. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Cairo pyramids under golden sunlight. Match the subject's lighting, scale, and perspective to the setting."
+,"Set the scene around the subject to depict Singapore Marina Bay skyline at night. Match the subject's lighting, scale, and perspective to the setting."
+,
+,
+mood:,"Restyle the image with a cinematic film look, rich tonal contrast, controlled highlights, and subtle film grain."
+,"Restyle the image as an analog 35mm photograph with fine organic grain, gentle highlight roll-off, and slight color variation."
+,"Restyle the image in a soft pastel aesthetic with delicate colors, low contrast, and smooth tonal transitions."
+,"Restyle the image as high-key photography with bright diffuse light, airy shadows, and preserved highlight detail."
+,"Restyle the image with low-key dramatic lighting, deep shadows, and selective illumination of the subject."
+,"Restyle the image as a vintage sepia photograph with warm brown tones, fine grain, and gently faded contrast."
+,"Restyle the image as detailed HDR photography with balanced highlight and shadow detail, natural texture, and no harsh edge halos."
+,"Restyle the image in a clean minimalist aesthetic with restrained colors, simple tonal shapes, and reduced visual clutter."
+,"Restyle the image with dreamy shallow-focus photography, soft bokeh highlights, and a clearly defined subject."
+,Restyle the image as black-and-white fine art photography with rich grayscale tones and carefully shaped light.
+,"Restyle the image with a neon cyberpunk palette, cyan and magenta accent light, and deep contrasting shadows."
+,"Restyle the image as documentary street photography with available light, restrained color grading, and authentic surface texture."
+,"Restyle the image with a retro 1980s photographic finish, warm highlights, cool shadows, and visible film grain."
+,"Restyle the image with an instant-film look, soft contrast, slightly faded colors, and subtle chemical color variation."
+,"Restyle the image with soft natural lighting, warm midtones, and gentle shadow transitions."
+,"Restyle the image as glossy fashion editorial photography with sculpted lighting, polished color, and detailed fabric texture."
+,"Restyle the image with a surreal photographic treatment, unexpected color relationships, and dreamlike light while keeping the subject recognizable."
+,"Restyle the image with dark moody cinematic lighting, subdued colors, deep shadows, and controlled pools of light."
+,"Restyle the image in high-contrast monochrome with bold black shapes, bright highlights, and readable subject detail."
+,"Restyle the image with a cottagecore photographic finish, warm earthy colors, soft light, and a nostalgic film texture."
+,"Restyle the image with faded pastel film colors, low saturation, lifted blacks, and soft contrast."
+,"Restyle the image with golden-hour illumination, warm directional highlights, and long soft shadows."
+,"Restyle the image with a cool blue night-photography treatment, restrained luminous highlights, and detailed dark tones."
+,"Restyle the image with matte muted color grading, lifted shadow tones, subdued saturation, and gentle contrast."
+,"Restyle the image with a smartphone portrait-photo finish, crisp subject detail, natural skin texture, and smoothly blurred background edges."
+,"Restyle the image with classic Hollywood glamour lighting, sculpted facial highlights, elegant shadow transitions, and a luminous finish."
+,"Restyle the image with macro-photography-like precision in visible textures, crisp fine detail, and controlled local contrast."
+,"Restyle the image as luxury magazine-cover photography with refined lighting, rich colors, and polished retouching without adding text or logos."
+,Restyle the image with futuristic luminous light streaks and cool metallic color accents while keeping the subject clearly visible.
+,"Restyle the image with a tilt-shift miniature effect, a narrow band of sharp focus, and progressively blurred upper and lower regions."
+,"Restyle the image as a watercolor illustration with translucent pigment washes, soft bleeding edges, and visible paper texture."
+,"Restyle the image as vibrant travel photography with lively natural colors, clear light, and detailed environmental textures."
+,"Restyle the image with a natural-history documentary photographic finish, true-to-life colors, available light, and finely resolved organic textures; retain the existing subject."
+,"Restyle the image as street-style fashion editorial photography with crisp clothing textures, candid energy, and balanced natural light."
+,"Restyle the image with a crisp commercial-photography finish, precise material textures, clean highlights, and controlled reflections."
+,"Restyle the image with warm sunset backlight, subtle lens flare, and softly glowing highlights that leave the subject readable."
+,Restyle the image as a dreamy soft-focus portrait with gentle diffusion and luminous highlights while retaining recognizable facial features.
+,"Restyle the image in film noir style with black-and-white tones, hard directional light, and dramatic geometric shadows."
+,Restyle the image with pastel light leaks near the frame edges and softly overexposed highlights while retaining essential subject detail.
+,
+,"Restyle the image with photorealistic clarity, believable fine texture, natural skin detail, and crisp edges without excessive sharpening."
+,"Restyle the image as muted earth-tone lifestyle photography with warm neutrals, subdued greens, and soft natural contrast."
+,"Restyle the image in a pop-art style with saturated color blocks, bold outlines, and graphic halftone textures."
+,"Restyle the image with a nostalgic Y2K compact-digital-camera look, direct flash, slight digital noise, and punchy colors."
+,Restyle the image with soft artistic bloom around bright areas and gentle tonal transitions while retaining subject definition.
+,"Restyle the image with a black-and-gold luxury palette, deep dark tones, metallic gold accents, and refined specular highlights."
+,"Restyle the image with a foggy atmospheric treatment, softened distant contrast, muted colors, and subtle depth haze."
+,"Restyle the image as a monochrome clay sculpture with matte tactile surfaces, softly modeled forms, and coherent studio shading."
+,"Restyle the image as a faded vintage postcard with desaturated colors, aged paper texture, and gently softened detail without adding lettering."
+,"Restyle the image as candid lifestyle photography with natural available light, authentic textures, and understated color grading."
+,
+weather,Add soft morning fog with gently reduced distance contrast and diffuse light.
+,Show light drizzle with fine rain streaks and subtly damp exposed surfaces.
+,Add dense fog that obscures distant objects while keeping the near subject readable.
+,"Show heavy rain with dense falling streaks, splashes, and wet exposed surfaces."
+,Show gentle snowfall with softly drifting flakes and a light dusting on exposed surfaces.
+,Show a thick snowstorm with wind-driven flakes and reduced visibility.
+,Use clear weather with a cloudless blue sky and clean direct daylight.
+,Use partly cloudy weather with scattered soft clouds and alternating patches of sunlight.
+,Use an overcast sky with uniform gray cloud cover and soft diffuse shadows.
+,Show lightning illuminating dark storm clouds with brief bright highlights across the scene.
+,Use warm sunshine with a soft golden tint and gentle directional shadows.
+,Use bright midday sunshine with strong overhead light and short high-contrast shadows.
+,"Suggest cold dry wind through wind-swept loose fabric, hair, and nearby foliage where visible."
+,Suggest warm humid air with subtle atmospheric haze and softened distant contrast.
+,Suggest crisp cool weather with clear visibility and cool clean daylight.
+,Show heatwave conditions with visible heat shimmer over warm exposed surfaces.
+,Suggest freezing conditions with frost on exposed surfaces and visible breath where appropriate.
+,"Show strong gusts pushing loose hair, fabric, and foliage consistently in one direction."
+,"Show still air with resting foliage, undisturbed loose fabric, and calm water where present."
+,Show scattered rain showers with rain beneath localized clouds and clearer weather beyond.
+,"Show a heavy thunderstorm with dark towering clouds, dense rain, and visible lightning."
+,"Show a gentle warm breeze through subtle movement in loose hair, clothing, and foliage."
+,Suggest an icy breeze with lightly wind-swept loose elements and cold atmospheric tones.
+,Use a hazy sky with diffuse sunlight and reduced distant contrast.
+,Suggest high humidity through warm haze and a subtle sheen on exposed skin where visible.
+,"Suggest dry desert air with clear hard light, dusty surface textures, and minimal atmospheric moisture."
+,Add low-lying mist close to the ground with soft diffuse lighting.
+,Show thin high-altitude cirrus clouds streaking across the visible sky.
+,Show wind-swept cloud formations and gust-disturbed foliage to suggest rapidly changing weather.
+,Show gently spaced clouds in a calm sky with steady soft daylight.
+,Show a subtle rainbow in moist air with plausible placement opposite the sun.
+,Suggest an approaching low-pressure storm with a heavy dark cloud ceiling and subdued daylight.
+,Suggest stifling stagnant heat with soft heat shimmer and still foliage.
+,"Show cool light drizzle with fine droplets, damp surfaces, and soft cool illumination."
+,Show sleet with a mixture of rain streaks and small translucent ice pellets on exposed surfaces.
+,Show falling hail with visible ice pellets and scattered impacts on exposed ground.
+,Show a sun shower with illuminated rain droplets and warm sunlight breaking through clouds.
+,Use harsh intense sunlight with bright glare and sharply defined shadows while retaining subject detail.
+,Use soft post-sunset twilight with a dim warm horizon and cool ambient shadows.
+,"Show faint moonlight filtered through thin clouds, creating gentle low-contrast illumination."
+,Suggest a warm humid evening with lingering haze and subdued dusk colors.
+,Suggest a cold clear night with crisp visibility and cool low-light tones.
+,Show occasional light snow flurries with scattered flakes and minimal accumulation.
+,Suggest the humid moment before rainfall with gathering clouds and moisture haze.
+,Suggest muggy still weather with warm atmospheric haze and motionless foliage.
+,Show dry gusty wind carrying fine dust with consistent directional movement.
+,Suggest a sudden cold front with gust-driven clouds and sharply wind-swept loose elements.
+,"Show mild settled weather with soft daylight, clear visibility, and a light breeze."
+,"Show turbulent wind through irregularly ruffled fabric, foliage, and airborne particles where present."
+,"Show serene calm weather with a quiet sky, still foliage, and smooth water where visible."
