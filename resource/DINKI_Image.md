@@ -8,7 +8,7 @@
 - [Internal Processing](DINKI_PS.md)
 
 
-## 🖼️ DINKI Overlay
+## 🖼️ DKST Image (Overlay)
 ![Preview](DINKI_Overlay.png?v=2)
 
 A powerful and versatile ComfyUI node designed to add **watermarks, copyright text, subtitles, and logo overlays** to your generated images with professional precision.
@@ -51,7 +51,7 @@ To properly overlay a logo with a transparent background:
 ---
 
 
-## 📸 DINKI Photo Specifications
+## 📸 DKST Image (Photo Specs)
 ![Preview](DINKI_photo_specifications.png)
 
 A smart utility node designed to calculate the **optimal resolution** for AI generation by selecting target **megapixels** and **real-world standard aspect ratios**.
@@ -87,7 +87,7 @@ I found this node to work especially well with **Z-Image Turbo** workflows, ensu
 ---
 
 
-## 📚 DINKI Batch Images
+## 📚 DKST Image (Batch)
 
 A smart utility node designed to **combine multiple individual images into a single image batch**.
 
@@ -100,7 +100,7 @@ Unlike standard batch nodes that error out when image dimensions differ, this no
 * **Mode Switching:** Easily toggle between creating a batch or just passing through the first image for testing.
 
 #### 💡 Workflow Tip
-This node works perfectly with **DINKI LM Studio Assistant**. Use it to batch multiple reference images together and send them to a Vision LLM for bulk analysis or captioning in a single pass.
+This node works perfectly with **DKST LLM (LM Studio)**. Use it to batch multiple reference images together and send them to a Vision LLM for bulk analysis or captioning in a single pass.
 
 
 ### 🎛️ Parameters
@@ -158,7 +158,7 @@ If you set the grid to **2 Columns × 3 Rows** (Total 6 cells) but connect only 
 ---
 
 
-## 👁️ DINKI Image Preview
+## 👁️ DKST Util (Image Signal)
 
 A robust preview node that handles empty signals gracefully. If no image is provided (e.g., a skipped step due to a switch), it automatically generates a **custom placeholder image** containing text instead of crashing or showing an error.
 
@@ -186,7 +186,7 @@ A set of nodes designed to make your ComfyUI workflows **fully self-contained an
 
 ---
 
-## 🖼️ DINKI Image To Base64
+## 🖼️ DKST Util (Image to Base64)
 
 Prepares your image for embedding by converting it into a text-based format. Use this to generate the data needed for the **Base64 String Input** node.
 
@@ -196,13 +196,13 @@ Prepares your image for embedding by converting it into a text-based format. Use
 | :--- | :--- |
 | **image** | The source image you want to embed (e.g., a specific ControlNet reference or style image). |
 
-> **Workflow Tip:** Connect an image, run the queue, and copy the resulting string. You can then paste it into the **DINKI Base64 String Input** node to permanently store it in your workflow.
+> **Workflow Tip:** Connect an image, run the queue, and copy the resulting string. You can then paste it into the **DKST Util (Base64 Input)** node to permanently store it in your workflow.
 
 
 ---
 
 
-## 💾 DINKI Base64 String Input
+## 💾 DKST Util (Base64 Input)
 
 The core storage node. It allows you to paste the Base64 code, effectively **saving the image data inside the node itself**. When you save and share your workflow `.json`, the image travels with it.
 
@@ -218,7 +218,7 @@ The core storage node. It allows you to paste the Base64 code, effectively **sav
 ---
 
 
-## 👁️ DINKI Base64 Image Viewer
+## 👁️ DKST Util (Base64 Viewer)
 
 Unpacks and restores the embedded image data for use in generation. It visualizes the stored Base64 string and converts it back into a standard IMAGE format.
 
@@ -226,7 +226,7 @@ Unpacks and restores the embedded image data for use in generation. It visualize
 
 | Parameter | Description |
 | :--- | :--- |
-| **base64_string** | Connects to the **DINKI Base64 String Input** node to retrieve the stored image data. |
+| **base64_string** | Connects to the **DKST Util (Base64 Input)** node to retrieve the stored image data. |
 
 > **Smart Decoding:** Automatically handles standard Base64 headers.
 >

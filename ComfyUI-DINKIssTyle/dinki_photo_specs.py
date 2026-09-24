@@ -103,5 +103,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "DINKI_photo_specifications": "DKST Photo Specifications"
+    "DINKI_photo_specifications": "DKST Image (Photo Specs)"
 }

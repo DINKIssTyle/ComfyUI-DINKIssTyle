@@ -21,7 +21,7 @@ class DINKI_Note:
     FUNCTION = "do_nothing"
     
     # 노드 카테고리
-    CATEGORY = "DINKIssTyle/Utils"
+    CATEGORY = "DINKIssTyle/Util"
 
     # 단순 패스스루 함수 (입력받은 텍스트를 그대로 출력)
     def do_nothing(self, direction, text):
@@ -42,7 +42,7 @@ class DINKI_Node_Check:
 
     RETURN_TYPES = ()      # 출력 없음
     FUNCTION = "get_id"
-    CATEGORY = "DINKIssTyle/Utils"
+    CATEGORY = "DINKIssTyle/Util"
     # OUTPUT_NODE = True   # ← 이 줄을 지우거나 False 로
 
     def get_id(self, selected_node_id):
@@ -66,7 +66,7 @@ class DINKI_Anchor:
 
     RETURN_TYPES = ()
     FUNCTION = "do_nothing"
-    CATEGORY = "DINKIssTyle/Utils"
+    CATEGORY = "DINKIssTyle/Util"
     OUTPUT_NODE = True
 
     def do_nothing(self, shortcut_key, zoom_levels):
@@ -96,7 +96,7 @@ class DINKI_Auto_Focus:
 
     RETURN_TYPES = ()
     FUNCTION = "do_nothing"
-    CATEGORY = "DINKIssTyle/Utils"
+    CATEGORY = "DINKIssTyle/Util"
     OUTPUT_NODE = True
 
     def do_nothing(self, enable, shortcut_key, zoom_level, smoothness):

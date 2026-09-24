@@ -7,9 +7,9 @@
 - [Node Utilities](DINKI_Node_Utils.md)
 - [Internal Processing](DINKI_PS.md)
 
-## 🤖 DINKI LM Studio Assistant
+## 🤖 DKST LLM (LM Studio)
 
-**DINKI LM Studio Assistant** is a powerful bridge node that connects ComfyUI directly to **LM Studio**. It enables the use of local Large Language Models (LLMs) and Vision Language Models (VLMs) within your workflows for tasks like image captioning, prompt enhancement, and creative writing.
+**DKST LLM (LM Studio)** is a powerful bridge node that connects ComfyUI directly to **LM Studio**. It enables the use of local Large Language Models (LLMs) and Vision Language Models (VLMs) within your workflows for tasks like image captioning, prompt enhancement, and creative writing.
 
 ### ✨ Key Features
 
@@ -70,4 +70,4 @@ By setting `assistant_enabled` to **False**, the node bypasses the LLM entirely 
 | **unload_delay** | Seconds to wait before unloading the model (if `auto_unload` is True). |
 
 
-[With the DINKI Batch Images node, you can request up to 10 image assistants from an LLM.](DINKI_Image.md#-dinki-batch-images)
+[With the DKST Image (Batch) node, you can request up to 10 image assistants from an LLM.](DINKI_Image.md#-dinki-batch-images)

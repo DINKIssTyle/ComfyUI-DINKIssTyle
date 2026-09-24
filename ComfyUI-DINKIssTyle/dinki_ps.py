@@ -71,7 +71,7 @@ class DINKI_ToggleUNetLoader:
     RETURN_NAMES = ("model",)
     FUNCTION = "load_unet"
     CATEGORY = "DINKIssTyle/PS"
-    TITLE = "DINKI UNet Loader (safetensors / GGUF)"
+    TITLE = "DKST PS (UNet Loader)"
 
     def _get_gguf_loader_class(self) -> Type:
         node_map = getattr(nodes, "NODE_CLASS_MAPPINGS", {})

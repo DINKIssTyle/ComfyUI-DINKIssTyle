@@ -177,58 +177,58 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     # Prompt
-    "DINKI_PromptSelector": "DKST CSV Prompt Selector",
-    "DINKI_PromptSelectorLive": "DKST CSV Prompt Selector (Live)",
-    "DINKI_random_prompt": "DKST Random Prompt",
-    "DINKI_Sampler_Preset": "DKST Sampler Preset",
+    "DINKI_PromptSelector": "DKST Prompt (CSV Selector)",
+    "DINKI_PromptSelectorLive": "DKST Prompt (CSV Selector Live)",
+    "DINKI_random_prompt": "DKST Prompt (Random)",
+    "DINKI_Sampler_Preset": "DKST Util (Sampler Preset)",
 
     # Color & Correction
-    "DINKI_adobe_xmp": "DKST Adobe XMP",
-    "DINKI_Adobe_XMP_Preview": "DKST Adobe XMP Preview",
-    "DINKI_AIOversaturationFix": "DKST AI Oversaturation Fix",
-    "DINKI_Auto_Adjustment": "DKST Auto Adjustment",
-    "DINKI_Color_Lut": "DKST Color LUT",
-    "DINKI_Color_Lut_Preview": "DKST Color LUT Preview",
-    "DINKI_Deband": "DKST Deband",
+    "DINKI_adobe_xmp": "DKST Color (Adobe XMP)",
+    "DINKI_Adobe_XMP_Preview": "DKST Color (XMP Preview)",
+    "DINKI_AIOversaturationFix": "DKST Color (Oversaturation Fix)",
+    "DINKI_Auto_Adjustment": "DKST Color (Auto Adjust)",
+    "DINKI_Color_Lut": "DKST Color (LUT)",
+    "DINKI_Color_Lut_Preview": "DKST Color (LUT Preview)",
+    "DINKI_Deband": "DKST Color (Deband)",
 
     # Photoshop/Processing
-    "DINKI_Upscale_Latent_By": "DKST Upscale Latent By",
-    "DINKI_Mask_Weighted_Mix": "DKST Mask Weighted Mix",
-    "DINKI_Resize_And_Pad": "DKST Resize and Pad Image",
-    "DINKI_Remove_Pad_From_Image": "DKST Remove Pad from Image",
-    "DINKI_ToggleUNetLoader": "DKST UNet Loader (safetensors / GGUF)",
-    "DINKI_Empty_Or_Image_Latent": "DKST Empty or Image Latent",
+    "DINKI_Upscale_Latent_By": "DKST PS (Latent Upscale)",
+    "DINKI_Mask_Weighted_Mix": "DKST PS (Mask Mix)",
+    "DINKI_Resize_And_Pad": "DKST PS (Resize & Pad)",
+    "DINKI_Remove_Pad_From_Image": "DKST PS (Remove Padding)",
+    "DINKI_ToggleUNetLoader": "DKST PS (UNet Loader)",
+    "DINKI_Empty_Or_Image_Latent": "DKST PS (Latent Source)",
 
     # Viewer
-    "DINKI_Video_Player": "DKST MP4/WEBM/GIF Player",
+    "DINKI_Video_Player": "DKST Viewer (Video Player)",
 
     # Switch
-    "DINKI_Node_Switch": "DKST Node Switch",
-    "DINKI_Node_Change": "DKST Node Change",
-    "DINKI_String_Switch_RT": "DKST String Switch RT",
+    "DINKI_Node_Switch": "DKST Util (Node Switch)",
+    "DINKI_Node_Change": "DKST Util (Node Change)",
+    "DINKI_String_Switch_RT": "DKST Util (String Switch)",
 
     # Tool
-    "DINKI_Note": "DKST Note",
-    "DINKI_Node_Check": "DKST Node Check",
-    "DINKI_Anchor": "DKST Anchor",
-    "DINKI_Auto_Focus": "DKST Auto Focus",
+    "DINKI_Note": "DKST Util (Note)",
+    "DINKI_Node_Check": "DKST Util (Node Check)",
+    "DINKI_Anchor": "DKST Util (Anchor)",
+    "DINKI_Auto_Focus": "DKST Util (Auto Focus)",
 
 
     # Others
-    "DINKI_ImageSelector": "DKST Image Selector",
-    "DINKI_CrossOutputSwitch": "DKST Cross Output Switch",
-    "DINKI_ImagePreview": "DKST Image Signal",
-    "DINKI_LMStudio": "DKST LM Studio Assistant",
-    "DINKI_BatchImages": "DKST Batch Images",
-    "DINKI_photo_specifications": "DKST Photo Specifications",
-    "DINKI_Overlay": "DKST Overlay",
-    "DINKI_Image_Comparer_MOV": "DKST Image Comparer (to Video)",
+    "DINKI_ImageSelector": "DKST Util (Image Selector)",
+    "DINKI_CrossOutputSwitch": "DKST Util (Cross Switch)",
+    "DINKI_ImagePreview": "DKST Util (Image Signal)",
+    "DINKI_LMStudio": "DKST LLM (LM Studio)",
+    "DINKI_BatchImages": "DKST Image (Batch)",
+    "DINKI_photo_specifications": "DKST Image (Photo Specs)",
+    "DINKI_Overlay": "DKST Image (Overlay)",
+    "DINKI_Image_Comparer_MOV": "DKST Video (Image Compare)",
     "DINKI_Grid": "DKST Image (Grid)",
-    "DINKI_Img2Base64": "DKST Image To Base64",
-    "DINKI_Base64Input": "DKST Base64 String Input",
-    "DINKI_Base64Viewer": "DKST Base64 Image Viewer",
-    "DINKI_DepthParallax_MOV": "DKST Depth Parallax",
-    "DINKI_Image_Resize": "DKST Image Resize",
+    "DINKI_Img2Base64": "DKST Util (Image to Base64)",
+    "DINKI_Base64Input": "DKST Util (Base64 Input)",
+    "DINKI_Base64Viewer": "DKST Util (Base64 Viewer)",
+    "DINKI_DepthParallax_MOV": "DKST Video (Depth Parallax)",
+    "DINKI_Image_Resize": "DKST Image (Resize)",
 
     # Text
     "DINKI_Text_Multiline": "DKST Text (Multiline)",

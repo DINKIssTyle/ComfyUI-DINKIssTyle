@@ -757,11 +757,11 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "DINKI_adobe_xmp": "DKST Adobe XMP",
-    "DINKI_Adobe_XMP_Preview": "DKST Adobe XMP Preview",
-    "DINKI_AIOversaturationFix": "DKST AI Oversaturation Fix",
-    "DINKI_Auto_Adjustment": "DKST Auto Adjustment",
-    "DINKI_Color_Lut": "DKST Color LUT",
-    "DINKI_Color_Lut_Preview": "DKST Color LUT Preview",
-    "DINKI_Deband": "DKST Deband"
+    "DINKI_adobe_xmp": "DKST Color (Adobe XMP)",
+    "DINKI_Adobe_XMP_Preview": "DKST Color (XMP Preview)",
+    "DINKI_AIOversaturationFix": "DKST Color (Oversaturation Fix)",
+    "DINKI_Auto_Adjustment": "DKST Color (Auto Adjust)",
+    "DINKI_Color_Lut": "DKST Color (LUT)",
+    "DINKI_Color_Lut_Preview": "DKST Color (LUT Preview)",
+    "DINKI_Deband": "DKST Color (Deband)"
 }

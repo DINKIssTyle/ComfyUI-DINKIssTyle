@@ -7,7 +7,7 @@
 - [Node Utilities](DINKI_Node_Utils.md)
 - [Internal Processing](DINKI_PS.md)
 
-### 🗂️ DINKI Sampler Preset
+### 🗂️ DKST Util (Sampler Preset)
 
 This node simplifies the often confusing task of selecting the correct **Sampler** and **Scheduler** pairs for different diffusion models. Instead of manually selecting them every time, this node reads from a customizable CSV database to provide "Golden Settings" or recommended presets for models like SDXL, Flux, Pony, and more.
 
@@ -50,13 +50,13 @@ Pony, Realism, dpmpp_2m, karras
 ---
 
 
-### 📐 DINKI Resize and Pad Image / Remove Pad
+### 📐 DKST PS (Resize & Pad) / DKST PS (Remove Padding)
 
 This pair of nodes is essential for workflows involving image editing models (like **Qwen Image Edit**) that are sensitive to aspect ratio changes or resolution resizing.
 
-**1. DINKI Resize and Pad Image** Resizes an input image to fit within a target square resolution (default **1024×1024**) while *preserving the original aspect ratio*. It automatically adds padding (letterboxing) to fill the remaining space.
+**1. DKST PS (Resize & Pad)** Resizes an input image to fit within a target square resolution (default **1024×1024**) while *preserving the original aspect ratio*. It automatically adds padding (letterboxing) to fill the remaining space.
 
-**2. DINKI Remove Pad from Image** Takes the processed image and the `PAD_INFO` from the first node to crop the padding out, restoring the **exact original aspect ratio**.
+**2. DKST PS (Remove Padding)** Takes the processed image and the `PAD_INFO` from the first node to crop the padding out, restoring the **exact original aspect ratio**.
 
 #### 💡 Why use this?
 This workflow prevents **pixel shifting artifacts** and distortion in models like Qwen Image Edit. It ensures that prompt-based editing requests are processed as accurately as possible by maintaining the subject's original proportions throughout the generation process.
@@ -70,18 +70,18 @@ This workflow prevents **pixel shifting artifacts** and distortion in models lik
 
 #### 🎛️ Parameters Guide
 
-**DINKI Resize and Pad Image**
+**DKST PS (Resize & Pad)**
 | Parameter | Description |
 | :--- | :--- |
 | **target_size** | The target resolution for the square canvas (e.g., 1024). The longest side of the image will fit this size. |
 | **resize_and_pad** | **True:** Applies resizing and padding.<br>**False:** Bypasses the node (returns original image). |
 | **upscale_method** | Algorithm used for resizing (lanczos, bicubic, area, nearest). |
 
-**DINKI Remove Pad from Image**
+**DKST PS (Remove Padding)**
 | Parameter | Description |
 | :--- | :--- |
 | **pad_info** | Connect the `PAD_INFO` output from the *Resize and Pad* node here. Contains cropping metadata. |
-| **latent_scale** | (Optional) Connect the `latent_scale` output from **DINKI Upscale Latent By**. <br>Allows correct cropping even if the image was upscaled in latent space (e.g., during High-Res Fix). |
+| **latent_scale** | (Optional) Connect the `latent_scale` output from **DKST PS (Latent Upscale)**. <br>Allows correct cropping even if the image was upscaled in latent space (e.g., during High-Res Fix). |
 | **remove_pad** | **True:** Crops the padding.<br>**False:** Returns the input image as-is. |
 
 
@@ -89,7 +89,7 @@ This workflow prevents **pixel shifting artifacts** and distortion in models lik
 
 
 
-## ⬆️ DINKI Upscale Latent By
+## ⬆️ DKST PS (Latent Upscale)
 
 An enhanced latent upscaling node designed for flexibility and pipeline integration. It features a "Snap to Multiple" function to prevent odd-resolution errors.
 
@@ -102,13 +102,13 @@ An enhanced latent upscaling node designed for flexibility and pipeline integrat
 | **enabled** | **True:** Performs upscaling.<br>**False:** Bypasses the node (returns original latent). |
 | **upscale_method** | Algorithm for latent interpolation (nearest-exact, bicubic, etc.). |
 
-> **Output Note:** The `latent_scale` output provides the *actual* scaling factor used (after snapping), which can be sent to **DINKI Remove Pad from Image**.
+> **Output Note:** The `latent_scale` output provides the *actual* scaling factor used (after snapping), which can be sent to **DKST PS (Remove Padding)**.
 
 
 ---
 
 
-## 🧠 DINKI UNet Loader (safetensors / GGUF)
+## 🧠 DKST PS (UNet Loader)
 
 A streamlined loader that combines **safetensors** and **GGUF** model loading into a single node. This removes the need to place separate loader nodes and rewire connections when switching between standard and quantized models.
 

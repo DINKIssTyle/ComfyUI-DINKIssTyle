@@ -8,20 +8,20 @@
 - [Internal Processing](DINKI_PS.md)
 
 
-## 📍 DINKI Anchor
+## 📍 DKST Util (Anchor)
 ![Preview](DINKI_Anchor.gif)  
 This node lets you quickly jump to any desired location using a hotkey, and also allows a single shortcut to cycle through multiple zoom-in and zoom-out levels sequentially.
 
 ---
 
-## 🧭 DINKI Auto Focus
+## 🧭 DKST Util (Auto Focus)
 ![Preview](DINKI_Auto_Focus.gif)  
 Automatically moves to the selected node and applies a custom zoom level.
 
 ---
 
 
-## 🎚️ DINKI Node Switch
+## 🎚️ DKST Util (Node Switch)
 ![Preview](DINKI_Node_Switch.gif)  
 A logic utility node that acts as a **remote control** for your workflow. It allows you to **toggle the Bypass status** of multiple target nodes simultaneously using a simple switch.
 
@@ -52,7 +52,7 @@ Perfect for creating "Control Panels" in complex workflows, allowing you to turn
 ---
 
 
-## 🔀 DKST Node Change
+## 🔀 DKST Util (Node Change)
 
 Switch between two groups of nodes using comma-separated IDs in `node_ids_1`
 and `node_ids_2` (for example, `5, 12, 44`).
@@ -77,7 +77,7 @@ For predictable results, avoid targeting the same node with conflicting controls
 
 ---
 
-## 🕵️ DINKI Node Check
+## 🕵️ DKST Util (Node Check)
 ![Preview](DINKI_Node_Check.gif)  
 This node for quickly checking the ID of any selected node—even when the global “Show Node ID” option is turned off.
 
@@ -85,7 +85,7 @@ This node for quickly checking the ID of any selected node—even when the globa
 ---
 
 
-## 🔀 DINKI Cross Output Switch
+## 🔀 DKST Util (Cross Switch)
 
 A simple yet handy utility for A/B testing or routing logic. It swaps the two input images based on a boolean toggle.
 

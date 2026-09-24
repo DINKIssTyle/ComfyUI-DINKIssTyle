@@ -322,7 +322,7 @@ class DINKI_Sampler_Preset:
     RETURN_TYPES = (AnyType("*"), AnyType("*"), "STRING")
     RETURN_NAMES = ("sampler_name", "scheduler_name", "info")
     FUNCTION = "process"
-    CATEGORY = "DINKIssTyle/Utils"
+    CATEGORY = "DINKIssTyle/Util"
 
     def process(self, model, preset):
         target_sampler = "euler"

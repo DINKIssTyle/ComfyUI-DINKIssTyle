@@ -7,7 +7,7 @@
 - [Node Utilities](DINKI_Node_Utils.md)
 - [Internal Processing](DINKI_PS.md)
 
-## 🎲 DINKI Random Prompt
+## 🎲 DKST Prompt (Random)
 
 ![Random Prompt](DINKI_Random_Prompt.gif)
 
@@ -35,7 +35,7 @@ A versatile prompt generator that builds complex prompts using a custom CSV file
 ---
 
 
-## 🔀 DINKI String Switch RT
+## 🔀 DKST Util (String Switch)
 
 ![String Switch RT](DINKI_String_Switch_RT.gif)
 
@@ -57,7 +57,7 @@ A real-time text utility that converts multi-line text input into a dynamic drop
 ---
 
 
-## 📝 DINKI CSV Prompt Selector (Live)
+## 📝 DKST Prompt (CSV Selector Live)
 
 Quickly insert frequently used prompts or LoRA triggers by selecting them from a dropdown menu.
 
@@ -68,6 +68,12 @@ Quickly insert frequently used prompts or LoRA triggers by selecting them from a
     LoRA - Photo to Anime, transform into anime
     ```
 * **Live Update:** The node refreshes the list from the CSV file automatically on every run.
+* **Subgraphs:** Selecting a promoted title on the outer node updates the inner
+  text and any promoted text field (including renamed fields such as `text_1`).
+  Nested subgraphs and both legacy and Nodes 2.0 widgets are supported. Changes
+  without a widget callback are detected within about 100 ms, then the preset is
+  fetched. Append/replace uses the outer mode, separator, and current text when
+  those fields are promoted. Loading a saved workflow does not append again.
 
 #### 🎛️ Parameters Guide
 

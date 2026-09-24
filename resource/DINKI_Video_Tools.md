@@ -35,7 +35,7 @@ To maintain the **original quality and resolution** of your input images:
 3.  The images will only be resized if you explicitly set a pixel limit (e.g., 1920) to reduce file size.
 
 
-#### 🎛️ Input Parameters (DINKI Image Comparer MOV)
+#### 🎛️ Input Parameters (DKST Video (Image Compare))
 
 | Parameter | Description |
 | :--- | :--- |
@@ -48,7 +48,7 @@ To maintain the **original quality and resolution** of your input images:
 | **quality** | Compression quality (1-100). |
 | **loops** | Number of loops for GIF/WebP (0 = Infinite). |
 
-#### 📺 Input Parameters (DINKI Video Player)
+#### 📺 Input Parameters (DKST Viewer (Video Player))
 
 | Parameter | Description |
 | :--- | :--- |

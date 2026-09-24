@@ -192,5 +192,5 @@ NODE_CLASS_MAPPINGS = {
     "DINKI LM Studio Assistant": DINKI_LMStudio,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "DINKI LM Studio Assistant": "DKST LM Studio Assistant",
+    "DINKI LM Studio Assistant": "DKST LLM (LM Studio)",
 }

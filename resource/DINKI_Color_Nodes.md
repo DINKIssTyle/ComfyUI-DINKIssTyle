@@ -10,15 +10,15 @@
 # DINKI Color Nodes
 ![Preview](DINKI_Color.png)
 
-#### DINKI Auto Adjustment Node
-The **DINKI Auto Adjustment** node implements the following automatic correction features:
+#### DKST Color (Auto Adjust) Node
+The **DKST Color (Auto Adjust)** node implements the following automatic correction features:
 - **Auto Tone**
 - **Auto Contrast**
 - **Auto Color**
 - **Auto Skin Tone**
 
-#### DINKI Adobe XMP Node
-The **DINKI Adobe XMP** node applies presets from **Adobe Lightroom** and **Adobe Camera Raw**.  
+#### DKST Color (Adobe XMP) Node
+The **DKST Color (Adobe XMP)** node applies presets from **Adobe Lightroom** and **Adobe Camera Raw**.
 Currently supported adjustments include:
 
 - **Exposure**
@@ -32,9 +32,9 @@ Currently supported adjustments include:
 XMP preset files should be placed in: **~/ComfyUI/input/adobe_xmp**
 
 
-#### DINKI Color LUT Node
-The **DINKI Color LUT** node applies color LUTs in **.cube** format.  
+#### DKST Color (LUT) Node
+The **DKST Color (LUT)** node applies color LUTs in **.cube** format.
 Place your LUT files in: **~/ComfyUI/input/luts**
 
-#### DINKI AI Oversaturation Fix
+#### DKST Color (Oversaturation Fix)
 Reduces excessive saturation or color distortion often produced by AI-generated images.

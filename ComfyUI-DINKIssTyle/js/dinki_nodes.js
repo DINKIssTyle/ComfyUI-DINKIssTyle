@@ -196,8 +196,69 @@ app.registerExtension({
 // ============================================================
 // 2. DINKI Prompt Selector Live Attach v2
 // ============================================================
+const livePromptContexts = new Map();
+const livePromptObjectIds = new WeakMap();
+let livePromptNextId = 0;
+let livePromptMonitor;
+function syncLivePromptSubgraphs(baseline = false) {
+    if (app.configuringGraph) return;
+    const seen = new Set();
+    const visiting = new Set();
+    const identity = node => {
+        if (!livePromptObjectIds.has(node)) livePromptObjectIds.set(node, ++livePromptNextId);
+        return livePromptObjectIds.get(node);
+    };
+    const visit = (graph, bindings = new Map(), path = []) => {
+        if (!graph || visiting.has(graph)) return;
+        visiting.add(graph);
+        for (const node of graph.nodes ?? graph._nodes ?? []) {
+            const nodeBindings = bindings.get(node) ?? {};
+            if (node.__dinki_live_sync) {
+                const key = [...path, identity(node)].join("/");
+                seen.add(key);
+                let context = livePromptContexts.get(key);
+                const initial = !context;
+                if (!context) {
+                    context = { live: true, node };
+                    livePromptContexts.set(key, context);
+                }
+                context.bindings = nodeBindings;
+                context.read = name => nodeBindings[name]?.[0]?.widget.value ?? getWidget(node, name)?.value;
+                node.__dinki_live_sync(context, baseline || initial);
+            }
+            if (node.subgraph) {
+                const childBindings = new Map();
+                const inherited = Object.fromEntries(Object.entries(nodeBindings).map(([name, chain]) => [name, chain[0]?.widget.value]));
+                nodeModePromotedValues(node, inherited, (widget, target, name, sourceName) => {
+                    if (!widget) return;
+                    if (!childBindings.has(target)) childBindings.set(target, {});
+                    childBindings.get(target)[name] = [...(nodeBindings[sourceName] ?? []), { node, widget }];
+                });
+                visit(node.subgraph, childBindings, [...path, identity(node)]);
+            }
+        }
+        visiting.delete(graph);
+    };
+    visit(app.rootGraph ?? app.graph);
+    for (const [key, context] of livePromptContexts) {
+        if (!seen.has(key)) {
+            context.live = false;
+            livePromptContexts.delete(key);
+        }
+    }
+}
+
 app.registerExtension({
   name: "DINKI.PromptSelectorLive.Attach.v2",
+  setup() {
+    if (livePromptMonitor === undefined) {
+      livePromptMonitor = setInterval(() => syncLivePromptSubgraphs(), 100);
+    }
+  },
+  afterConfigureGraph() {
+    // Loading a saved append-mode workflow must not append its preset again.
+    syncLivePromptSubgraphs(true);
+  },
   async beforeRegisterNodeDef(nodeType, nodeData, appInstance) {
     if (nodeData?.name !== "DINKI_PromptSelectorLive") return;
 
@@ -211,8 +272,6 @@ app.registerExtension({
       const attachWhenReady = (attempt = 0) => {
         const titleW = getWidget(node, "title");
         const textW  = getWidget(node, "text");
-        const modeW  = getWidget(node, "mode");
-        const sepW   = getWidget(node, "separator");
         if (!titleW || !textW) {
           // Vue/Nodes 2.0 may create widgets after the node lifecycle hook.
           if (attempt < 120) requestAnimationFrame(() => attachWhenReady(attempt + 1));
@@ -222,7 +281,7 @@ app.registerExtension({
         node.__dinki_live_attached = true;
         node.__dinki_live_attach_pending = false;
 
-        const setTextValue = (value) => {
+        const setTextValue = (value, context) => {
           const oldValue = textW.value;
 
           // `value` is enough for classic widgets. Nodes 2.0 multiline
@@ -244,6 +303,16 @@ app.registerExtension({
           }
           node.onWidgetChanged?.("text", value, oldValue, textW);
           node.graph?.incrementVersion?.();
+          // A promoted text input can own a separate value store. Update every
+          // host along the same instance path so the visible text and queued
+          // prompt agree, including renamed/nested inputs such as text_1.
+          for (const { node: host, widget } of context?.bindings.text ?? []) {
+            if (widget.value === value) continue;
+            widget.value = value;
+            widget.options?.setValue?.(value);
+            host.graph?.incrementVersion?.();
+            host.setDirtyCanvas?.(true, true);
+          }
         };
 
         if (!node.__dinki_live_clear_added) {
@@ -284,15 +353,18 @@ app.registerExtension({
           const origCb = titleW.callback;
           let observedTitle = titleW.value;
 
-          const loadSelectedPrompt = async (value) => {
+          const loadSelectedPrompt = async (value, context) => {
             titleW.value = value;
             observedTitle = value;
-            const sepVal = sepW?.value ?? "\n";
-            const sig = JSON.stringify([value, modeW?.value || "append", sepVal, textW.value]);
-            if (node.__dinki_last_apply_sig === sig) return;
-            node.__dinki_last_apply_sig = sig;
-            const requestId = (node.__dinki_live_request_id || 0) + 1;
-            node.__dinki_live_request_id = requestId;
+            if (context) context.observedTitle = value;
+            const read = name => context ? context.read(name) : getWidget(node, name)?.value;
+            const state = context ?? node;
+            const sepVal = read("separator") ?? "\n";
+            const sig = JSON.stringify([value, read("mode") || "append", sepVal, read("text")]);
+            if (state.__dinki_last_apply_sig === sig) return;
+            state.__dinki_last_apply_sig = sig;
+            const requestId = (state.__dinki_live_request_id || 0) + 1;
+            state.__dinki_live_request_id = requestId;
 
             try {
               const res = await api.fetchApi("/dinki/prompts");
@@ -300,7 +372,7 @@ app.registerExtension({
               const map = await res.json();
               // Ignore a slow response if another preset was selected while
               // this request was in flight.
-              if (requestId !== node.__dinki_live_request_id || titleW.value !== value) return;
+              if (requestId !== state.__dinki_live_request_id || read("title") !== value || context?.live === false || app.configuringGraph) return;
               const selectedTitle = String(value ?? titleW.value ?? "").trim();
               let picked = (map && selectedTitle) ? (map[selectedTitle] || "") : "";
               if (!picked && map && typeof map === "object") {
@@ -309,7 +381,7 @@ app.registerExtension({
                 );
                 if (matchedTitle) picked = map[matchedTitle] || "";
               }
-              const mode = modeW?.value || "append";
+              const mode = read("mode") || "append";
               let sep = sepVal;
               if (sep === "\\n") sep = "\n";
               if (sep === "\\n\\n") sep = "\n\n";
@@ -321,22 +393,43 @@ app.registerExtension({
               }
 
               if (mode === "replace") {
-                setTextValue(picked);
+                setTextValue(picked, context);
               } else if (mode === "append") {
+                const currentText = read("text") || "";
                 let nextValue;
-                if (!textW.value) nextValue = picked;
-                else nextValue = (sep && !textW.value.endsWith(sep))
-                  ? textW.value + sep + picked
-                  : textW.value + picked;
-                setTextValue(nextValue);
+                if (!currentText) nextValue = picked;
+                else nextValue = (sep && !currentText.endsWith(sep))
+                  ? currentText + sep + picked
+                  : currentText + picked;
+                setTextValue(nextValue, context);
               }
               node.setDirtyCanvas(true, true);
               console.info("[DINKI Live] Prompt applied:", selectedTitle, `(${picked.length} chars)`);
             } catch (e) {
               console.error("DINKI Live fetch/prompts error:", e);
             } finally {
-              setTimeout(() => { node.__dinki_last_apply_sig = null; }, 0);
+              if (requestId === state.__dinki_live_request_id) {
+                setTimeout(() => { state.__dinki_last_apply_sig = null; }, 0);
+              }
             }
+          };
+
+          node.__dinki_live_sync = (context, baseline) => {
+            const title = context.read("title");
+            if (baseline) {
+              context.observedTitle = title;
+              context.__dinki_live_request_id = (context.__dinki_live_request_id || 0) + 1;
+            } else if (title !== context.observedTitle) {
+              loadSelectedPrompt(title, context);
+            }
+          };
+
+          const loadFromWidget = value => {
+            const contexts = [...livePromptContexts.values()].filter(context =>
+              context.node === node && (!context.bindings.title?.length || context.read("title") === value));
+            return contexts.length
+              ? Promise.all(contexts.map(context => loadSelectedPrompt(value, context)))
+              : loadSelectedPrompt(value);
           };
 
           titleW.callback = function (value, ...args) {
@@ -348,7 +441,7 @@ app.registerExtension({
             } catch (e) {
               console.warn("DINKI Live original title callback error:", e);
             }
-            return loadSelectedPrompt(value);
+            return loadFromWidget(value);
           };
 
           // Nodes 2.0 reports widget edits through the node notification and
@@ -356,7 +449,7 @@ app.registerExtension({
           const origWidgetChanged = node.onWidgetChanged;
           node.onWidgetChanged = function (name, value) {
             const result = origWidgetChanged?.apply(this, arguments);
-            if (name === "title") loadSelectedPrompt(value);
+            if (name === "title") loadFromWidget(value);
             return result;
           };
 
@@ -367,12 +460,13 @@ app.registerExtension({
             const result = origDrawForeground?.apply(this, arguments);
             if (titleW.value !== observedTitle) {
               observedTitle = titleW.value;
-              loadSelectedPrompt(observedTitle);
+              loadFromWidget(observedTitle);
             }
             return result;
           };
 
           node.__dinki_live_cb_wrapped = true;
+          syncLivePromptSubgraphs();
         }
       };
 
@@ -533,11 +627,11 @@ function nodeModePromotedValues(host, inherited, onSource) {
         if (target && value !== undefined) {
             if (!result.has(target)) result.set(target, {});
             result.get(target)[name] = value;
-            onSource?.(widget, target, name);
+            onSource?.(widget, target, name, widget.name);
         }
     }
     for (const input of host.inputs ?? []) {
-        if (input.link != null) continue; // A connected runtime input is not a manual control.
+        if (input.link != null && inherited[input.name] === undefined) continue;
         const widget = host.getWidgetFromSlot?.(input) ?? input._widget ?? getWidget(host, input.widget?.name ?? input.name);
         const value = inherited[input.name] ?? widget?.value;
         if (value === undefined) continue;
@@ -554,7 +648,7 @@ function nodeModePromotedValues(host, inherited, onSource) {
             if (!name) continue;
             if (!result.has(target)) result.set(target, {});
             result.get(target)[name] = value;
-            onSource?.(widget, target, name);
+            onSource?.(widget, target, name, input.name);
         }
     }
     return result;
