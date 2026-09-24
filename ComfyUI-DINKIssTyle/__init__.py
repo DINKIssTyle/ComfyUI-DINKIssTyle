@@ -88,6 +88,7 @@ from .dinki_tool import (
 
 from .dinki_lmstudio import DINKI_LMStudio
 from .dinki_batchImages import DINKI_BatchImages
+from .dinki_tiled_upscale import DINKI_TileSplit, DINKI_TileStitch
 from .dinki_photo_specs import DINKI_photo_specifications
 from .dinki_overlay import DINKI_Overlay
 from .dinki_comparer import DINKI_Image_Comparer_MOV
@@ -157,6 +158,8 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_ImagePreview": DINKI_ImagePreview,
     "DINKI_LMStudio": DINKI_LMStudio,
     "DINKI_BatchImages": DINKI_BatchImages,
+    "DINKI_TileSplit": DINKI_TileSplit,
+    "DINKI_TileStitch": DINKI_TileStitch,
     "DINKI_photo_specifications": DINKI_photo_specifications,
     "DINKI_Overlay": DINKI_Overlay,
     "DINKI_Image_Comparer_MOV": DINKI_Image_Comparer_MOV,
@@ -222,6 +225,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_ImagePreview": "DKST Util (Image Signal)",
     "DINKI_LMStudio": "DKST LLM (LM Studio)",
     "DINKI_BatchImages": "DKST Image (Batch)",
+    "DINKI_TileSplit": "DKST PS (Tile Split)",
+    "DINKI_TileStitch": "DKST PS (Tile Stitch)",
     "DINKI_photo_specifications": "DKST Image (Photo Specs)",
     "DINKI_Overlay": "DKST Image (Overlay)",
     "DINKI_Image_Comparer_MOV": "DKST Video (Image Compare)",

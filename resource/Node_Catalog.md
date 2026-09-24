@@ -1,6 +1,6 @@
 # Node Catalog
 
-44 nodes across 9 categories. Display names use `DKST Category (Function)`.
+46 nodes across 9 categories. Display names use `DKST Category (Function)`.
 Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` is now `DINKIssTyle/Util`.
 
 | Category | Display name | Internal node ID |
@@ -25,6 +25,8 @@ Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` 
 | `DINKIssTyle/PS` | DKST PS (Mask Mix) | `DINKI_Mask_Weighted_Mix` |
 | `DINKIssTyle/PS` | DKST PS (Remove Padding) | `DINKI_Remove_Pad_From_Image` |
 | `DINKIssTyle/PS` | DKST PS (Resize & Pad) | `DINKI_Resize_And_Pad` |
+| `DINKIssTyle/PS` | DKST PS (Tile Split) | `DINKI_TileSplit` |
+| `DINKIssTyle/PS` | DKST PS (Tile Stitch) | `DINKI_TileStitch` |
 | `DINKIssTyle/PS` | DKST PS (UNet Loader) | `DINKI_ToggleUNetLoader` |
 | `DINKIssTyle/Prompt` | DKST Prompt (CSV Selector Live) | `DINKI_PromptSelectorLive` |
 | `DINKIssTyle/Prompt` | DKST Prompt (CSV Selector) | `DINKI_PromptSelector` |

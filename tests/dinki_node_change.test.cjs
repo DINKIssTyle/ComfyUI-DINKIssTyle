@@ -141,6 +141,25 @@ test('host-only promoted values drive inner modes without changing the inner wid
     assert.equal(f.node.widgets[2].value, true);
 });
 
+test('returning to a tab reapplies the selected group even when its widget value is unchanged', () => {
+    const f = fixture();
+    const host = promote(f.graph, f.node, 'active', 'Choose a group', false);
+    const root = { _nodes: [host] };
+    f.app.rootGraph = f.app.graph = root;
+    f.extension.setup();
+    f.tick();
+    assert.deepEqual(f.targets.map(n => n.mode), [4, 4, 0, 0, 2]);
+
+    f.app.rootGraph = { _nodes: [] };
+    f.tick();
+    f.targets[0].mode = 0;
+    f.targets[2].mode = 4;
+    f.app.rootGraph = root;
+    f.tick();
+    assert.deepEqual(f.targets.map(n => n.mode), [4, 4, 0, 0, 2]);
+    assert.equal(host.widgets[0].value, false);
+});
+
 test('nested promotions forward outer overrides through renamed inputs', () => {
     const f = fixture();
     const innerHost = promote(f.graph, f.node, 'active', 'inner group', true);

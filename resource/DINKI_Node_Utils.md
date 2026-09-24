@@ -70,7 +70,8 @@ and `node_ids_2` (for example, `5, 12, 44`).
 * Supports classic widgets and Nodes 2.0. Saved settings apply when a workflow loads.
 * Controls promoted to a subgraph's outer interface are synchronized within about
   100 ms, including nested subgraphs. Target IDs still refer to the control's own
-  graph. Unchanged values do not trigger redraws.
+  graph. The selected group is reapplied after tab switches and workflow loads;
+  unchanged target modes do not trigger redraws.
 
 This control changes node modes in the ComfyUI frontend, like Node Switch.
 For predictable results, avoid targeting the same node with conflicting controls.

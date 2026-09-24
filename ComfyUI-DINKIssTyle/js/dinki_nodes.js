@@ -707,7 +707,10 @@ function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
                 if (nested && node.comfyClass === nodeClass) {
                     const effective = Object.fromEntries(widgetNames.map(name => [name, values[name] ?? getWidget(node, name)?.value]));
                     const old = previous.get(node);
-                    if (!old || old.graph !== graph || widgetNames.some(name => !Object.is(old.values[name], effective[name]))) {
+                    // A tab switch or workflow load can restore target modes without
+                    // changing the promoted selector value. Reassert Node Change's
+                    // effective selection; apply() only dirties the graph if needed.
+                    if (nodeClass === "DINKI_Node_Change" || !old || old.graph !== graph || widgetNames.some(name => !Object.is(old.values[name], effective[name]))) {
                         apply(node, undefined, undefined, effective);
                         previous.set(node, { graph, values: effective });
                     }
@@ -1766,7 +1769,12 @@ app.registerExtension({
                 image.src = api.apiURL(`/view?${new URLSearchParams({ ...item, t: String(Date.now()) })}`);
                 image.style.display = "block";
             };
-            selector.onchange = display;
+            selector.onchange = () => {
+                if (this.properties?.dkstPreview) {
+                    this.properties.dkstPreview.selectedIndex = Number(selector.value) || 0;
+                }
+                display();
+            };
             image.onload = () => {
                 resolution.textContent = `${image.naturalWidth} × ${image.naturalHeight}`;
             };
@@ -1778,8 +1786,16 @@ app.registerExtension({
             image.addEventListener("contextmenu", event => {
                 if (selected()) showPreviewImageMenu(event, selected());
             });
-            this.dkstUpdatePreview = message => {
+            this.dkstUpdatePreview = (message, persist = true) => {
                 descriptors = message?.dkst_images || message?.images || [];
+                if (persist) {
+                    this.properties ??= {};
+                    this.properties.dkstPreview = {
+                        dkst_images: descriptors,
+                        resolution: message?.resolution || [],
+                        selectedIndex: 0,
+                    };
+                }
                 selector.replaceChildren();
                 descriptors.forEach((item, index) => {
                     const option = document.createElement("option");
@@ -1787,11 +1803,26 @@ app.registerExtension({
                     option.textContent = `${index + 1} / ${descriptors.length}`;
                     selector.appendChild(option);
                 });
-                selector.value = "0";
+                selector.value = String(Math.min(message?.selectedIndex || 0, Math.max(0, descriptors.length - 1)));
                 selector.style.display = descriptors.length > 1 ? "block" : "none";
                 resolution.textContent = message?.resolution?.[0] || "";
                 display();
                 this.setDirtyCanvas(true, true);
+            };
+            this.dkstRestorePreview = () => {
+                const stored = this.properties?.dkstPreview;
+                const output = app.nodeOutputs?.[this.id];
+                if (stored?.dkst_images?.length) {
+                    this.dkstUpdatePreview(stored, false);
+                } else if (output?.dkst_images?.length || output?.images?.length) {
+                    this.dkstUpdatePreview(output, false);
+                }
+            };
+            const configured = this.onConfigure;
+            this.onConfigure = function() {
+                const configuredResult = configured?.apply(this, arguments);
+                queueMicrotask(() => this.dkstRestorePreview?.());
+                return configuredResult;
             };
             return result;
         };
@@ -1803,8 +1834,7 @@ app.registerExtension({
     },
     loadedGraphNode(node) {
         if (node.comfyClass === "DINKI_Preview_Image") {
-            const output = app.nodeOutputs?.[node.id];
-            if (output) node.dkstUpdatePreview?.(output);
+            node.dkstRestorePreview?.();
         }
     },
 });
