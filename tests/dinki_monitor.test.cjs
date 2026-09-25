@@ -150,6 +150,51 @@ test('RAM and VRAM percentage options are independent and handle missing totals'
     assert.equal(context.monitorValues({ram:{used_bytes:0,total_bytes:0}},0,true,true).ram, '—');
 });
 
+test('usage bars and colors follow percentages even when memory shows GiB', () => {
+    const { context, extension, settings } = load();
+    assert.equal(extension.settings.find(s => s.id === 'DKST.Monitor.Graph').defaultValue, false);
+    assert.equal(extension.settings.find(s => s.id === 'DKST.Monitor.Color').defaultValue, false);
+    settings.set('DKST.Monitor.Graph', true);
+    settings.set('DKST.Monitor.Color', true);
+    settings.set('DKST.Monitor.RAMPercent', false);
+    const monitor = new context.Controller();
+    monitor.layout();
+    monitor.render({cpu_percent: 25, ram: {used_bytes: 6, total_bytes: 10}, gpus: [
+        {index: 0, utilization: 75, temperature: 88, memory_used_mib: 90, memory_total_mib: 100}
+    ]});
+    assert.equal(monitor.element.dataset.graph, 'true');
+    assert.equal(monitor.bars.cpu.style.width, '25%');
+    assert.equal(monitor.bars.ram.style.width, '60%');
+    assert.equal(monitor.bars.gpu.style.width, '75%');
+    assert.equal(monitor.bars.vram.style.width, '90%');
+    assert.deepEqual(['cpu','ram','gpu','vram'].map(key => monitor.cells[key].style.color),
+        ['#49c777','#e8ca46','#ef9b43','#ed6262']);
+    assert.equal(monitor.cells.temperature.style.color, '#ed6262');
+    assert.equal(monitor.bars.vram.style.backgroundColor, monitor.cells.vram.style.color);
+    assert.match(monitor.cells.ram.textContent, /GiB$/);
+    monitor.destroy();
+});
+
+test('turning colors off restores accent bars and missing data clears old levels', () => {
+    const { context, settings } = load();
+    settings.set('DKST.Monitor.Color', true);
+    const monitor = new context.Controller();
+    monitor.render({cpu_percent: 100});
+    assert.equal(monitor.cells.cpu.style.color, '#ed6262');
+    settings.set('DKST.Monitor.Color', false);
+    settings.set('DKST.Monitor.Graph', true);
+    monitor.layout();
+    monitor.render({cpu_percent: 50});
+    assert.equal(monitor.element.dataset.graph, 'true');
+    assert.equal(monitor.bars.cpu.style.width, '50%');
+    assert.equal(monitor.cells.cpu.style.color, '');
+    assert.equal(monitor.bars.cpu.style.backgroundColor, '');
+    monitor.render(null, 'offline');
+    assert.equal(monitor.bars.cpu.style.width, '0%');
+    assert.equal(monitor.cells.cpu.textContent, '—');
+    monitor.destroy();
+});
+
 test('floating placement restores position, clamps to viewport, and docks back', () => {
     const {context, settings, document, host} = load();
     const monitor = new context.Controller();

@@ -16,7 +16,7 @@ This node lets you quickly jump to any desired location using a hotkey, and also
 
 ## 🧭 DKST Util (Auto Focus)
 ![Preview](DINKI_Auto_Focus.gif)  
-Automatically moves to the selected node and applies a custom zoom level.
+Automatically moves to the selected node and applies a custom zoom level. It follows selection in both classic ComfyUI and Nodes 2.0, including the currently displayed subgraph. The shortcut key toggles Auto Focus on or off.
 
 ---
 

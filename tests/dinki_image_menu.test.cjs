@@ -101,10 +101,12 @@ test('image menu opens original and passes temp source to mask editor; saved ref
     await node.dkstUploadClipboardImage({ type: 'image/png' });
     assert.deepEqual(Array.from(node.widgets[1].options.values), ['DKST_Paste_new.png', 'edited.png']);
     assert.equal(node.widgets[2].value, 'temp');
+    assert.equal(node.properties.dkstImageLoad.filename, 'DKST_Paste_new.png');
     node.widgets[1].value = 'edited.png';
     await node.widgets[1].callback('edited.png');
     assert.equal(node.widgets[2].value, 'input');
     assert.equal(node.widgets[1].value, 'edited.png');
+    assert.equal(node.properties.dkstImageLoad, undefined);
     const uploadButton = elements.filter(el => el.tag === 'button').find(el => el.textContent === 'Upload Image');
     await uploadButton.onclick();
     assert.equal(fileInput.clicks, 2);

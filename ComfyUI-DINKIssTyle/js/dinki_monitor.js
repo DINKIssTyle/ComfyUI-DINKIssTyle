@@ -11,6 +11,11 @@ const METRICS = [
 ];
 const valid = value => typeof value === "number" && Number.isFinite(value) && value >= 0;
 const percent = value => valid(value) ? `${Math.round(value)}%` : "—";
+const usage = value => valid(value) ? Math.max(0, Math.min(100, value)) : null;
+const memoryUsage = (used, total) => valid(used) && valid(total) && total > 0
+    ? usage(100 * used / total) : null;
+const usageColor = value => value >= 85 ? "#ed6262"
+    : value >= 70 ? "#ef9b43" : value >= 50 ? "#e8ca46" : "#49c777";
 function memoryText(used, total, divisor) {
     return valid(used) && valid(total) && total > 0
         ? `${(used / divisor).toFixed(1)}/${(total / divisor).toFixed(1)} GiB` : "—";
@@ -141,6 +146,8 @@ app.registerExtension({
         { id: PREFIX + "Position", name: "Floating monitor position", type: "hidden", defaultValue: "" },
         { id: PREFIX + "RAMPercent", name: "Show RAM as percentage", type: "boolean", defaultValue: true, onChange: changed },
         { id: PREFIX + "VRAMPercent", name: "Show VRAM as percentage", type: "boolean", defaultValue: true, onChange: changed },
+        { id: PREFIX + "Graph", name: "Show usage bars", type: "boolean", defaultValue: false, onChange: changed },
+        { id: PREFIX + "Color", name: "Color by usage", type: "boolean", defaultValue: false, onChange: changed },
         { id: PREFIX + "Interval", name: "Refresh interval (seconds)", type: "slider", defaultValue: 2,
             attrs: { min: 1, max: 30, step: 1 }, onChange: changed },
         { id: PREFIX + "GPU", name: "NVIDIA GPU index", type: "number", defaultValue: 0,
@@ -184,8 +191,11 @@ export class SystemMonitor {
         this.dock.addEventListener("click", () => void this.save("Placement", this.setting("Placement", "Floating") === "Floating" ? "Toolbar" : "Floating"));
         this.cells = {};
         this.items = {};
+        this.bars = {};
         for (const {key, label} of METRICS) {
             const cell = document.createElement("span");
+            const line = document.createElement("span");
+            line.className = "dkst-monitor-line";
             const caption = document.createElement("span");
             caption.className = "dkst-monitor-label";
             caption.textContent = label;
@@ -193,7 +203,17 @@ export class SystemMonitor {
             value.className = "dkst-monitor-value";
             value.dataset.metric = key;
             value.textContent = "—";
-            cell.append(caption, value);
+            line.append(caption, value);
+            cell.append(line);
+            if (key !== "temperature") {
+                const track = document.createElement("span");
+                track.className = "dkst-monitor-track";
+                const fill = document.createElement("span");
+                fill.className = "dkst-monitor-fill";
+                track.append(fill);
+                cell.append(track);
+                this.bars[key] = fill;
+            }
             this.element.append(cell);
             this.cells[key] = value;
             this.items[key] = cell;
@@ -205,8 +225,14 @@ export class SystemMonitor {
                 #dkst-system-monitor { display:flex; align-items:center; gap:12px; padding:4px 8px;
                     min-width:0; max-width:min(620px,60vw); overflow-x:auto; flex:0 1 auto;
                     color:var(--fg-color,#ddd); font:11px/1.5 sans-serif; font-variant-numeric:tabular-nums; }
-                #dkst-system-monitor > span { display:flex; flex:none; gap:4px; white-space:nowrap; }
+                #dkst-system-monitor > span { display:flex; flex:none; flex-direction:column; gap:2px; white-space:nowrap; }
+                #dkst-system-monitor .dkst-monitor-line { display:flex; gap:4px; align-items:center; }
                 #dkst-system-monitor .dkst-monitor-label { opacity:.6; }
+                #dkst-system-monitor .dkst-monitor-track { height:4px; border-radius:999px;
+                    overflow:hidden; background:color-mix(in srgb, currentColor 18%, transparent); }
+                #dkst-system-monitor[data-graph="false"] .dkst-monitor-track { display:none; }
+                #dkst-system-monitor .dkst-monitor-fill { display:block; height:100%; width:0;
+                    border-radius:inherit; background:var(--dkst-usage-color,var(--p-primary-color,#91b9ef)); }
                 #dkst-system-monitor .dkst-monitor-value { display:inline-block; flex:none; width:5ch;
                     font-family:ui-monospace,Consolas,monospace; text-align:right; overflow:hidden; text-overflow:ellipsis; }
                 #dkst-system-monitor .dkst-monitor-value[data-metric="temperature"] { width:6ch; }
@@ -312,6 +338,7 @@ export class SystemMonitor {
 
     layout() {
         this.updateValueWidths();
+        this.element.dataset.graph = String(Boolean(this.setting("Graph", false)));
         const visible = metricLayout(this.setting("Layout", null)).filter(item => item.visible)
             .map(item => METRICS.find(metric => metric.id === item.id));
         this.element.replaceChildren(this.handle, ...visible.map(metric => this.items[metric.key]), this.dock);
@@ -336,6 +363,23 @@ export class SystemMonitor {
         const index = Math.max(0, Math.floor(Number(this.setting("GPU", 0)) || 0));
         const values = monitorValues(data, index, this.setting("RAMPercent", true), this.setting("VRAMPercent", true));
         for (const [key, cell] of Object.entries(this.cells)) cell.textContent = values[key];
+        const gpu = data?.gpus?.find(item => item.index === index);
+        const levels = {
+            cpu: usage(data?.cpu_percent),
+            ram: memoryUsage(data?.ram?.used_bytes, data?.ram?.total_bytes),
+            gpu: usage(gpu?.utilization),
+            vram: memoryUsage(gpu?.memory_used_mib, gpu?.memory_total_mib),
+            temperature: usage(gpu?.temperature),
+        };
+        const colored = Boolean(this.setting("Color", false));
+        for (const [key, cell] of Object.entries(this.cells)) {
+            const level = levels[key];
+            const fill = this.bars[key];
+            if (fill) fill.style.width = `${level ?? 0}%`;
+            const color = colored && level !== null ? usageColor(level) : "";
+            cell.style.color = color;
+            if (fill) fill.style.backgroundColor = color;
+        }
         this.element.dataset.offline = String(Boolean(error));
         const devices = (data?.gpus ?? []).map(gpu => `GPU ${gpu.index}: ${gpu.name}`).join("\n");
         this.element.title = ["ComfyUI server • " + values.name, devices, error, ...(data?.errors ?? [])].filter(Boolean).join("\n");

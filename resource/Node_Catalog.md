@@ -1,6 +1,6 @@
 # Node Catalog
 
-46 nodes across 9 categories. Display names use `DKST Category (Function)`.
+47 nodes across 9 categories. Display names use `DKST Category (Function)`.
 Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` is now `DINKIssTyle/Util`.
 
 | Category | Display name | Internal node ID |
@@ -14,6 +14,7 @@ Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` 
 | `DINKIssTyle/Color` | DKST Color (XMP Preview) | `DINKI_Adobe_XMP_Preview` |
 | `DINKIssTyle/Image` | DKST Image (Batch) | `DINKI_BatchImages` |
 | `DINKIssTyle/Image` | DKST Image (Grid) | `DINKI_Grid` |
+| `DINKIssTyle/Image` | DKST Image (Image comparison tool) | `DINKI_Image_Comparison` |
 | `DINKIssTyle/Image` | DKST Image (Load) | `DINKI_Image_Load` |
 | `DINKIssTyle/Image` | DKST Image (Overlay) | `DINKI_Overlay` |
 | `DINKIssTyle/Image` | DKST Image (Photo Specs) | `DINKI_photo_specifications` |

@@ -8,6 +8,25 @@
 - [Internal Processing](DINKI_PS.md)
 
 
+## 📥 DKST Image (Load)
+
+Select an image from the ComfyUI input folder, upload a file, or paste an image into the selected node. Pasted images are kept in ComfyUI's temporary directory; their preview and selection are restored when switching workflow tabs during the same server session. Temporary pasted files are cleared when ComfyUI restarts, so save images you want to keep in the input folder.
+
+---
+
+
+## 🌓 DKST Image (Image comparison tool)
+
+Connect `image_1` and `image_2`, then run the workflow. The node compares the first image in each input batch. It uses the dimensions of the image with more pixels and resizes the smaller image to match; ties use `image_1`. Both images are aligned at exactly the same width and height, including when their aspect ratios differ.
+
+* **Slide:** Move the pointer horizontally over the preview. Image 2 appears to the left of the divider and image 1 to the right.
+* **Difference:** Show Photoshop-style Difference blending, calculated per RGB channel as `abs(image_1 - image_2)`. Black means identical pixels. The preview changes immediately when the mode changes after the images have been processed.
+
+The comparison is an output node and saves three temporary PNG previews (two aligned images and their difference). Transparent input images are composited over black for comparison. Saved workflows can restore the preview while those temporary files still exist.
+
+---
+
+
 ## 🖼️ DKST Image (Overlay)
 ![Preview](DINKI_Overlay.png?v=2)
 
@@ -231,5 +250,3 @@ Unpacks and restores the embedded image data for use in generation. It visualize
 > **Smart Decoding:** Automatically handles standard Base64 headers.
 >
 > **Output:** Returns a standard `IMAGE` tensor, allowing the embedded image to be used immediately in KSampler, ControlNet, or Image-to-Image processes.
-
-

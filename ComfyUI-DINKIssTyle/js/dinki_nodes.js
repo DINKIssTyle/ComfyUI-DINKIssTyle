@@ -1920,7 +1920,24 @@ app.registerExtension({
                 widget.options.values = values.length ? values : [""];
             };
 
+            let previewGeneration = 0;
+            let refreshGeneration = 0;
+            const rememberSelection = () => {
+                node.properties ??= {};
+                if (sourceTypeWidget.value === "temp" && filenameWidget.value?.startsWith("DKST_Paste_")) {
+                    node.properties.dkstImageLoad = {
+                        filename: filenameWidget.value,
+                        category: categoryWidget.value || "",
+                        source_type: "temp",
+                    };
+                } else {
+                    delete node.properties.dkstImageLoad;
+                }
+            };
+
             const showPreview = (filename = filenameWidget.value) => {
+                const generation = ++previewGeneration;
+                rememberSelection();
                 if (!filename) {
                     node.dkstLoadedImage = null;
                     node.dkstImageResolution = "";
@@ -1939,6 +1956,7 @@ app.registerExtension({
                 });
                 const image = new Image();
                 image.onload = () => {
+                    if (generation !== previewGeneration) return;
                     node.dkstLoadedImage = image;
                     node.dkstImageResolution = `${image.naturalWidth} × ${image.naturalHeight}`;
                     previewElement.src = image.src;
@@ -1947,6 +1965,7 @@ app.registerExtension({
                     node.setDirtyCanvas(true, true);
                 };
                 image.onerror = () => {
+                    if (generation !== previewGeneration) return;
                     node.dkstLoadedImage = null;
                     node.dkstImageResolution = "Unable to preview image";
                     previewElement.removeAttribute("src");
@@ -1957,30 +1976,38 @@ app.registerExtension({
                 image.src = api.apiURL(`/view?${params.toString()}`);
             };
 
-            const refreshFiles = async(category, preferredFilename = null) => {
-                sourceTypeWidget.value = "input";
+            const refreshFiles = async(category, preferredFilename = null, sourceType = "input",
+                generation = ++refreshGeneration) => {
                 const params = new URLSearchParams({ category: category || "" });
                 const response = await api.fetchApi(`/dinki/image-load/files?${params.toString()}`);
                 if (!response.ok) throw new Error(`Unable to load image list (${response.status})`);
                 const data = await response.json();
-                setValues(filenameWidget, data.files || []);
-                filenameWidget.value = data.files?.includes(preferredFilename)
-                    ? preferredFilename
-                    : (data.files?.[0] || "");
+                if (generation !== refreshGeneration) return;
+                const temporary = sourceType === "temp" && preferredFilename?.startsWith("DKST_Paste_");
+                const files = temporary
+                    ? [preferredFilename, ...(data.files || []).filter(name => name !== preferredFilename)]
+                    : (data.files || []);
+                setValues(filenameWidget, files);
+                sourceTypeWidget.value = temporary ? "temp" : "input";
+                filenameWidget.value = files.includes(preferredFilename) ? preferredFilename : (files[0] || "");
+                node.dkstTemporaryFilename = temporary ? preferredFilename : null;
                 showPreview(filenameWidget.value);
                 node.setDirtyCanvas(true, true);
             };
 
-            const refreshCategories = async(preferredCategory = null, preferredFilename = null) => {
+            const refreshCategories = async(preferredCategory = null, preferredFilename = null,
+                sourceType = "input") => {
+                const generation = ++refreshGeneration;
                 const response = await api.fetchApi("/dinki/image-load/categories");
                 if (!response.ok) throw new Error(`Unable to load image categories (${response.status})`);
                 const data = await response.json();
+                if (generation !== refreshGeneration) return;
                 const categories = data.categories || [""];
                 setValues(categoryWidget, categories);
                 categoryWidget.value = categories.includes(preferredCategory)
                     ? preferredCategory
                     : "";
-                await refreshFiles(categoryWidget.value, preferredFilename);
+                await refreshFiles(categoryWidget.value, preferredFilename, sourceType, generation);
             };
 
             const originalCategoryCallback = categoryWidget.callback;
@@ -2002,6 +2029,15 @@ app.registerExtension({
             };
 
             node.dkstRefreshImageLoader = refreshCategories;
+            node.dkstRestoreImageLoader = () => {
+                const saved = node.properties?.dkstImageLoad;
+                const temporary = saved?.source_type === "temp";
+                return refreshCategories(
+                    temporary ? saved.category : categoryWidget.value,
+                    temporary ? saved.filename : filenameWidget.value,
+                    temporary ? "temp" : sourceTypeWidget.value,
+                );
+            };
             // The native mask editor reads/writes a widget named `image`.
             // Keep this bridge out of the visible controls and prompt inputs.
             const editorWidget = node.addWidget("combo", "image", "", () => {}, { values: [] });
@@ -2175,6 +2211,7 @@ app.registerExtension({
             };
 
             node.dkstUploadClipboardImage = async(blob) => {
+                ++refreshGeneration;
                 const extension = extensionForBlob(blob);
                 const data = await uploadImage(
                     blob,
@@ -2228,7 +2265,7 @@ app.registerExtension({
             };
 
             ensureLater(() => {
-                refreshCategories(categoryWidget.value, filenameWidget.value).catch(console.error);
+                node.dkstRestoreImageLoader?.().catch(console.error);
             });
             return result;
         };
@@ -2237,11 +2274,7 @@ app.registerExtension({
         nodeType.prototype.onConfigure = function() {
             const result = onConfigure?.apply(this, arguments);
             ensureLater(() => {
-                const category = getWidget(this, "category")?.value || "";
-                const filename = getWidget(this, "filename")?.value || "";
-                const sourceType = getWidget(this, "source_type");
-                if (sourceType) sourceType.value = "input";
-                this.dkstRefreshImageLoader?.(category, filename).catch(console.error);
+                this.dkstRestoreImageLoader?.().catch(console.error);
             });
             return result;
         };
@@ -2250,7 +2283,7 @@ app.registerExtension({
         nodeType.prototype.onSelected = function() {
             const result = onSelected?.apply(this, arguments);
             const sourceType = getWidget(this, "source_type")?.value || "input";
-            if (sourceType === "temp") return result;
+            if (sourceType === "temp" || this.properties?.dkstImageLoad?.source_type === "temp") return result;
             const category = getWidget(this, "category")?.value || "";
             const filename = getWidget(this, "filename")?.value || "";
             this.dkstRefreshImageLoader?.(category, filename).catch(console.error);
@@ -2343,84 +2376,75 @@ let targetState = null; // { x, y, scale }
 app.registerExtension({
     name: "Dinki.AutoFocus",
     setup() {
-        // --------------------------------------------------------
-        // 1. 단축키 리스너 (ON/OFF 토글)
-        // --------------------------------------------------------
+        const canvas = app.canvas;
+        if (!canvas || canvas.__dinki_auto_focus_attached) return;
+        canvas.__dinki_auto_focus_attached = true;
+        const displayedNodes = () => {
+            const graph = canvas.graph || app.graph;
+            return { graph, nodes: graph?.nodes || graph?._nodes || [] };
+        };
+
         window.addEventListener("keydown", (e) => {
-            // 텍스트 입력 중일 때는 무시
-            const activeTag = document.activeElement.tagName.toUpperCase();
-            if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
-
-            const graph = app.graph;
-            if (!graph) return;
-
-            const focusNodes = graph.findNodesByType("DINKI_Auto_Focus");
-            if (!focusNodes || focusNodes.length === 0) return;
-
-            // 모든 Auto Focus 노드에 대해 단축키 검사
-            focusNodes.forEach(node => {
-                const enableWidget = node.widgets[0];   // enable
-                const shortcutWidget = node.widgets[1]; // shortcut_key
-
-                if (shortcutWidget && shortcutWidget.value.toLowerCase() === e.key.toLowerCase()) {
-                    // 값 토글 (True <-> False)
-                    enableWidget.value = !enableWidget.value;
-                    
-                    // 시각적 피드백 (노드 업데이트)
-                    node.setDirtyCanvas(true, true);
-                    
-                    // (선택) 상태 변경 알림 로그
-                    // console.log(`Auto Focus ${enableWidget.value ? "Enabled" : "Disabled"}`);
-                }
-            });
+            const active = document.activeElement;
+            if (active?.matches?.("input, textarea, [contenteditable='true']") ||
+                active?.isContentEditable) return;
+            const { nodes } = displayedNodes();
+            for (const node of nodes) {
+                if (node.comfyClass !== "DINKI_Auto_Focus" && node.type !== "DINKI_Auto_Focus") continue;
+                const enabled = getWidget(node, "enable");
+                const shortcut = getWidget(node, "shortcut_key")?.value;
+                if (!enabled || !shortcut || String(shortcut).toLowerCase() !== e.key?.toLowerCase()) continue;
+                const previous = enabled.value;
+                const next = !previous;
+                enabled.value = next;
+                enabled.options?.setValue?.(next);
+                enabled.callback?.call(enabled, next, canvas, node);
+                node.onWidgetChanged?.("enable", next, previous, enabled);
+                node.setDirtyCanvas?.(true, true);
+            }
         });
 
-        // --------------------------------------------------------
-        // 2. 노드 선택 시 이동 로직
-        // --------------------------------------------------------
-        const originalOnSelectionChange = LGraphCanvas.prototype.processNodeSelected;
-        const canvas = app.canvas;
-        const originalSelectionChange = canvas.onSelectionChange;
-        
-        canvas.onSelectionChange = function(nodes) {
-            if (originalSelectionChange) {
-                originalSelectionChange.apply(this, arguments);
-            }
-
-            // 활성화된 Auto Focus 노드 찾기
-            const graph = app.graph;
+        let pending = false;
+        const focusSelection = () => {
+            const { graph, nodes } = displayedNodes();
             if (!graph) return;
-            
-            const focusNodes = graph.findNodesByType("DINKI_Auto_Focus");
-            if (!focusNodes || focusNodes.length === 0) return;
-
-            let activeFocusNode = null;
-            for (let node of focusNodes) {
-                // [0]: enable
-                if (node.widgets && node.widgets[0] && node.widgets[0].value === true) {
-                    activeFocusNode = node;
-                    break;
-                }
-            }
-
+            const activeFocusNode = nodes.find(node =>
+                (node.comfyClass === "DINKI_Auto_Focus" || node.type === "DINKI_Auto_Focus") &&
+                getWidget(node, "enable")?.value === true);
             if (!activeFocusNode) return;
 
-            // 타겟 노드 확인
-            const selected = Object.values(canvas.selected_nodes || {});
-            if (selected.length === 0) return;
-            
+            const nodeSet = new Set(nodes);
+            const selected = Array.from(canvas.selectedItems ?? Object.values(canvas.selected_nodes || {}))
+                .filter(node => nodeSet.has(node));
             const targetNode = selected[selected.length - 1];
+            if (!targetNode || targetNode === activeFocusNode) return;
 
-            // 자기 자신 클릭 시 이동 안 함
-            if (targetNode.id === activeFocusNode.id) return;
-
-            // 설정값 가져오기
-            const zoomLevel = activeFocusNode.widgets[2].value || 1.0;     // zoom_level
-            const smoothness = activeFocusNode.widgets[3].value || 0.2;    // smoothness
-
-            // 이동 시작
-            startSmoothMove(canvas, targetNode, zoomLevel, smoothness);
+            const zoomLevel = Number(getWidget(activeFocusNode, "zoom_level")?.value);
+            const smoothness = Number(getWidget(activeFocusNode, "smoothness")?.value);
+            if (!Number.isFinite(zoomLevel) || zoomLevel <= 0 ||
+                !Number.isFinite(smoothness) || smoothness <= 0) return;
+            startSmoothMove(canvas, targetNode, zoomLevel, Math.min(1, smoothness));
         };
+        const scheduleFocus = () => {
+            if (pending) return;
+            pending = true;
+            queueMicrotask(() => {
+                pending = false;
+                focusSelection();
+            });
+        };
+
+        // Nodes 2.0 selects through these methods without calling the classic
+        // onSelectionChange callback. Observe both paths after selection settles.
+        for (const name of ["select", "deselect", "deselectAll", "onSelectionChange"]) {
+            const original = canvas[name];
+            if (name !== "onSelectionChange" && typeof original !== "function") continue;
+            canvas[name] = function(...args) {
+                const result = original?.apply(this, args);
+                scheduleFocus();
+                return result;
+            };
+        }
     }
 });
 
@@ -2446,7 +2470,8 @@ function startSmoothMove(canvas, node, targetZoom, smoothness) {
         x: targetOffsetX,
         y: targetOffsetY,
         scale: targetZoom,
-        smoothness: smoothness
+        smoothness: smoothness,
+        graph: canvas.graph || app.graph,
     };
 
     // 3. 애니메이션 루프 시작 (이미 돌고 있다면 타겟만 갱신됨)
@@ -2457,8 +2482,9 @@ function startSmoothMove(canvas, node, targetZoom, smoothness) {
 }
 
 function animateLoop(canvas) {
-    if (!targetState) {
+    if (!targetState || targetState.graph !== (canvas.graph || app.graph)) {
         isAnimating = false;
+        targetState = null;
         return;
     }
 
