@@ -92,6 +92,10 @@ class DINKI_Auto_Focus:
                 # [추가됨] 이동 부드러움 정도 (0.01: 매우 느림 ~ 0.5: 매우 빠름, 1.0: 즉시)
                 "smoothness": ("FLOAT", {"default": 0.2, "min": 0.01, "max": 1.0, "step": 0.01, "display": "slider"}),
             },
+            "optional": {
+                "fit": ("BOOLEAN", {"default": False}),
+                "restore_on_deselect": ("BOOLEAN", {"default": False}),
+            },
         }
 
     RETURN_TYPES = ()
@@ -99,5 +103,6 @@ class DINKI_Auto_Focus:
     CATEGORY = "DINKIssTyle/Util"
     OUTPUT_NODE = True
 
-    def do_nothing(self, enable, shortcut_key, zoom_level, smoothness):
+    def do_nothing(self, enable, shortcut_key, zoom_level, smoothness,
+                   fit=False, restore_on_deselect=False):
         return ()

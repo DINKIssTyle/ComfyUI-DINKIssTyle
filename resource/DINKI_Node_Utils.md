@@ -18,6 +18,10 @@ This node lets you quickly jump to any desired location using a hotkey, and also
 ![Preview](DINKI_Auto_Focus.gif)  
 Automatically moves to the selected node and applies a custom zoom level. It follows selection in both classic ComfyUI and Nodes 2.0, including the currently displayed subgraph. The shortcut key toggles Auto Focus on or off.
 
+Turn on **fit** to center the selected node and fit its full width and height inside the visible canvas with a 5% margin. Fit calculates zoom from the node's current size and the canvas viewport, up to the canvas maximum zoom (or 3× when no maximum is available). With fit off, **zoom_level** controls the zoom as before. **smoothness** applies to both modes.
+
+Turn on **restore_on_deselect** to return to the zoom and canvas position from before the first automatic focus when all nodes are deselected. Changing the selection to another node keeps that original view for the eventual return. This option is off by default.
+
 ---
 
 

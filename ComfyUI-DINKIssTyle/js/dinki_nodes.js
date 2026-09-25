@@ -2405,25 +2405,48 @@ app.registerExtension({
         });
 
         let pending = false;
+        let preFocusView = null;
         const focusSelection = () => {
             const { graph, nodes } = displayedNodes();
             if (!graph) return;
+            if (preFocusView && preFocusView.graph !== graph) preFocusView = null;
+            const nodeSet = new Set(nodes);
+            const selected = Array.from(canvas.selectedItems ?? Object.values(canvas.selected_nodes || {}))
+                .filter(node => nodeSet.has(node));
+            if (!selected.length) {
+                const previous = preFocusView;
+                preFocusView = null;
+                if (previous && getWidget(previous.control, "restore_on_deselect")?.value === true) {
+                    const smoothness = Number(getWidget(previous.control, "smoothness")?.value);
+                    startViewportMove(canvas, previous.x, previous.y, previous.scale,
+                        Number.isFinite(smoothness) && smoothness > 0 ? Math.min(1, smoothness) : 0.2);
+                }
+                return;
+            }
             const activeFocusNode = nodes.find(node =>
                 (node.comfyClass === "DINKI_Auto_Focus" || node.type === "DINKI_Auto_Focus") &&
                 getWidget(node, "enable")?.value === true);
             if (!activeFocusNode) return;
 
-            const nodeSet = new Set(nodes);
-            const selected = Array.from(canvas.selectedItems ?? Object.values(canvas.selected_nodes || {}))
-                .filter(node => nodeSet.has(node));
             const targetNode = selected[selected.length - 1];
             if (!targetNode || targetNode === activeFocusNode) return;
 
             const zoomLevel = Number(getWidget(activeFocusNode, "zoom_level")?.value);
             const smoothness = Number(getWidget(activeFocusNode, "smoothness")?.value);
-            if (!Number.isFinite(zoomLevel) || zoomLevel <= 0 ||
+            const fit = getWidget(activeFocusNode, "fit")?.value === true;
+            if ((!fit && (!Number.isFinite(zoomLevel) || zoomLevel <= 0)) ||
                 !Number.isFinite(smoothness) || smoothness <= 0) return;
-            startSmoothMove(canvas, targetNode, zoomLevel, Math.min(1, smoothness));
+            const originalView = preFocusView ?? {
+                graph,
+                x: canvas.ds.offset[0],
+                y: canvas.ds.offset[1],
+                scale: canvas.ds.scale,
+                control: activeFocusNode,
+            };
+            if (startSmoothMove(canvas, targetNode, zoomLevel, Math.min(1, smoothness), fit)) {
+                originalView.control = activeFocusNode;
+                preFocusView = originalView;
+            }
         };
         const scheduleFocus = () => {
             if (pending) return;
@@ -2451,30 +2474,39 @@ app.registerExtension({
 /**
  * 부드러운 이동을 위한 애니메이션 함수
  */
-function startSmoothMove(canvas, node, targetZoom, smoothness) {
-    // 1. 목표 좌표 계산 (이전과 동일한 중앙 정렬 로직)
-    const nodeCenterX = node.pos[0] + node.size[0] / 2;
-    const nodeCenterY = node.pos[1] + node.size[1] / 2;
-    
-    // 실제 뷰포트 크기
-    const rect = canvas.canvas.getBoundingClientRect();
+function startSmoothMove(canvas, node, targetZoom, smoothness, fit = false) {
+    const nodeWidth = Number(node.size?.[0]);
+    const nodeHeight = Number(node.size?.[1]);
+    const rect = canvas.canvas?.getBoundingClientRect();
+    if (!rect?.width || !rect?.height || !Number.isFinite(nodeWidth) || !Number.isFinite(nodeHeight) ||
+        nodeWidth <= 0 || nodeHeight <= 0) return false;
     const visibleWidth = rect.width;
     const visibleHeight = rect.height;
+    if (fit) {
+        const configuredMax = Number(canvas.ds?.max_scale);
+        const maxScale = Number.isFinite(configuredMax) && configuredMax > 0 ? configuredMax : 3;
+        targetZoom = Math.min(visibleWidth * 0.9 / nodeWidth,
+            visibleHeight * 0.9 / nodeHeight, maxScale);
+    }
+    if (!Number.isFinite(targetZoom) || targetZoom <= 0) return false;
+    const nodeCenterX = node.pos[0] + nodeWidth / 2;
+    const nodeCenterY = node.pos[1] + nodeHeight / 2;
 
-    // 최종 목표 Offset
+    // Center the node at the chosen scale, leaving a 5% margin in Fit mode.
     const targetOffsetX = (visibleWidth / 2) / targetZoom - nodeCenterX;
     const targetOffsetY = (visibleHeight / 2) / targetZoom - nodeCenterY;
 
-    // 2. 목표 상태 저장
+    startViewportMove(canvas, targetOffsetX, targetOffsetY, targetZoom, smoothness);
+    return true;
+}
+
+function startViewportMove(canvas, x, y, scale, smoothness) {
     targetState = {
-        x: targetOffsetX,
-        y: targetOffsetY,
-        scale: targetZoom,
-        smoothness: smoothness,
+        x, y, scale, smoothness,
         graph: canvas.graph || app.graph,
     };
 
-    // 3. 애니메이션 루프 시작 (이미 돌고 있다면 타겟만 갱신됨)
+    // An in-flight move adopts the new destination on its next frame.
     if (!isAnimating) {
         isAnimating = true;
         requestAnimationFrame(() => animateLoop(canvas));
