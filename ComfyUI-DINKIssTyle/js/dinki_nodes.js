@@ -2418,7 +2418,7 @@ app.registerExtension({
                 preFocusView = null;
                 if (previous && getWidget(previous.control, "restore_on_deselect")?.value === true) {
                     const smoothness = Number(getWidget(previous.control, "smoothness")?.value);
-                    startViewportMove(canvas, previous.x, previous.y, previous.scale,
+                    restoreZoomAtCurrentCenter(canvas, previous.scale,
                         Number.isFinite(smoothness) && smoothness > 0 ? Math.min(1, smoothness) : 0.2);
                 }
                 return;
@@ -2438,8 +2438,6 @@ app.registerExtension({
                 !Number.isFinite(smoothness) || smoothness <= 0) return;
             const originalView = preFocusView ?? {
                 graph,
-                x: canvas.ds.offset[0],
-                y: canvas.ds.offset[1],
                 scale: canvas.ds.scale,
                 control: activeFocusNode,
             };
@@ -2500,9 +2498,22 @@ function startSmoothMove(canvas, node, targetZoom, smoothness, fit = false) {
     return true;
 }
 
-function startViewportMove(canvas, x, y, scale, smoothness) {
+function restoreZoomAtCurrentCenter(canvas, scale, smoothness) {
+    const rect = canvas.canvas?.getBoundingClientRect();
+    const currentScale = canvas.ds?.scale;
+    if (!rect?.width || !rect?.height || !Number.isFinite(currentScale) || currentScale <= 0 ||
+        !Number.isFinite(scale) || scale <= 0) return;
+    const anchor = {
+        x: rect.width / (2 * currentScale) - canvas.ds.offset[0],
+        y: rect.height / (2 * currentScale) - canvas.ds.offset[1],
+    };
+    startViewportMove(canvas, rect.width / (2 * scale) - anchor.x,
+        rect.height / (2 * scale) - anchor.y, scale, smoothness, anchor);
+}
+
+function startViewportMove(canvas, x, y, scale, smoothness, anchor = null) {
     targetState = {
-        x, y, scale, smoothness,
+        x, y, scale, smoothness, anchor,
         graph: canvas.graph || app.graph,
     };
 
@@ -2530,9 +2541,14 @@ function animateLoop(canvas) {
     const t = targetState.smoothness; 
     
     // 다음 프레임 값 계산
-    const nextX = currentX + (targetState.x - currentX) * t;
-    const nextY = currentY + (targetState.y - currentY) * t;
     const nextScale = currentScale + (targetState.scale - currentScale) * t;
+    const rect = targetState.anchor && canvas.canvas?.getBoundingClientRect();
+    const nextX = targetState.anchor && rect?.width
+        ? rect.width / (2 * nextScale) - targetState.anchor.x
+        : currentX + (targetState.x - currentX) * t;
+    const nextY = targetState.anchor && rect?.height
+        ? rect.height / (2 * nextScale) - targetState.anchor.y
+        : currentY + (targetState.y - currentY) * t;
 
     // 적용
     canvas.ds.offset = [nextX, nextY];

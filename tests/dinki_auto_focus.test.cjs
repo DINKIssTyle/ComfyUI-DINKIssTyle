@@ -5,6 +5,12 @@ const { join } = require('node:path');
 const vm = require('node:vm');
 
 const source = readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_nodes.js'), 'utf8');
+const center = canvas => [400 / canvas.ds.scale - canvas.ds.offset[0],
+    300 / canvas.ds.scale - canvas.ds.offset[1]];
+const assertCenter = (actual, expected) => {
+    assert.ok(Math.abs(actual[0] - expected[0]) < 1e-8);
+    assert.ok(Math.abs(actual[1] - expected[1]) < 1e-8);
+};
 
 async function fixture({ classic = false, fit = false, restore = false, targetSize = [100, 100] } = {}) {
     let extension, keydown;
@@ -133,7 +139,7 @@ test('Fit caps magnification and leaves manual zoom unchanged when disabled', as
     assert.equal(manual.canvas.ds.scale, 2);
 });
 
-test('deselecting restores the zoom and position from before the first focus', async () => {
+test('deselecting restores only zoom while preserving the last canvas center', async () => {
     const f = await fixture({ restore: true });
     f.canvas.ds.offset = [25, -12];
     f.canvas.ds.scale = 1.25;
@@ -141,10 +147,15 @@ test('deselecting restores the zoom and position from before the first focus', a
     await Promise.resolve();
     f.finishAnimation();
     assert.equal(f.canvas.ds.scale, 2);
+    const focusedCenter = center(f.canvas);
+    f.focus.widgets.find(widget => widget.name === 'smoothness').value = 0.5;
     f.canvas.deselectAll();
     await Promise.resolve();
+    f.frames.shift()();
+    assertCenter(center(f.canvas), focusedCenter);
     f.finishAnimation();
-    assert.deepEqual(Array.from(f.canvas.ds.offset), [25, -12]);
+    assertCenter(center(f.canvas), focusedCenter);
+    assert.notDeepEqual(Array.from(f.canvas.ds.offset), [25, -12]);
     assert.equal(f.canvas.ds.scale, 1.25);
 });
 
@@ -161,10 +172,11 @@ test('switching selected nodes keeps the original view until selection is empty'
     await Promise.resolve();
     f.finishAnimation();
     assert.equal(f.canvas.ds.scale, 2);
+    const lastCenter = center(f.canvas);
     f.canvas.deselectAll();
     await Promise.resolve();
     f.finishAnimation();
-    assert.deepEqual(Array.from(f.canvas.ds.offset), [17, 23]);
+    assertCenter(center(f.canvas), lastCenter);
     assert.equal(f.canvas.ds.scale, 1);
 });
 

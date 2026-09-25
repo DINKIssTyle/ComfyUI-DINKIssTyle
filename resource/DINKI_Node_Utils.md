@@ -20,7 +20,7 @@ Automatically moves to the selected node and applies a custom zoom level. It fol
 
 Turn on **fit** to center the selected node and fit its full width and height inside the visible canvas with a 5% margin. Fit calculates zoom from the node's current size and the canvas viewport, up to the canvas maximum zoom (or 3× when no maximum is available). With fit off, **zoom_level** controls the zoom as before. **smoothness** applies to both modes.
 
-Turn on **restore_on_deselect** to return to the zoom and canvas position from before the first automatic focus when all nodes are deselected. Changing the selection to another node keeps that original view for the eventual return. This option is off by default.
+Turn on **restore_on_deselect** to restore only the zoom from before the first automatic focus when all nodes are deselected. The canvas stays centered on the last viewed position as the zoom changes. Changing the selection to another node keeps the original zoom for the eventual return. This option is off by default.
 
 ---
 
