@@ -1,4 +1,4 @@
-[Home](./README.md)
+[Home](../README.md) · [All nodes](Node_Catalog.md)
 - [Comparison Video Tools](DINKI_Video_Tools.md)
 - [Image](DINKI_Image.md)
 - [Color Nodes](DINKI_Color_Nodes.md)
@@ -10,12 +10,18 @@
 
 ## 📥 DKST Image (Load)
 
+<div align="center"><img src="DINKI_Image_Load.png" alt="" width="350"><br><br></div>
+
 Select an image from the ComfyUI input folder, upload a file, or paste an image into the selected node. Pasted images are kept in ComfyUI's temporary directory; their preview and selection are restored when switching workflow tabs during the same server session. Temporary pasted files are cleared when ComfyUI restarts, so save images you want to keep in the input folder.
+
+`category` selects an input subfolder and `filename` selects its image; `source_type` also permits a temporary pasted image. Outputs are `IMAGE` (RGB), `MASK` (inverse alpha), and `ALPHA` (alpha). Animated files produce an image batch from same-size frames. The node shows the image resolution.
 
 ---
 
 
 ## 🌓 DKST Image (Image comparison tool)
+
+<div align="center"><img src="DINKI_Image_Image_comparison_tool.gif" alt="" width="650"><br><br></div>
 
 Connect `image_1` and `image_2`, then run the workflow. The node compares the first image in each input batch. It uses the dimensions of the image with more pixels and resizes the smaller image to match; ties use `image_1`. Both images are aligned at exactly the same width and height, including when their aspect ratios differ.
 
@@ -23,6 +29,8 @@ Connect `image_1` and `image_2`, then run the workflow. The node compares the fi
 * **Difference:** Show Photoshop-style Difference blending, calculated per RGB channel as `abs(image_1 - image_2)`. Black means identical pixels. The preview changes immediately when the mode changes after the images have been processed.
 
 The comparison is an output node and saves three temporary PNG previews (two aligned images and their difference). Transparent input images are composited over black for comparison. Saved workflows can restore the preview while those temporary files still exist.
+
+The node has no `IMAGE` output; use its preview to inspect the two inputs.
 
 ---
 
@@ -39,13 +47,13 @@ A powerful and versatile ComfyUI node designed to add **watermarks, copyright te
     * **Custom Fonts:** Automatically detects `.ttf` and `.otf` files in the `fonts` folder for easy dropdown selection.
     * **Stroke (Outline):** Add colored outlines to your text for better visibility on complex backgrounds.
     * **Drop Shadow:** Create depth with adjustable shadow position (offset), blur (spread), and opacity.
-    * **Multiline Support:** Perfect for subtitles or long copyright notices with automatic line spacing handling.
+* **Multiline Support:** Wrap text with `text_wrap_percent`, align it with `text_align`, and adjust spacing with `line_spacing_multiplier`.
 * **Precise Positioning:** Choose from **7 preset positions** (e.g., Top-Left, Bottom-Center, Center) and fine-tune with percentage-based **margins**.
 * **Adaptive Sizing:** Scale text and logos relative to the source image size (%) for consistent results across different resolutions (SDXL, Flux, etc.).
 * **Transparency Control:** Full support for **Alpha/Masks** (transparent PNGs) and adjustable opacity (0-100%) for both text and images.
 
 #### 📂 How to Add Custom Fonts
-1.  Go to the node's directory: `~/ComfyUI/custom_nodes/ComfyUI-DINKIssTyle/fonts/`
+1.  Open the `fonts` folder beside `dinki_overlay.py` in the installed node folder.
 2.  Paste your `.ttf` or `.otf` font files into this folder.
 3.  Restart ComfyUI. Your fonts will automatically appear in the **`font_name`** dropdown list.
 
@@ -61,6 +69,7 @@ To properly overlay a logo with a transparent background:
 | :--- | :--- |
 | **font_name** | Select a font from the `fonts` folder. |
 | **text_content** | Enter your text here. Supports multiple lines (enter key). |
+| **text_align / text_wrap_percent / line_spacing_multiplier** | Set text alignment, optional wrapping width, and line spacing. A wrap percentage of 0 disables wrapping. |
 | **text_opacity** | Adjust text transparency (0-100). |
 | **enable_stroke** | Toggle text outline. Set color and width. |
 | **enable_shadow** | Toggle drop shadow. Adjust offset (X/Y), spread (blur), and opacity. |
@@ -93,6 +102,7 @@ I found this node to work especially well with **Z-Image Turbo** workflows, ensu
 | Category | Aspect Ratios |
 | :--- | :--- |
 | **Photo** | 3:4, 3.5:5, 4:6, 5:7, 6:8, 8:10, 10:13, 10:15, 11:14 |
+| **Basic** | 1:1, 1:2, 1.5:2, 9:16, 10:16 |
 | **Cinema** | 35mm Academy (1.37:1), 35mm Flat (1.85:1), 35mm Scope (2.39:1) |
 | **Premium** | 70mm Todd-AO (2.20:1), IMAX 70mm (1.43:1) |
 | **Super** | Super 35 (1.85:1 / 2.39:1), Super 16 (1.66:1 / 1.78:1) |
@@ -119,7 +129,7 @@ Unlike standard batch nodes that error out when image dimensions differ, this no
 * **Mode Switching:** Easily toggle between creating a batch or just passing through the first image for testing.
 
 #### 💡 Workflow Tip
-This node works perfectly with **DKST LLM (LM Studio)**. Use it to batch multiple reference images together and send them to a Vision LLM for bulk analysis or captioning in a single pass.
+Connect the output to **DKST LLM (LM Studio)** to attach multiple reference images to a single vision request.
 
 
 ### 🎛️ Parameters
@@ -164,14 +174,14 @@ If you set the grid to **2 Columns × 3 Rows** (Total 6 cells) but connect only 
 
 | Parameter | Description |
 | :--- | :--- |
-| **image_1 ~ 10** | Connect up to 10 images. Unconnected slots are ignored. |
+| **image_1 ~ 10** | Connect up to 10 images. Unconnected slots are ignored; the first frame of each connected batch is used. |
 | **cols / rows** | Set the number of columns and rows for the grid. |
 | **reference_image** | Input slot number (1–10) used for cell dimensions. An empty slot falls back to the first connected image. |
 | **frame_thickness** | Width of the border around each image (in pixels). Set to 0 for no gap. |
 | **bg_color_hex** | Hex color code for the background/frame (e.g., `#000000`, `#FFFFFF`). |
-| **resize_method** | Choose how images fit the cell: `Fit`, `Crop`, `Stretch`, or `No Resize`. |
+| **resize_method** | Choose `Keep Ratio (Fit)`, `Keep Ratio (Crop)`, `Stretch`, or `No Resize (Top-Left)`. |
 | **limit_output** | Enable to restrict the maximum pixel dimensions of the final image. |
-| **max_output_w/h** | The maximum allowed width/height if limit is enabled. |
+| **max_output_width / max_output_height** | The maximum allowed width/height if the limit is enabled. |
 
 
 ---
@@ -197,11 +207,11 @@ A robust preview node that handles empty signals gracefully. If no image is prov
 
 # 📦 DINKI Base64 Image Embedding Suite
 ![Preview](DINKI_Base64.png)  
-[Download DINKI_Base64_to_Image.json](./sample_workflows/DINKI_Base64_to_Image.json)
+[Download DINKI_Base64_to_Image.json](../sample_workflows/DINKI_Base64_to_Image.json)
 
 A set of nodes designed to make your ComfyUI workflows **fully self-contained and portable**. By converting images into Base64 strings, you can embed essential reference images, masks, or logos directly inside the workflow `.json` file. 
 
-**You can embed explanatory images or sample results directly within the Workflow.**
+**You can embed explanatory images or sample results directly within the workflow.**
 
 ---
 
@@ -250,3 +260,17 @@ Unpacks and restores the embedded image data for use in generation. It visualize
 > **Smart Decoding:** Automatically handles standard Base64 headers.
 >
 > **Output:** Returns a standard `IMAGE` tensor, allowing the embedded image to be used immediately in KSampler, ControlNet, or Image-to-Image processes.
+
+---
+
+## DKST Image (Resize)
+
+Connect an optional `image` and set `width`, `height`, `interpolation`, `keep_proportion`, and `condition`. With `keep_proportion` on, the image fits within the requested width and height; off stretches to those dimensions. `condition` can be `always`, `downscale_if_bigger`, `upscale_if_smaller`, `if_bigger_area`, or `if_smaller_area`. The node returns the image and its actual `width` and `height`; when the condition is false it returns the original. Without an input it returns a 1×1 black placeholder.
+
+## DKST Image (Viewer)
+
+Displays each input image and passes the original `images` batch through. `filename_prefix` controls names. `format` supports `png`, `exr`, `avif`, and `webp`; PNG supports `8bit` and `16bit`, EXR requires `16bit`, and AVIF/WebP require `8bit`. EXR saves linear values converted from the `sRGB` input setting and uses a temporary PNG for the on-node preview. `always_save` writes to ComfyUI's output folder; otherwise files go to the temporary folder. AVIF availability depends on the installed Pillow build.
+
+## DKST Util (Image Selector)
+
+Accepts up to eight optional inputs (`image_1`–`image_8`) and returns the connected input with the highest slot number. With no connected image, it returns a 1×1 black placeholder.

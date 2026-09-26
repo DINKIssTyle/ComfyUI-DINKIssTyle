@@ -1,4 +1,4 @@
-[Home](./README.md)
+[Home](../README.md) · [All nodes](Node_Catalog.md)
 - [Comparison Video Tools](DINKI_Video_Tools.md)
 - [Image](DINKI_Image.md)
 - [Color Nodes](DINKI_Color_Nodes.md)
@@ -8,6 +8,7 @@
 - [Internal Processing](DINKI_PS.md)
 
 ## 🧩 DKST PS (Tile Split) / DKST PS (Tile Stitch)
+#### (!! Feature in development)
 
 These nodes let an image-edit workflow upscale one image in overlapping tiles. **Tile Split** sends individual `IMAGE` values as a ComfyUI list, not as one image batch. This matters for Qwen Image 2.1: its `Text Encode Qwen Image 2.1` node reads only the first image from an `IMAGE` batch connected to one reference slot.
 
@@ -56,7 +57,7 @@ It features a **Dynamic Javascript UI** that automatically filters the preset li
 
 #### 📝 How to Customize (CSV)
 You can add your own presets by editing the file located at:
-`ComfyUI/custom_nodes/DINKI_Node/csv/DINKI_Sampler_Preset.csv`
+`csv/DINKI_Sampler_Preset.csv` beside `dinki_prompt.py` in the installed node folder.
 
 **CSV Format:**
 ```csv
@@ -75,7 +76,7 @@ This pair of nodes is essential for workflows involving image editing models (li
 
 **1. DKST PS (Resize & Pad)** Resizes an input image to fit within a target square resolution (default **1024×1024**) while *preserving the original aspect ratio*. It automatically adds padding (letterboxing) to fill the remaining space.
 
-**2. DKST PS (Remove Padding)** Takes the processed image and the `PAD_INFO` from the first node to crop the padding out, restoring the **exact original aspect ratio**.
+**2. DKST PS (Remove Padding)** Takes the processed image and the `PAD_INFO` from the first node to crop the padding out, restoring the original image area after processing. Pixel rounding can cause a small difference in the final aspect ratio.
 
 #### 💡 Why use this?
 This workflow prevents **pixel shifting artifacts** and distortion in models like Qwen Image Edit. It ensures that prompt-based editing requests are processed as accurately as possible by maintaining the subject's original proportions throughout the generation process.
@@ -93,6 +94,7 @@ This workflow prevents **pixel shifting artifacts** and distortion in models lik
 | Parameter | Description |
 | :--- | :--- |
 | **target_size** | The target resolution for the square canvas (e.g., 1024). The longest side of the image will fit this size. |
+| **resolution_multiple** | Rounds `target_size` to this multiple before resizing and padding (default 32). |
 | **resize_and_pad** | **True:** Applies resizing and padding.<br>**False:** Bypasses the node (returns original image). |
 | **upscale_method** | Algorithm used for resizing (lanczos, bicubic, area, nearest). |
 
@@ -140,3 +142,15 @@ A streamlined loader that combines **safetensors** and **GGUF** model loading in
 | **use_gguf** | **True (GGUF):** Loads the model selected in `gguf_unet`.<br>**False (safetensors):** Loads the model selected in `safetensors_unet`. |
 | **safetensors_unet** | Select a standard model from `models/diffusion_models`. |
 | **gguf_unet** | Select a quantized model from `models/unet_gguf`. |
+
+GGUF loading requires the separate ComfyUI-GGUF custom node (`UnetLoaderGGUF` or `UnetLoaderGGUFAdvanced`). Selecting `None` for the active loader raises an error.
+
+---
+
+## DKST PS (Mask Mix)
+
+Connect up to five optional `mask_1`–`mask_5` inputs. Each matching `strength_1`–`strength_5` scales its mask from 0 to 1. The node resizes later masks to the first connected mask's dimensions and combines them with a pixelwise maximum. With no masks, `mixed_mask` is a 64×64 zero mask.
+
+## DKST PS (Latent Source)
+
+In `Auto` mode with an `image` connected, the node encodes it using `vae` and returns a `LATENT` plus the configured `denoise` value. Without an image, or in `Bypass` mode, it returns an empty latent of `width` × `height` and `batch_size`, with denoise forced to `1.0`. Connect the denoise output to the sampler to keep the two modes in sync.

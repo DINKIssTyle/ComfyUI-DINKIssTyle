@@ -1,7 +1,11 @@
 # Node Catalog
 
+[Home](../README.md)
+
 47 nodes across 9 categories. Display names use `DKST Category (Function)`.
 Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` is now `DINKIssTyle/Util`.
+
+Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · [LM Studio](DINKI_LM_Studio_Assistant.md) · [Processing](DINKI_PS.md) · [Prompts and Text](DINKI_Prompt_and_String.md) · [Utilities](DINKI_Node_Utils.md) · [Video and Player](DINKI_Video_Tools.md). [System Monitor](DKST_System_Monitor.md) is a frontend feature and does not register a workflow node.
 
 | Category | Display name | Internal node ID |
 | :--- | :--- | :--- |
@@ -53,5 +57,5 @@ Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` 
 | `DINKIssTyle/Video` | DKST Video (Image Compare) | `DINKI_Image_Comparer_MOV` |
 | `DINKIssTyle/Viewer` | DKST Viewer (Video Player) | `DINKI_Video_Player` |
 
-UNet Loader supports safetensors and GGUF. Video Player supports MP4, WEBM, and GIF.
+UNet Loader supports safetensors and GGUF (with ComfyUI-GGUF installed). Video Player displays MP4, WEBM, MOV, GIF, WebP, PNG, and JPG files supplied by its filename input.
 Mask Mix blends masks using weights. Latent Source selects an empty or image-based latent.

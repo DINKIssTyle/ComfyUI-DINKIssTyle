@@ -1,4 +1,4 @@
-[Home](./README.md)
+[Home](../README.md) · [All nodes](Node_Catalog.md)
 - [Comparison Video Tools](DINKI_Video_Tools.md)
 - [Image](DINKI_Image.md)
 - [Color Nodes](DINKI_Color_Nodes.md)
@@ -58,6 +58,8 @@ Perfect for creating "Control Panels" in complex workflows, allowing you to turn
 
 ## 🔀 DKST Util (Node Change)
 
+![](DINKI_Node_Change.gif)
+
 Switch between two groups of nodes using comma-separated IDs in `node_ids_1`
 and `node_ids_2` (for example, `5, 12, 44`).
 
@@ -100,3 +102,9 @@ A simple yet handy utility for A/B testing or routing logic. It swaps the two in
 | :--- | :--- |
 | **image_1 / image_2** | The two input images to be swapped. |
 | **invert** | **False:** Output 1 = Image 1, Output 2 = Image 2.<br>**True:** Output 1 = Image 2, Output 2 = Image 1 (Swapped). |
+
+---
+
+## DKST Util (Note)
+
+Choose a `direction` arrow and enter multiline `text` to annotate the workflow. The node also passes that text to its `text_out` STRING output.

@@ -1,7 +1,7 @@
 # Introduction
 
 This repository stores custom ComfyUI nodes that I created to solve various needs while working with ComfyUI.  
-These nodes are primarily designed for my own workflow using **Qwen-Image**, **Z-Image Trubo**, **Flux**, and **WAN**.  
+These nodes are primarily designed for my own workflow using **Qwen-Image**, **Z-Image Turbo**, **Flux**, and **WAN**.
 Using them with other models may cause unexpected issues.
 
 
@@ -19,6 +19,7 @@ Using them with other models may cause unexpected issues.
 ---
 
 
-**ComfyUI-DINKIssTyle_CPH**(Cross-Platform Helper) performs the following tasks every time ComfyUI starts:
-1. Fixes issues with Korean filenames uploaded from macOS to Windows.
-2. Removes macOS resource forks that appear when files uploaded from macOS are used on Windows.
+**ComfyUI-DINKIssTyle_CPH** (Cross-Platform Helper) scans the ComfyUI `input` folder recursively when it loads:
+
+1. Normalizes decomposed file names, including Korean names uploaded from macOS, to NFC. If the target name exists, it adds an `_nfc` suffix.
+2. Removes `._*` macOS resource fork files of 128 KiB or less.

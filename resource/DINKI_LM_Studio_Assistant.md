@@ -1,4 +1,4 @@
-[Home](./README.md)
+[Home](../README.md) · [All nodes](Node_Catalog.md)
 - [Comparison Video Tools](DINKI_Video_Tools.md)
 - [Image](DINKI_Image.md)
 - [Color Nodes](DINKI_Color_Nodes.md)
@@ -15,7 +15,7 @@
 
 * **Multimodal Capabilities:** Supports both **Text-to-Text** and **Image-to-Text** (Vision) generation.
 * **Local & Private:** Runs via your LM Studio server, with optional API key authentication.
-* **Batch Support:** Automatically processes image batches, sending them individually to the LLM for analysis.
+* **Batch Support:** Attaches each image from an input batch to one chat completion request for joint analysis.
 * **Memory Management:** Includes an `auto_unload` feature to free up VRAM for Stable Diffusion generation after the LLM task is finished.
 * **Flexible Control:** Full access to LLM parameters like `temperature`, `max_tokens`, and `system_prompt`.
 
@@ -62,10 +62,12 @@ By setting `assistant_enabled` to **False**, the node bypasses the LLM entirely 
 | **port** | The port of the LM Studio server (Default: `1234`). |
 | **api_key** | API key sent as `Authorization: Bearer …` for generation and automatic unloading. Leave empty when server authentication is disabled. |
 | **model_key** | The model identifier string (e.g., `qwen/qwen3-vl-8b`). Can often be left generic depending on LM Studio version. |
+| **seed** | Generation seed; `-1` chooses a time-based seed (default). |
 | **system_prompt** | Defines the AI's persona (e.g., "You are a prompt engineer..."). |
 | **user_prompt** | Your specific instruction or query. |
 | **max_tokens** | Maximum output tokens (0–2,147,483,647). `0` omits the parameter and uses the server default. Actual output is limited by the model and available context. |
 | **temperature** | Creativity control (0.0 = Precise/Deterministic, 1.0+ = Creative/Random). |
+| **timeout_seconds** | Request timeout in seconds (default: 300). |
 | **auto_unload** | If `True`, sends a request to unload the model from VRAM after generation. Essential for GPUs with limited VRAM. |
 | **unload_delay** | Seconds to wait before unloading the model (if `auto_unload` is True). |
 

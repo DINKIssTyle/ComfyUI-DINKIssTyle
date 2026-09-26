@@ -1,5 +1,7 @@
 # DKST System Monitor
 
+![Monitor](DINKI_Monitor.gif)
+
 Displays **CPU**, **RAM**, **GPU**, **VRAM**, and **GPU Temp**, in that default order, in a floating monitor that can be docked in the ComfyUI top toolbar. New users start with RAM/VRAM percentages enabled. Existing saved preferences are preserved. These are whole-server measurements, not browser-computer or ComfyUI-process-only usage. No workflow node is needed.
 
 Designed for Windows with NVIDIA drivers. GPU telemetry uses the driver's `nvidia-smi`; CPU and RAM use `psutil`, normally installed with ComfyUI. Missing dependencies or unsupported sensors display `—` rather than interrupting workflows. Hover over the monitor for GPU names and diagnostic messages.

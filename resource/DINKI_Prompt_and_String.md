@@ -1,4 +1,4 @@
-[Home](./README.md)
+[Home](../README.md) · [All nodes](Node_Catalog.md)
 - [Comparison Video Tools](DINKI_Video_Tools.md)
 - [Image](DINKI_Image.md)
 - [Color Nodes](DINKI_Color_Nodes.md)
@@ -13,7 +13,7 @@
 
 A versatile prompt generator that builds complex prompts using a custom CSV file. It allows you to organize tags by category and offers granular control over each section—choose a specific tag, randomize it, or skip it entirely.
 
-* **Setup:** Ensure your CSV file is located at `~/ComfyUI/custom_nodes/ComfyUI-DINKIssTyle/csv/DINKI_Random_Prompt.csv`.
+* **Setup:** Edit `csv/DINKI_Random_Prompt.csv` beside `dinki_prompt.py` in the installed node folder.
 * **CSV Format:** `Category, Tag/Prompt`
     ```csv
     Art Style, Cyberpunk
@@ -28,8 +28,9 @@ A versatile prompt generator that builds complex prompts using a custom CSV file
 | Parameter | Description |
 | :--- | :--- |
 | **text_input** | (Optional) Fixed text to appear at the beginning of the prompt (e.g., "masterpiece, best quality"). |
+| **Active** | When off, output only `text_input` without selecting CSV entries. |
 | **seed** | Controls the random selection. Keep the seed fixed to reproduce the same "random" combination. |
-| **[Category Name]** | Dynamic dropdowns generated from your CSV categories. <br>• **Specific Value**: Manually select a specific tag.<br>• **-- Random --**: Randomly picks one tag from this category.<br>• **-- None --**: Skips this category entirely. |
+| **[Category Name]** | Dynamic dropdowns generated from your CSV categories. <br>• **Specific Value**: Manually select a specific tag.<br>• **-- Random --**: Randomly picks one tag from this category.<br>• **-- None --** (default): Skips this category entirely. |
 
 
 ---
@@ -61,7 +62,7 @@ A real-time text utility that converts multi-line text input into a dynamic drop
 
 Quickly insert frequently used prompts or LoRA triggers by selecting them from a dropdown menu.
 
-* **Setup:** Create a file named **`prompt_list.csv`** inside your ComfyUI **`input`** folder.
+* **Setup:** Edit `csv/DINKI_Prompt_List.csv` beside `dinki_prompt.py` in the installed node folder.
 * **CSV Format:** `Title, Prompt Text`
     ```csv
     LoRA - ToonWorld, ToonWorld
@@ -79,4 +80,25 @@ Quickly insert frequently used prompts or LoRA triggers by selecting them from a
 
 | Parameter | Description |
 | :--- | :--- |
-| **title** | Select the key/title defined in your CSV file. The node outputs the corresponding prompt text. |
+| **title** | Select the key/title defined in your CSV file; `-- None --` clears the selection. |
+| **text** | Editable text that the node outputs. The frontend updates it from the selected CSV value. |
+| **mode** | `append`, `replace`, or `none` when a title is selected. |
+| **separator** | Text inserted between the current text and an appended prompt; the default is `\n`. |
+
+## DKST Prompt (CSV Selector)
+
+Uses the same `csv/DINKI_Prompt_List.csv` file and exposes only `title`. It looks up the selected title when the workflow runs and returns its prompt, or an empty string for `-- None --`.
+
+---
+
+## DKST Text (Multiline)
+
+Enter multiline `text` and pass it through as a `STRING` output.
+
+## DKST Text (Split)
+
+Split the input `text` at the exact `delimiter` (default `,`) into `text_1`–`text_10`. `clean_whitespace` trims each piece by default. Empty pieces retain their positions, and the tenth output contains any remaining text. An empty delimiter leaves the text intact; use an actual line break as the delimiter to split lines.
+
+## DKST Text (Concatenate)
+
+Connect any of `text_a`–`text_j` and join the nonempty inputs in slot order using `delimiter` (default `, `). `clean_whitespace` trims connected values before joining by default. Disconnected and empty values are skipped.
