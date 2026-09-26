@@ -19,6 +19,7 @@ A comprehensive node suite designed to create **Before/After sliding comparison 
 * **Dynamic Comparison Generator:**
     * **Sliding Animation:** Creates a professional "scanner-style" sweep animation between two images (Base vs. Target).
     * **Resizing:** Uses `image_a` for output dimensions, downscaling it only when a nonzero size limit is exceeded. `image_b` is resized to those same dimensions; different aspect ratios may be stretched.
+    * **Channel Matching:** Grayscale inputs become RGB, and RGBA inputs are composited over black. RGB and RGBA images can be compared together without a separate conversion node.
     * **Multi-Format Support:** Exports to high-quality **MP4** for video editing or **GIF / Animated WebP** for web sharing.
 * **Integrated Video Player:**
     * **On-Graph Playback:** Instantly plays the generated result inside the node graph without opening external players.

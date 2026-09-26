@@ -45,9 +45,17 @@ class DINKI_Image_Comparer_MOV:
     CATEGORY = "DINKIssTyle/Video"
 
     def get_resized_image(self, tensor_img, target_w, target_h, resampling):
-        # Tensor (Batch, H, W, C) -> PIL
-        i = 255. * tensor_img.cpu().numpy()
-        img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8)[0])
+        # Video frames need the same three channels on both sides of the sweep.
+        pixels = tensor_img[0].detach().cpu().numpy()
+        if pixels.ndim != 3 or pixels.shape[2] not in (1, 3, 4):
+            raise ValueError("Image Compare expects grayscale, RGB, or RGBA images.")
+        pixels = np.clip(np.nan_to_num(pixels, nan=0.0, posinf=1.0, neginf=0.0), 0.0, 1.0)
+        if pixels.shape[2] == 1:
+            pixels = np.repeat(pixels, 3, axis=2)
+        elif pixels.shape[2] == 4:
+            # Video has no alpha channel; match the image comparison preview's black background.
+            pixels = pixels[:, :, :3] * pixels[:, :, 3:4]
+        img = Image.fromarray(np.rint(pixels * 255).astype(np.uint8), "RGB")
 
         # 이미 크기가 같다면 바로 리턴
         if img.width == target_w and img.height == target_h:
