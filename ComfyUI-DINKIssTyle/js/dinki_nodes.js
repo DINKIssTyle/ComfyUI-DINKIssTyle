@@ -97,7 +97,32 @@ function previewImageActions(descriptor) {
     ];
 }
 
-function showPreviewImageMenu(event, descriptor) {
+function videoFileActions(descriptor) {
+    const url = descriptor && api.apiURL(`/view?${new URLSearchParams({ ...descriptor, format: "video" })}`);
+    return [
+        { content: "Open Video", disabled: !descriptor, callback: () => {
+            if (url) window.open(url, "_blank", "noopener,noreferrer");
+        } },
+        { content: "Save Video", disabled: !descriptor, callback: async() => {
+            if (!url) return;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Video download failed (${response.status})`);
+            const objectUrl = URL.createObjectURL(await response.blob());
+            const link = document.createElement("a");
+            link.href = objectUrl;
+            link.download = descriptor.filename;
+            document.body.appendChild(link);
+            try {
+                link.click();
+            } finally {
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+            }
+        } },
+    ];
+}
+
+function showMediaContextMenu(event, descriptor, actions = previewImageActions(descriptor)) {
     event.preventDefault();
     event.stopImmediatePropagation();
     const menu = document.createElement("div");
@@ -114,12 +139,14 @@ function showPreviewImageMenu(event, descriptor) {
     };
     const dismiss = e => { if (!menu.contains(e.target)) close(); };
     const escape = e => { if (e.key === "Escape") close(); };
-    for (const action of previewImageActions(descriptor)) {
+    for (const action of actions) {
         const button = document.createElement("button");
         button.textContent = action.content;
+        button.disabled = !!action.disabled;
         Object.assign(button.style, { display: "block", width: "100%", padding: "9px 12px", textAlign: "left", background: "transparent", color: "inherit", border: "0", cursor: "pointer" });
         button.onclick = async() => {
             close();
+            if (button.disabled) return;
             try { await action.callback(); } catch (error) { alert(error.message); }
         };
         menu.appendChild(button);
@@ -1197,156 +1224,94 @@ app.registerExtension({
 });
 
 // ============================================================
-// 7. DINKI Video Player Logic (Fixed for Temp/Output)
+// 7. DINKI Video Player
 // ============================================================
 app.registerExtension({
     name: "DINKI.VideoPlayer",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        if (nodeData.name === "DINKI_Video_Player") {
-            
-            // 1. 노드 실행 시 (파일 수신)
-            nodeType.prototype.onExecuted = function(message) {
-                // Python에서 보낸 데이터 확인
-                // 기존: return {"ui": {"video": ["filename.mp4"]}} -> 문자열
-                // 변경: return {"ui": {"video": [{"filename":..., "type":..., "subfolder":...}]}} -> 객체
-                
-                const videoData = message.video[0];
-                let filename, type, subfolder;
+        if (nodeData.name !== "DINKI_Video_Player") return;
 
-                if (typeof videoData === 'string') {
-                    // 구버전 호환성 (문자열인 경우)
-                    filename = videoData;
-                    type = 'output';
-                    subfolder = '';
-                } else {
-                    // 신버전 (객체인 경우)
-                    filename = videoData.filename;
-                    type = videoData.type || 'output';
-                    subfolder = videoData.subfolder || '';
-                }
-                
-                // 확장자 추출 및 소문자 변환
-                const ext = filename.split('.').pop().toLowerCase();
-                
-                // 기존 위젯 제거 (새 영상 재생을 위해)
-                if (this.videoWidget) {
-                    this.videoWidget.element.remove();
-                    this.videoWidget = null;
-                }
-
-                // [중요] URL 생성 시 type과 subfolder를 동적으로 반영하도록 수정됨
-                const queryParams = new URLSearchParams({
-                    filename: filename,
-                    type: type,
-                    subfolder: subfolder,
-                    format: 'video',
-                    t: Date.now()
+        const onNodeCreated = nodeType.prototype.onNodeCreated;
+        nodeType.prototype.onNodeCreated = function() {
+            const result = onNodeCreated?.apply(this, arguments);
+            const container = document.createElement("div");
+            Object.assign(container.style, {
+                width: "100%", height: "100%", minWidth: "0", minHeight: "0",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                overflow: "hidden", backgroundColor: "#000", borderRadius: "6px",
+            });
+            const widget = this.addDOMWidget("dkst_video_player", "DKST_VIDEO_PLAYER", container, {
+                hideOnZoom: false,
+                getMinHeight: () => 160,
+                getMaxHeight: () => 10000,
+                getHeight: () => 240,
+            });
+            widget.serialize = false;
+            widget.options.serialize = false;
+            for (const eventName of ["pointerdown", "mousedown"]) {
+                container.addEventListener(eventName, event => {
+                    if (event.button === 2) event.stopPropagation();
                 });
-                const fileUrl = api.apiURL(`/view?${queryParams.toString()}`);
+            }
+            container.addEventListener("contextmenu", event =>
+                showMediaContextMenu(event, this.dkstVideoDescriptor, videoFileActions(this.dkstVideoDescriptor)));
+            const extraMenu = this.getExtraMenuOptions;
+            this.getExtraMenuOptions = function(canvas, options) {
+                const result = extraMenu?.apply(this, arguments);
+                options.push(...videoFileActions(this.dkstVideoDescriptor));
+                return result;
+            };
 
-                // 컨테이너 생성
-                const div = document.createElement("div");
-                Object.assign(div.style, {
-                    position: "absolute",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    pointerEvents: "auto",
-                    zIndex: "10",
-                    backgroundColor: "#000",
-                    overflow: "hidden"
+            this.dkstShowVideo = (videoData, persist = true) => {
+                if (!videoData) return;
+                const descriptor = typeof videoData === "string"
+                    ? { filename: videoData, type: "output", subfolder: "" }
+                    : { filename: videoData.filename, type: videoData.type || "output",
+                        subfolder: videoData.subfolder || "" };
+                if (!descriptor.filename) return;
+                this.dkstVideoDescriptor = descriptor;
+                const ext = descriptor.filename.split(".").pop().toLowerCase();
+                const content = document.createElement(
+                    ["mp4", "webm", "mov"].includes(ext) ? "video" : "img"
+                );
+                Object.assign(content.style, {
+                    width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%",
+                    minWidth: "0", minHeight: "0", objectFit: "contain", display: "block",
                 });
-
-                let contentElement;
-
-                // 포맷에 따른 태그 생성
-                if (['mp4', 'webm', 'mov'].includes(ext)) {
-                    contentElement = document.createElement("video");
-                    Object.assign(contentElement, {
-                        controls: true,
-                        autoplay: true,
-                        loop: true,
-                        muted: true, // 자동 재생 정책 준수
-                    });
-                } else {
-                    // 이미지 포맷 (gif, webp 등)
-                    contentElement = document.createElement("img");
-                    Object.assign(contentElement.style, {
-                        objectFit: "contain",
-                    });
+                if (content.tagName.toLowerCase() === "video") {
+                    Object.assign(content, { controls: true, autoplay: true, loop: true, muted: true });
                 }
-
-                // 소스 연결 및 스타일 설정
-                contentElement.src = fileUrl;
-                contentElement.style.width = "100%";
-                contentElement.style.height = "100%";
-                contentElement.style.maxWidth = "100%";
-                contentElement.style.maxHeight = "100%";
-
-                div.appendChild(contentElement);
-                document.body.appendChild(div);
-
-                this.videoWidget = {
-                    element: div,
-                    content: contentElement,
-                };
-
-                // 노드 크기 최소값 보정
-                const currentSize = this.getSize();
-                if (currentSize[0] < 300) this.setSize([300, 300]); 
-
-                app.graph.setDirtyCanvas(true);
+                const params = new URLSearchParams({ ...descriptor, format: "video", t: Date.now() });
+                content.src = api.apiURL(`/view?${params.toString()}`);
+                container.firstChild?.pause?.();
+                container.replaceChildren(content);
+                if (persist) {
+                    this.properties ??= {};
+                    this.properties.dkstVideo = descriptor;
+                }
+                this.setDirtyCanvas?.(true, true);
             };
 
-            // 2. 위치 동기화 (기존 로직 유지)
-            const onDrawForeground = nodeType.prototype.onDrawForeground;
-            nodeType.prototype.onDrawForeground = function(ctx) {
-                if (onDrawForeground) onDrawForeground.apply(this, arguments);
-
-                if (!this.videoWidget) return;
-
-                const div = this.videoWidget.element;
-                
-                if (this.flags.collapsed) {
-                    div.style.display = "none";
-                    return;
-                }
-
-                const scale = app.canvas.ds.scale;
-                const offset = app.canvas.ds.offset;
-
-                const realX = (this.pos[0] + offset[0]) * scale;
-                const realY = (this.pos[1] + offset[1]) * scale;
-                
-                const titleHeight = LiteGraph.NODE_TITLE_HEIGHT || 30;
-                const realWidth = this.size[0] * scale;
-                const realHeight = (this.size[1] - titleHeight) * scale;
-
-                // 화면 밖 체크
-                if (realX + realWidth < 0 || realY + realHeight < 0 || 
-                    realX > window.innerWidth || realY > window.innerHeight) {
-                    div.style.display = "none";
-                    return;
-                }
-
-                div.style.display = "flex";
-                div.style.left = `${realX}px`;
-                div.style.top = `${realY + (titleHeight * scale)}px`;
-                div.style.width = `${realWidth}px`;
-                div.style.height = `${realHeight}px`;
+            const onConfigure = this.onConfigure;
+            this.onConfigure = function() {
+                const configured = onConfigure?.apply(this, arguments);
+                queueMicrotask(() => this.dkstShowVideo?.(this.properties?.dkstVideo, false));
+                return configured;
             };
+            return result;
+        };
 
-            // 3. 삭제 처리 (기존 로직 유지)
-            const onRemoved = nodeType.prototype.onRemoved;
-            nodeType.prototype.onRemoved = function() {
-                if (onRemoved) onRemoved.apply(this, arguments);
-                if (this.videoWidget) {
-                    this.videoWidget.element.remove();
-                    this.videoWidget = null;
-                }
-            };
+        const onExecuted = nodeType.prototype.onExecuted;
+        nodeType.prototype.onExecuted = function(message) {
+            onExecuted?.apply(this, arguments);
+            this.dkstShowVideo?.(message?.video?.[0]);
+        };
+    },
+    loadedGraphNode(node) {
+        if (node.comfyClass === "DINKI_Video_Player") {
+            node.dkstShowVideo?.(node.properties?.dkstVideo || app.nodeOutputs?.[node.id]?.video?.[0], false);
         }
-    }
+    },
 });
 
 
@@ -1784,7 +1749,7 @@ app.registerExtension({
                 });
             }
             image.addEventListener("contextmenu", event => {
-                if (selected()) showPreviewImageMenu(event, selected());
+                if (selected()) showMediaContextMenu(event, selected());
             });
             this.dkstUpdatePreview = (message, persist = true) => {
                 descriptors = message?.dkst_images || message?.images || [];

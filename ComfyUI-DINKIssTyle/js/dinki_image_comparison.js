@@ -1,6 +1,65 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
+function comparisonFileUrl(descriptor) {
+    return api.apiURL(`/view?${new URLSearchParams(descriptor)}`);
+}
+
+async function saveComparisonFile(descriptor) {
+    const response = await fetch(comparisonFileUrl(descriptor));
+    if (!response.ok) throw new Error(`Image download failed (${response.status})`);
+    const objectUrl = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = descriptor.filename;
+    document.body.appendChild(link);
+    try {
+        link.click();
+    } finally {
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    }
+}
+
+function showComparisonMenu(event, actions) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    const menu = document.createElement("div");
+    Object.assign(menu.style, {
+        position: "fixed", zIndex: "100000", background: "#252525", color: "white",
+        padding: "5px", border: "1px solid #555", borderRadius: "6px",
+        left: `${Math.max(0, Math.min(event.clientX, window.innerWidth - 200))}px`,
+        top: `${Math.max(0, Math.min(event.clientY, window.innerHeight - 260))}px`,
+    });
+    const close = () => {
+        menu.remove();
+        document.removeEventListener("pointerdown", dismiss, true);
+        document.removeEventListener("keydown", escape, true);
+    };
+    const dismiss = e => { if (!menu.contains(e.target)) close(); };
+    const escape = e => { if (e.key === "Escape") close(); };
+    for (const action of actions) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = action.content;
+        button.disabled = !!action.disabled;
+        Object.assign(button.style, {
+            display: "block", width: "100%", padding: "9px 12px", textAlign: "left",
+            background: "transparent", color: "inherit", border: "0", cursor: "pointer",
+        });
+        button.onclick = async() => {
+            close();
+            if (button.disabled) return;
+            try { await action.callback(); } catch (error) { alert(error.message); }
+        };
+        menu.appendChild(button);
+    }
+    document.body.appendChild(menu);
+    document.addEventListener("pointerdown", dismiss, true);
+    document.addEventListener("keydown", escape, true);
+}
+
 app.registerExtension({
     name: "DINKI.ImageComparison",
     async beforeRegisterNodeDef(nodeType, nodeData) {
@@ -50,7 +109,7 @@ app.registerExtension({
             let descriptors = [];
             let position = 50;
             let selectedMode = this.widgets?.find(item => item.name === "mode")?.value || "Slide";
-            const imageUrl = item => api.apiURL(`/view?${new URLSearchParams(item)}`);
+            const imageUrl = comparisonFileUrl;
             const show = () => {
                 const ready = descriptors.length === 3;
                 const slide = selectedMode !== "Difference";
@@ -70,6 +129,45 @@ app.registerExtension({
                 position = Math.max(0, Math.min(100, 100 * (event.clientX - bounds.left) / bounds.width));
                 show();
             });
+            const menuActions = () => {
+                const changeMode = mode => {
+                    const modeWidget = this.widgets?.find(item => item.name === "mode");
+                    if (modeWidget) {
+                        const previous = modeWidget.value;
+                        modeWidget.value = mode;
+                        modeWidget.callback?.(mode);
+                        this.onWidgetChanged?.("mode", mode, previous, modeWidget);
+                    }
+                    this.dkstSetComparisonMode?.(mode);
+                    this.setDirtyCanvas?.(true, true);
+                };
+                const fileAction = (content, index, save) => ({
+                    content, disabled: !descriptors[index],
+                    callback: () => save
+                        ? saveComparisonFile(descriptors[index])
+                        : window.open(comparisonFileUrl(descriptors[index]), "_blank", "noopener,noreferrer"),
+                });
+                return [
+                    { content: "Mode: Slide", callback: () => changeMode("Slide") },
+                    { content: "Mode: Difference", callback: () => changeMode("Difference") },
+                    fileAction("Open Image 1", 0, false),
+                    fileAction("Save Image 1", 0, true),
+                    fileAction("Open Image 2", 1, false),
+                    fileAction("Save Image 2", 1, true),
+                ];
+            };
+            for (const eventName of ["pointerdown", "mousedown"]) {
+                root.addEventListener(eventName, event => {
+                    if (event.button === 2) event.stopPropagation();
+                });
+            }
+            root.addEventListener("contextmenu", event => showComparisonMenu(event, menuActions()));
+            const extraMenu = this.getExtraMenuOptions;
+            this.getExtraMenuOptions = function(canvas, options) {
+                const result = extraMenu?.apply(this, arguments);
+                options.push(...menuActions());
+                return result;
+            };
             this.dkstSetComparisonMode = value => {
                 selectedMode = value === "Difference" ? "Difference" : "Slide";
                 show();

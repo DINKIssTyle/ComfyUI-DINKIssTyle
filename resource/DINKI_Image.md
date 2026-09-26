@@ -32,6 +32,8 @@ The comparison is an output node and saves three temporary PNG previews (two ali
 
 The node has no `IMAGE` output; use its preview to inspect the two inputs.
 
+Right-click the comparison preview for `Mode: Slide`, `Mode: Difference`, `Open Image 1`, `Save Image 1`, `Open Image 2`, and `Save Image 2`. The image actions use the aligned temporary previews produced by the last run. Mode changes also update the node's `mode` widget.
+
 ---
 
 

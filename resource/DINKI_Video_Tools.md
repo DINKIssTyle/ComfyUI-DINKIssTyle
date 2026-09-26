@@ -22,8 +22,8 @@ A comprehensive node suite designed to create **Before/After sliding comparison 
     * **Channel Matching:** Grayscale inputs become RGB, and RGBA inputs are composited over black. RGB and RGBA images can be compared together without a separate conversion node.
     * **Multi-Format Support:** Exports to high-quality **MP4** for video editing or **GIF / Animated WebP** for web sharing.
 * **Integrated Video Player:**
-    * **On-Graph Playback:** Instantly plays the generated result inside the node graph without opening external players.
-    * **Canvas Sync:** The player overlay automatically tracks the node's position and zoom level in real-time.
+    * **On-Graph Playback:** Plays the generated result inside a resizable node widget without opening an external player.
+    * **Nodes 2.0 Layout:** The player stays inside the node when it is first created, moved, zoomed, or resized.
     * **Format Auto-Detection:** Uses video tags for MP4/WEBM/MOV and image tags for GIF/WebP/PNG/JPG.
 * **Animation Controls:**
     * **Timing Precision:** Fully customizable `sweep_duration` (movement speed) and `pause_duration` (hold time at start/end).
@@ -59,6 +59,7 @@ To maintain the **original quality and resolution** of your input images:
 | **filename** | Connect the output `filename` string from the **Image Comparer** node here. |
 
 The player accepts a saved path from either video generator. It detects whether the file came from ComfyUI's temporary or output folder and renders the supported video or image format in the node.
+Right-click the player for `Open Video` or `Save Video`. Both actions use the current file, including GIF or WebP output from the video generators.
 
 ## DKST Video (Depth Parallax)
 

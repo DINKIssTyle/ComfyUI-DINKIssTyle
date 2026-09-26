@@ -6,22 +6,38 @@ const vm = require('node:vm');
 
 const source = readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_image_comparison.js'), 'utf8');
 
-function element() {
+function element(tagName = 'div') {
     return {
-        style: {}, children: [], listeners: {},
+        tagName: tagName.toUpperCase(), style: {}, children: [], listeners: {},
         append(...children) { this.children.push(...children); },
+        appendChild(child) { this.children.push(child); },
         removeAttribute(name) { delete this[name]; },
         addEventListener(name, callback) { this.listeners[name] = callback; },
+        remove() { this.removed = true; },
+        contains() { return false; },
+        click() { this.clicked = true; },
         getBoundingClientRect() { return { left: 20, width: 200 }; },
     };
 }
 
 function fixture() {
     let extension;
+    let opened, fetched;
+    const elements = [];
+    const createElement = tag => {
+        const value = element(tag);
+        elements.push(value);
+        return value;
+    };
+    const body = createElement('body');
     const app = { nodeOutputs: {}, registerExtension(value) { extension = value; } };
     vm.runInNewContext(source.replace(/^import .*;\r?\n/gm, ''), {
-        app, api: { apiURL: path => path }, document: { createElement: element },
-        URLSearchParams, queueMicrotask,
+        app, api: { apiURL: path => path },
+        document: { createElement, body, addEventListener() {}, removeEventListener() {} },
+        window: { innerWidth: 1000, innerHeight: 800, open: url => { opened = url; } },
+        fetch: async url => { fetched = url; return { ok: true, blob: async() => ({}) }; },
+        URL: { createObjectURL: () => 'blob:comparison', revokeObjectURL() {} },
+        URLSearchParams, queueMicrotask, setTimeout() {},
     });
     class CompareNode {
         constructor(properties = {}) {
@@ -38,7 +54,8 @@ function fixture() {
         setDirtyCanvas() {}
     }
     extension.beforeRegisterNodeDef(CompareNode, { name: 'DINKI_Image_Comparison' });
-    return { app, extension, CompareNode };
+    return { app, extension, CompareNode, elements,
+        get opened() { return opened; }, get fetched() { return fetched; } };
 }
 
 const output = { dkst_comparison: [
@@ -79,4 +96,36 @@ test('comparison restores its own images after a tab switch', async () => {
     restored.onConfigure();
     await Promise.resolve();
     assert.equal(restored.root.children[2].style.display, 'block');
+});
+
+test('right-click menu changes mode and opens or saves the selected comparison images', async () => {
+    const context = fixture();
+    const node = new context.CompareNode();
+    node.onExecuted(output);
+    const event = { button: 2, clientX: 40, clientY: 40,
+        preventDefault() { this.prevented = true; },
+        stopPropagation() { this.stopped = true; },
+        stopImmediatePropagation() { this.stopped = true; } };
+    node.root.listeners.contextmenu(event);
+    assert.equal(event.prevented, true);
+    assert.equal(event.stopped, true);
+    const buttons = context.elements.filter(item => item.tagName === 'BUTTON');
+    assert.deepEqual(buttons.map(item => item.textContent), [
+        'Mode: Slide', 'Mode: Difference', 'Open Image 1', 'Save Image 1',
+        'Open Image 2', 'Save Image 2',
+    ]);
+    await buttons[1].onclick();
+    assert.equal(node.widgets[0].value, 'Difference');
+    assert.equal(node.root.children[2].style.display, 'block');
+    await buttons[2].onclick();
+    assert.match(context.opened, /filename=first\.png/);
+    await buttons[5].onclick();
+    assert.match(context.fetched, /filename=second\.png/);
+    assert.match(context.fetched, /type=temp/);
+    const link = context.elements.find(item => item.tagName === 'A');
+    assert.equal(link.download, 'second.png');
+    assert.equal(link.clicked, true);
+    const options = [];
+    node.getExtraMenuOptions(null, options);
+    assert.deepEqual(options.map(item => item.content), buttons.map(item => item.textContent));
 });
