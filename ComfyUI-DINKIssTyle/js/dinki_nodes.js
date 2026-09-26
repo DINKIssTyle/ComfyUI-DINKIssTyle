@@ -1314,6 +1314,95 @@ app.registerExtension({
     },
 });
 
+// Render the generated file in a video widget so MP4 is playable in the node.
+// Its preview has only the two file actions; the rest of the node keeps its normal menu.
+app.registerExtension({
+    name: "DINKI.VideoComparer.Preview",
+    beforeRegisterNodeDef(nodeType, nodeData) {
+        if (nodeData.name !== "DINKI_Image_Comparer_MOV") return;
+
+        const onNodeCreated = nodeType.prototype.onNodeCreated;
+        nodeType.prototype.onNodeCreated = function() {
+            const result = onNodeCreated?.apply(this, arguments);
+            const container = document.createElement("div");
+            Object.assign(container.style, {
+                width: "100%", height: "100%", minWidth: "0", minHeight: "0",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                overflow: "hidden", backgroundColor: "#000", borderRadius: "6px",
+            });
+            const widget = this.addDOMWidget("dkst_comparison_video", "DKST_COMPARISON_VIDEO", container, {
+                hideOnZoom: false,
+                getMinHeight: () => 160,
+                getMaxHeight: () => 10000,
+                getHeight: () => 240,
+            });
+            widget.serialize = false;
+            widget.options.serialize = false;
+            for (const eventName of ["pointerdown", "mousedown"]) {
+                container.addEventListener(eventName, event => {
+                    if (event.button === 2) event.stopPropagation();
+                });
+            }
+            container.addEventListener("contextmenu", event =>
+                showMediaContextMenu(event, this.dkstComparisonVideo,
+                    videoFileActions(this.dkstComparisonVideo)));
+
+            this.dkstShowComparisonVideo = (videoData, persist = true) => {
+                if (!videoData?.filename) return;
+                const descriptor = {
+                    filename: videoData.filename,
+                    type: videoData.type || "output",
+                    subfolder: videoData.subfolder || "",
+                };
+                this.dkstComparisonVideo = descriptor;
+                const ext = descriptor.filename.split(".").pop().toLowerCase();
+                const content = document.createElement(
+                    ["mp4", "webm", "mov"].includes(ext) ? "video" : "img"
+                );
+                Object.assign(content.style, {
+                    width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%",
+                    minWidth: "0", minHeight: "0", objectFit: "contain", display: "block",
+                });
+                if (content.tagName.toLowerCase() === "video") {
+                    Object.assign(content, { controls: true, autoplay: true, loop: true, muted: true });
+                }
+                const params = new URLSearchParams({ ...descriptor, format: "video", t: Date.now() });
+                content.src = api.apiURL(`/view?${params.toString()}`);
+                container.firstChild?.pause?.();
+                container.replaceChildren(content);
+                if (persist) {
+                    this.properties ??= {};
+                    this.properties.dkstComparisonVideo = descriptor;
+                }
+                this.setDirtyCanvas?.(true, true);
+            };
+
+            const onConfigure = this.onConfigure;
+            this.onConfigure = function() {
+                const configured = onConfigure?.apply(this, arguments);
+                queueMicrotask(() => this.dkstShowComparisonVideo?.(this.properties?.dkstComparisonVideo, false));
+                return configured;
+            };
+            return result;
+        };
+
+        const onExecuted = nodeType.prototype.onExecuted;
+        nodeType.prototype.onExecuted = function(message) {
+            const result = onExecuted?.apply(this, arguments);
+            this.dkstShowComparisonVideo?.(message?.video?.[0] || message?.images?.[0]);
+            return result;
+        };
+    },
+    loadedGraphNode(node) {
+        if (node.comfyClass === "DINKI_Image_Comparer_MOV") {
+            node.dkstShowComparisonVideo?.(
+                node.properties?.dkstComparisonVideo
+                    || app.nodeOutputs?.[node.id]?.video?.[0]
+                    || app.nodeOutputs?.[node.id]?.images?.[0], false);
+        }
+    },
+});
+
 
 
 // ============================================================

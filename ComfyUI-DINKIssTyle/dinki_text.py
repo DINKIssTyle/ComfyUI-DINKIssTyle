@@ -1,3 +1,18 @@
+class DINKI_Text_Note:
+    """An editable workflow note with frontend Lock and Copy controls."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"text": ("STRING", {"default": "", "multiline": True})}}
+
+    RETURN_TYPES = ()
+    FUNCTION = "note"
+    CATEGORY = "DINKIssTyle/Text"
+
+    def note(self, text):
+        return ()
+
+
 class DINKI_Text_Multiline:
     @classmethod
     def INPUT_TYPES(cls):

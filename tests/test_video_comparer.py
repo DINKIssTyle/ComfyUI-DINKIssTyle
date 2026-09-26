@@ -65,6 +65,10 @@ class VideoComparerTests(unittest.TestCase):
                     self.assertEqual(tuple(frames[0][0, 0]),
                                      (255, 0, 0) if first.shape[-1] == 3 else (0, 128, 0))
                     self.assertEqual(result["result"][0], str(Path(folder) / "compare_00001_.gif"))
+                    self.assertEqual(result["ui"]["video"], [{
+                        "filename": "compare_00001_.gif", "subfolder": "", "type": "output",
+                    }])
+                    self.assertNotIn("images", result["ui"])
 
 
 if __name__ == "__main__":

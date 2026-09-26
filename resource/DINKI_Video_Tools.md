@@ -52,6 +52,8 @@ To maintain the **original quality and resolution** of your input images:
 | **preview_mode** | Write to ComfyUI's temporary folder instead of the output folder. |
 | **filename_prefix** | Prefix for the saved filename. |
 
+The generated MP4 plays inside DKST Video (Image Compare); GIF and WebP results are displayed there too. Right-click the preview for a two-item menu: `Open Video` and `Save Video`. The actions use the latest generated file, including files created in preview mode.
+
 #### 📺 Input Parameters (DKST Viewer (Video Player))
 
 | Parameter | Description |

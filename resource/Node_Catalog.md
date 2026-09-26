@@ -2,7 +2,7 @@
 
 [Home](../README.md)
 
-47 nodes across 9 categories. Display names use `DKST Category (Function)`.
+48 nodes across 9 categories. Display names use `DKST Category (Function)`.
 Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` is now `DINKIssTyle/Util`.
 
 Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · [LM Studio](DINKI_LM_Studio_Assistant.md) · [Processing](DINKI_PS.md) · [Prompts and Text](DINKI_Prompt_and_String.md) · [Utilities](DINKI_Node_Utils.md) · [Video and Player](DINKI_Video_Tools.md). [System Monitor](DKST_System_Monitor.md) is a frontend feature and does not register a workflow node.
@@ -38,6 +38,7 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Prompt` | DKST Prompt (Random) | `DINKI_random_prompt` |
 | `DINKIssTyle/Text` | DKST Text (Concatenate) | `DINKI_Text_Concatenate` |
 | `DINKIssTyle/Text` | DKST Text (Multiline) | `DINKI_Text_Multiline` |
+| `DINKIssTyle/Text` | DKST Text (Note) | `DINKI_Text_Note` |
 | `DINKIssTyle/Text` | DKST Text (Split) | `DINKI_Text_Split` |
 | `DINKIssTyle/Util` | DKST Util (Anchor) | `DINKI_Anchor` |
 | `DINKIssTyle/Util` | DKST Util (Auto Focus) | `DINKI_Auto_Focus` |

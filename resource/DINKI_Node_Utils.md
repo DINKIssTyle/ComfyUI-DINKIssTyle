@@ -41,6 +41,7 @@ Perfect for creating "Control Panels" in complex workflows, allowing you to turn
 #### 💡 How to Use
 1.  **Find Node IDs:** In ComfyUI settings, enable **"Show Node ID on Node"** (or right-click a node > Properties to see its ID).
 2.  **Input IDs:** Enter the IDs of the nodes you want to control into the `node_ids` field (e.g., `5, 12, 44`).
+    The `node_ids` field is an advanced parameter: expand the node's advanced options to edit it, then collapse them to keep only the `active` switch visible. Its value is retained while collapsed.
 3.  **Toggle:**
     * **On (True):** Target nodes are **Enabled** (Active).
     * **Off (False):** Target nodes are **Bypassed** (Muted).

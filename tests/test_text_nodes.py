@@ -6,11 +6,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1] / "ComfyUI-DINKIssTyle"
 NODES = runpy.run_path(str(ROOT / "dinki_text.py"))
 Multiline = NODES["DINKI_Text_Multiline"]
+Note = NODES["DINKI_Text_Note"]
 Concatenate = NODES["DINKI_Text_Concatenate"]
 Split = NODES["DINKI_Text_Split"]
 
 
 class TextNodeTests(unittest.TestCase):
+    def test_note_is_text_only_and_has_no_output(self):
+        self.assertTrue(Note.INPUT_TYPES()["required"]["text"][1]["multiline"])
+        self.assertEqual(Note.CATEGORY, "DINKIssTyle/Text")
+        self.assertEqual(Note.RETURN_TYPES, ())
+        self.assertEqual(Note().note("Saved note"), ())
+
     def test_split_literal_phrase_and_trim(self):
         result = Split().split_text("  첫째 [다음] 둘째 [다음] 셋째  ", "[다음]")
         self.assertEqual(result, ("첫째", "둘째", "셋째") + ("",) * 7)

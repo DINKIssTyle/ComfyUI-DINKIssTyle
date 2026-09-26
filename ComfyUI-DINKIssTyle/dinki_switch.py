@@ -13,7 +13,7 @@ class DINKI_Node_Switch:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "node_ids": ("STRING", {"multiline": False, "default": "1,2,3"}),
+                "node_ids": ("STRING", {"multiline": False, "default": "1,2,3", "advanced": True}),
                 "active": ("BOOLEAN", {"default": True, "label_on": "On", "label_off": "Off"}),
             },
         }

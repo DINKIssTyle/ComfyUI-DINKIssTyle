@@ -95,7 +95,7 @@ from .dinki_comparer import DINKI_Image_Comparer_MOV
 from .dinki_grid import DINKI_Grid
 from .dinki_base64 import DINKI_Img2Base64, DINKI_Base64Input, DINKI_Base64Viewer
 from .dinki_depth_parallax import DINKI_DepthParallax_MOV
-from .dinki_text import DINKI_Text_Multiline, DINKI_Text_Concatenate, DINKI_Text_Split
+from .dinki_text import DINKI_Text_Note, DINKI_Text_Multiline, DINKI_Text_Concatenate, DINKI_Text_Split
 from .dinki_preview import DINKI_Preview_Image
 from .dinki_image_comparison import DINKI_Image_Comparison
 from .dinki_load import DINKI_Image_Load
@@ -172,6 +172,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Image_Resize": DINKI_Image_Resize,
 
     # Text
+    "DINKI_Text_Note": DINKI_Text_Note,
     "DINKI_Text_Multiline": DINKI_Text_Multiline,
     "DINKI_Text_Concatenate": DINKI_Text_Concatenate,
     "DINKI_Text_Split": DINKI_Text_Split,
@@ -240,6 +241,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Image_Resize": "DKST Image (Resize)",
 
     # Text
+    "DINKI_Text_Note": "DKST Text (Note)",
     "DINKI_Text_Multiline": "DKST Text (Multiline)",
     "DINKI_Text_Concatenate": "DKST Text (Concatenate)",
     "DINKI_Text_Split": "DKST Text (Split)",

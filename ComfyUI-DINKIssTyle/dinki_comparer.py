@@ -202,8 +202,8 @@ class DINKI_Image_Comparer_MOV:
         if not preview_mode:
             print(f"🅳INKIssTyle - Comparer saved to: {full_path}")
 
-        # UI 업데이트 및 파일 경로 리턴 (UI에 보여주기 위해 딕셔너리 구조 사용)
-        return {"ui": {"images": [{"filename": file_name_with_ext, "subfolder": subfolder, "type": type_name}]}, 
+        # The frontend video widget handles MP4, GIF, and WebP previews.
+        return {"ui": {"video": [{"filename": file_name_with_ext, "subfolder": subfolder, "type": type_name}]},
                 "result": (full_path,)}
 
     @classmethod
