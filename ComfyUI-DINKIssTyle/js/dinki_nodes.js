@@ -913,7 +913,6 @@ app.registerExtension({
 
                 this.previewImage = new Image();
                 this.previewUrl = null;
-
                 this.previewImage.onload = () => { app.graph.setDirtyCanvas(true); };
 
                 const lutWidget = this.widgets.find((w) => w.name === "lut_name");
@@ -1105,24 +1104,35 @@ app.registerExtension({
 
                 this.previewImage = new Image();
                 this.previewUrl = null;
+                this.previewToken = null;
+                let previewRequestId = 0;
 
                 this.previewImage.onload = () => { app.graph.setDirtyCanvas(true); };
 
                 const xmpWidget = this.widgets.find((w) => w.name === "xmp_file");
                 const strengthWidget = this.widgets.find((w) => w.name === "strength");
+                const grainSeedWidget = this.widgets.find((w) => w.name === "grain_seed");
 
                 const requestPreview = async () => {
+                    if (!node.previewToken) return;
+                    const requestId = ++previewRequestId;
                     const xmpFile = xmpWidget.value;
                     const strength = strengthWidget.value;
 
                     try {
                         const resp = await api.fetchApi("/dinki/preview_xmp", {
                             method: "POST",
-                            body: JSON.stringify({ xmp_file: xmpFile, strength: strength }),
+                            body: JSON.stringify({
+                                preview_token: node.previewToken,
+                                xmp_file: xmpFile,
+                                strength: strength,
+                                grain_seed: grainSeedWidget?.value ?? 0,
+                            }),
                         });
 
                         if (resp.status === 200) {
                             const blob = await resp.blob();
+                            if (requestId !== previewRequestId) return;
                             if (node.previewUrl) URL.revokeObjectURL(node.previewUrl);
                             const url = URL.createObjectURL(blob);
                             node.previewUrl = url; 
@@ -1133,12 +1143,31 @@ app.registerExtension({
                     }
                 };
 
-                if (xmpWidget) xmpWidget.callback = requestPreview;
-                if (strengthWidget) strengthWidget.callback = requestPreview;
+                for (const widget of [xmpWidget, strengthWidget, grainSeedWidget]) {
+                    if (!widget) continue;
+                    const previousCallback = widget.callback;
+                    widget.callback = function (...args) {
+                        previousCallback?.apply(this, args);
+                        requestPreview();
+                    };
+                }
 
-                api.addEventListener("executed", ({ detail }) => {
-                    if (detail?.node == node.id) requestPreview();
-                });
+                const executedHandler = ({ detail }) => {
+                    if (detail?.node != node.id) return;
+                    const token = detail.output?.preview_token?.[0];
+                    if (token) {
+                        node.previewToken = token;
+                        requestPreview();
+                    }
+                };
+                api.addEventListener("executed", executedHandler);
+                const onRemoved = this.onRemoved;
+                this.onRemoved = function (...args) {
+                    previewRequestId++;
+                    api.removeEventListener("executed", executedHandler);
+                    if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+                    return onRemoved?.apply(this, args);
+                };
 
                 this.addWidget("button", "Upload .xmp", "Upload", () => {
                     const fileInput = document.createElement("input");

@@ -2,7 +2,7 @@
 
 [Home](../README.md)
 
-49 nodes across 9 categories. Display names use `DKST Category (Function)`.
+51 nodes across 9 categories. Display names use `DKST Category (Function)`.
 Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` is now `DINKIssTyle/Util`.
 
 Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · [LM Studio](DINKI_LM_Studio_Assistant.md) · [Processing](DINKI_PS.md) · [Prompts and Text](DINKI_Prompt_and_String.md) · [Utilities](DINKI_Node_Utils.md) · [Video and Player](DINKI_Video_Tools.md). [System Monitor](DKST_System_Monitor.md) is a frontend feature and does not register a workflow node.
@@ -15,6 +15,7 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Color` | DKST Color (LUT Preview) | `DINKI_Color_Lut_Preview` |
 | `DINKIssTyle/Color` | DKST Color (LUT) | `DINKI_Color_Lut` |
 | `DINKIssTyle/Color` | DKST Color (Oversaturation Fix) | `DINKI_AIOversaturationFix` |
+| `DINKIssTyle/Color` | DKST Color (Photo Studio) | `DINKI_Photo_Studio` |
 | `DINKIssTyle/Color` | DKST Color (XMP Preview) | `DINKI_Adobe_XMP_Preview` |
 | `DINKIssTyle/Image` | DKST Image (Batch) | `DINKI_BatchImages` |
 | `DINKIssTyle/Image` | DKST Image (Grid) | `DINKI_Grid` |
@@ -55,6 +56,7 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Util` | DKST Util (Note) | `DINKI_Note` |
 | `DINKIssTyle/Util` | DKST Util (Sampler Preset) | `DINKI_Sampler_Preset` |
 | `DINKIssTyle/Util` | DKST Util (String Switch) | `DINKI_String_Switch_RT` |
+| `DINKIssTyle/Util` | DKST Util (Workflow Lock) | `DINKI_Workflow_Lock` |
 | `DINKIssTyle/Video` | DKST Video (Depth Parallax) | `DINKI_DepthParallax_MOV` |
 | `DINKIssTyle/Video` | DKST Video (Image Compare) | `DINKI_Image_Comparer_MOV` |
 | `DINKIssTyle/Viewer` | DKST Viewer (Video Player) | `DINKI_Video_Player` |

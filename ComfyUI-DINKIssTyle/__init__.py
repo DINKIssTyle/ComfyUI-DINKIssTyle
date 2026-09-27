@@ -79,6 +79,7 @@ from .dinki_switch import (
 
 # 7. 도구 관련
 from .dinki_tool import (
+    DINKI_Workflow_Lock,
     DINKI_Note,
     DINKI_Node_Check,
     DINKI_Anchor,
@@ -90,6 +91,7 @@ from .dinki_lmstudio import DINKI_LMStudio
 from .dinki_batchImages import DINKI_BatchImages
 from .dinki_tiled_upscale import DINKI_TileSplit, DINKI_TileStitch
 from .dinki_photo_specs import DINKI_photo_specifications
+from .dinki_photo_studio import DINKI_Photo_Studio
 from .dinki_multi_lora import DINKI_Multi_LoRA_Loader
 from .dinki_overlay import DINKI_Overlay
 from .dinki_comparer import DINKI_Image_Comparer_MOV
@@ -130,6 +132,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Color_Lut": DINKI_Color_Lut,
     "DINKI_Color_Lut_Preview": DINKI_Color_Lut_Preview,
     "DINKI_Deband": DINKI_Deband,
+    "DINKI_Photo_Studio": DINKI_Photo_Studio,
 
     # Photoshop/Processing (dinki_ps)
     "DINKI_Upscale_Latent_By": DINKI_Upscale_Latent_By,
@@ -149,6 +152,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_String_Switch_RT": DINKI_String_Switch_RT,
 
     # Tool
+    "DINKI_Workflow_Lock": DINKI_Workflow_Lock,
     "DINKI_Note": DINKI_Note,
     "DINKI_Node_Check": DINKI_Node_Check,
     "DINKI_Anchor": DINKI_Anchor,
@@ -200,6 +204,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Color_Lut": "DKST Color (LUT)",
     "DINKI_Color_Lut_Preview": "DKST Color (LUT Preview)",
     "DINKI_Deband": "DKST Color (Deband)",
+    "DINKI_Photo_Studio": "DKST Color (Photo Studio)",
 
     # Photoshop/Processing
     "DINKI_Upscale_Latent_By": "DKST PS (Latent Upscale)",
@@ -219,6 +224,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_String_Switch_RT": "DKST Util (String Switch)",
 
     # Tool
+    "DINKI_Workflow_Lock": "DKST Util (Workflow Lock)",
     "DINKI_Note": "DKST Util (Note)",
     "DINKI_Node_Check": "DKST Util (Node Check)",
     "DINKI_Anchor": "DKST Util (Anchor)",

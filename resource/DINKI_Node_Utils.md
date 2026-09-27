@@ -24,6 +24,14 @@ Turn on **restore_on_deselect** to restore only the zoom from before the first a
 
 ---
 
+## 🔒 DKST Util (Workflow Lock)
+
+Use the **Lock / Unlock** switch to Pin every node in the workflow, including nodes inside subgraphs. Lock records each node's previous Pin state; Unlock restores it, so nodes that were already pinned stay pinned. The snapshot is saved with the workflow, allowing Unlock after reopening a locked workflow. New nodes added while locked are pinned and included in the snapshot. Multiple Workflow Lock nodes in the same workflow share one lock state.
+
+This is a canvas control. It has no connections and does not affect image generation.
+
+---
+
 
 ## 🎚️ DKST Util (Node Switch)
 ![Preview](DINKI_Node_Switch.gif)  

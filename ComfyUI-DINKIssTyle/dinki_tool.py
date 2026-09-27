@@ -1,5 +1,26 @@
 import sys
 
+class DINKI_Workflow_Lock:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "lock": ("BOOLEAN", {
+                "default": False,
+                "label_on": "Lock",
+                "label_off": "Unlock",
+            }),
+        }}
+
+    RETURN_TYPES = ()
+    FUNCTION = "apply"
+    CATEGORY = "DINKIssTyle/Util"
+    DESCRIPTION = "Pin all workflow nodes and restore their previous Pin states when unlocked."
+
+    def apply(self, lock):
+        # Pin is canvas state; the frontend applies it as soon as the switch changes.
+        return ()
+
+
 class DINKI_Note:
     def __init__(self):
         pass

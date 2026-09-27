@@ -1,6 +1,13 @@
 import os
 import io
+import asyncio
+import copy
+import codecs
 import math
+import hashlib
+import secrets
+import threading
+from collections import OrderedDict
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -40,11 +47,13 @@ folder_paths.add_model_folder_path("luts", luts_dir)
 
 def _rgb_to_hsv_torch(img):
     """ RGB to HSV with numerical stability (Torch) """
+    img = img[..., :3]
     r, g, b = img[..., 0], img[..., 1], img[..., 2]
     max_val, _ = torch.max(img, dim=-1)
     min_val, _ = torch.min(img, dim=-1)
     
-    diff = max_val - min_val + 1e-5
+    chroma = max_val - min_val
+    diff = chroma.clamp_min(1e-8)
 
     # Hue calculation
     h = torch.zeros_like(max_val)
@@ -60,7 +69,7 @@ def _rgb_to_hsv_torch(img):
     # Saturation
     s = torch.zeros_like(max_val)
     mask_nz = (max_val > 0)
-    s[mask_nz] = diff[mask_nz] / max_val[mask_nz]
+    s[mask_nz] = chroma[mask_nz] / max_val[mask_nz]
 
     v = max_val
     return h, s, v
@@ -82,7 +91,10 @@ def _calculate_pchip_lut(points, num_entries=256):
     x = np.array([p[0] for p in points], dtype=np.float32)
     y = np.array([p[1] for p in points], dtype=np.float32)
     if len(points) < 2: return np.linspace(0, 1, num_entries, dtype=np.float32)
-    dx = x[1:] - x[:-1]; dy = y[1:] - y[:-1]; dx[dx == 0] = 1e-6; m = dy / dx
+    dx = x[1:] - x[:-1]
+    if np.any(dx <= 0) or not np.isfinite(x).all() or not np.isfinite(y).all():
+        raise ValueError("Tone curve points must have distinct, finite X coordinates")
+    dy = y[1:] - y[:-1]; m = dy / dx
     t = np.zeros_like(x); t[0] = m[0]; t[-1] = m[-1]
     if len(x) > 2:
         mask = np.sign(m[:-1]) * np.sign(m[1:]) > 0
@@ -108,16 +120,54 @@ def _apply_lut_torch(img_channel, lut_tensor):
     return torch.lerp(val_floor, val_ceil, weight)
 
 
+def _srgb_to_linear(rgb):
+    rgb = rgb.clamp(0.0, 1.0)
+    return torch.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+
+
+def _linear_to_srgb(rgb):
+    rgb = rgb.clamp_min(0.0)
+    return torch.where(rgb <= 0.0031308, rgb * 12.92, 1.055 * rgb ** (1.0 / 2.4) - 0.055)
+
+
 # ============================================================================
 # [Class 1] DINKI Adobe XMP (Base)
 # ============================================================================
 
 class DINKI_adobe_xmp:
-    def __init__(self): pass
+    _reported_unsupported = set()
+    _parsed_cache = OrderedDict()
+    _parsed_cache_lock = threading.Lock()
+    _crs_namespace = "http://ns.adobe.com/camera-raw-settings/1.0/"
+    _rdf_namespace = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    _scalar_fields = {
+        "Exposure2012": "Exposure", "Contrast2012": "Contrast",
+        "Vibrance": "Vibrance", "Saturation": "Saturation",
+        "PostCropVignetteAmount": "VignetteAmount",
+        "PostCropVignetteMidpoint": "VignetteMidpoint",
+        "PostCropVignetteFeather": "VignetteFeather",
+        "PostCropVignetteRoundness": "VignetteRoundness",
+        "GrainAmount": "GrainAmount", "GrainSize": "GrainSize",
+    }
+    _scalar_ranges = {
+        "Exposure2012": (-20, 20),
+        "Contrast2012": (-100, 100), "Vibrance": (-100, 100), "Saturation": (-100, 100),
+        "PostCropVignetteAmount": (-100, 100),
+        "PostCropVignetteMidpoint": (0, 100),
+        "PostCropVignetteFeather": (0, 100),
+        "PostCropVignetteRoundness": (-100, 100),
+        "GrainAmount": (0, 100), "GrainSize": (0, 100),
+    }
+    _metadata_fields = {
+        "Version", "ProcessVersion", "UUID", "Name", "PresetType", "HasSettings",
+        "SupportsAmount", "SupportsColor", "SupportsMonochrome", "SupportsHighDynamicRange",
+        "SupportsNormalDynamicRange", "SupportsSceneReferred", "RequiresRGBTables",
+        "CameraProfileDigest", "RawFileName", "AlreadyApplied", "AutoSettings",
+    }
 
     @classmethod
     def INPUT_TYPES(s):
-        file_list = folder_paths.get_filename_list("adobe_xmp")
+        file_list = [name for name in folder_paths.get_filename_list("adobe_xmp") if name.lower().endswith(".xmp")]
         if not file_list: file_list = []
         file_list = ["-- None --"] + file_list
         return {
@@ -126,12 +176,49 @@ class DINKI_adobe_xmp:
                 "xmp_file": (file_list,),
                 "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
             },
+            "optional": {
+                "grain_seed": ("INT", {"default": 0, "min": 0, "max": 0x7fffffff}),
+            },
         }
 
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("image",)
     FUNCTION = "apply_preset"
     CATEGORY = "DINKIssTyle/Color"
+
+    @classmethod
+    def _xmp_path(cls, xmp_file):
+        if not isinstance(xmp_file, str) or not xmp_file.lower().endswith(".xmp"):
+            raise ValueError("Select an .xmp preset")
+        path = folder_paths.get_full_path("adobe_xmp", xmp_file)
+        if not path or not os.path.isfile(path):
+            raise ValueError(f"XMP preset not found: {xmp_file}")
+        real_path = os.path.realpath(path)
+        roots = folder_paths.get_folder_paths("adobe_xmp")
+        if not any(os.path.commonpath((real_path, os.path.realpath(root))) == os.path.realpath(root) for root in roots):
+            raise ValueError("XMP preset must be inside an adobe_xmp folder")
+        return real_path
+
+    @classmethod
+    def IS_CHANGED(cls, xmp_file, **kwargs):
+        if not xmp_file or xmp_file == "-- None --":
+            return "no preset"
+        path = cls._xmp_path(xmp_file)
+        digest = hashlib.sha256()
+        with open(path, "rb") as preset:
+            for chunk in iter(lambda: preset.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, xmp_file, **kwargs):
+        if not xmp_file or xmp_file == "-- None --":
+            return True
+        try:
+            cls._xmp_path(xmp_file)
+        except (ValueError, OSError) as exc:
+            return str(exc)
+        return True
 
     def parse_xmp(self, file_path):
         params = {
@@ -141,48 +228,126 @@ class DINKI_adobe_xmp:
             "ToneCurve": None, "ToneCurveRed": None, "ToneCurveGreen": None, "ToneCurveBlue": None,
             "HSL_Hue": {}, "HSL_Sat": {}, "HSL_Lum": {}
         }
-        color_names = ["Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple", "Magenta"]
-        def parse_seq(text_seq):
-            try:
-                vals = text_seq.replace('\n', '').split(',')
-                vals = [float(x.strip()) for x in vals if x.strip()]
-                points = []
-                for i in range(0, len(vals), 2): points.append((vals[i], vals[i+1]))
-                return points
-            except: return None
+        color_names = ("Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple", "Magenta")
+        crs_prefix = f"{{{self._crs_namespace}}}"
+        rdf_prefix = f"{{{self._rdf_namespace}}}"
+        with open(file_path, "rb") as preset:
+            contents = preset.read(2 * 1024 * 1024 + 1)
+        if len(contents) > 2 * 1024 * 1024:
+            raise ValueError("XMP preset exceeds the 2 MB limit")
+        cache_key = (file_path, hashlib.sha256(contents).digest())
+        with self._parsed_cache_lock:
+            cached = self._parsed_cache.get(cache_key)
+            if cached is not None:
+                self._parsed_cache.move_to_end(cache_key)
+                return copy.deepcopy(cached)
+        encoding = "utf-16" if contents.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)) else "utf-8-sig"
         try:
-            tree = ET.parse(file_path); root = tree.getroot()
-            descriptions = root.findall(".//{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Description")
-            for desc in descriptions:
-                for key, value in desc.attrib.items():
-                    tag = key.split('}')[-1] if '}' in key else key
-                    if tag == "Exposure2012": params["Exposure"] = float(value)
-                    elif tag == "Contrast2012": params["Contrast"] = float(value)
-                    elif tag == "Vibrance": params["Vibrance"] = float(value)
-                    elif tag == "Saturation": params["Saturation"] = float(value)
-                    elif tag == "PostCropVignetteAmount": params["VignetteAmount"] = float(value)
-                    elif tag == "PostCropVignetteMidpoint": params["VignetteMidpoint"] = float(value)
-                    elif tag == "PostCropVignetteFeather": params["VignetteFeather"] = float(value)
-                    elif tag == "GrainAmount": params["GrainAmount"] = float(value)
-                    elif tag == "GrainSize": params["GrainSize"] = float(value)
-                    for c_name in color_names:
-                        if tag == f"HueAdjustment{c_name}": params["HSL_Hue"][c_name] = float(value)
-                        elif tag == f"SaturationAdjustment{c_name}": params["HSL_Sat"][c_name] = float(value)
-                        elif tag == f"LuminanceAdjustment{c_name}": params["HSL_Lum"][c_name] = float(value)
-                for child in desc:
-                    tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-                    if tag in ["ToneCurve", "ToneCurvePV2012"]:
-                        seq = child.find(".//{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Seq")
-                        if seq: params["ToneCurve"] = parse_seq(", ".join([li.text for li in seq.findall(".//{http://www.w3.org/1999/02/22-rdf-syntax-ns#}li")]))
-                    for color in ["Red", "Green", "Blue"]:
-                        if tag in [f"ToneCurve{color}", f"ToneCurvePV2012{color}"]:
-                            seq = child.find(".//{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Seq")
-                            if seq: params[f"ToneCurve{color}"] = parse_seq(", ".join([li.text for li in seq.findall(".//{http://www.w3.org/1999/02/22-rdf-syntax-ns#}li")]))
-        except Exception as e: print(f"[🅳INKIssTyle - Warning] Failed to parse XMP {file_path}: {e}")
+            xml_text = contents.decode(encoding)
+        except UnicodeDecodeError as exc:
+            raise ValueError("XMP preset must use UTF-8 or BOM-marked UTF-16 encoding") from exc
+        if "<!DOCTYPE" in xml_text.upper() or "<!ENTITY" in xml_text.upper():
+            raise ValueError("XMP preset cannot contain DTD or entity declarations")
+        try:
+            root = ET.fromstring(xml_text)
+        except ET.ParseError as exc:
+            raise ValueError(f"Invalid XMP preset: {exc}") from exc
+
+        descriptions = list(root.iter(f"{rdf_prefix}Description"))
+        if not descriptions:
+            raise ValueError("XMP preset has no RDF description")
+        supported = set(self._scalar_fields)
+        unsupported = set()
+        for prefix in ("HueAdjustment", "SaturationAdjustment", "LuminanceAdjustment"):
+            supported.update(f"{prefix}{color}" for color in color_names)
+        curve_names = {"ToneCurve", "ToneCurvePV2012"}
+        curve_names.update(f"ToneCurve{color}" for color in ("Red", "Green", "Blue"))
+        curve_names.update(f"ToneCurvePV2012{color}" for color in ("Red", "Green", "Blue"))
+        supported.update(curve_names)
+
+        def parse_number(value, name):
+            try:
+                number = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid {name} value in XMP preset") from exc
+            if not math.isfinite(number):
+                raise ValueError(f"Non-finite {name} value in XMP preset")
+            lower, upper = self._scalar_ranges.get(name, (-100, 100))
+            if not lower <= number <= upper:
+                raise ValueError(f"{name} is outside the supported range [{lower}, {upper}]")
+            return number
+
+        def parse_curve(element):
+            seq = element.find(f".//{rdf_prefix}Seq")
+            if seq is None:
+                raise ValueError("Tone curve is missing an RDF sequence")
+            points = []
+            for entry in seq.findall(f"{rdf_prefix}li"):
+                values = (entry.text or "").split(",")
+                if len(values) != 2:
+                    raise ValueError("Tone curve points must contain X and Y values")
+                try:
+                    x, y = (float(value.strip()) for value in values)
+                except ValueError as exc:
+                    raise ValueError("Invalid tone curve point") from exc
+                if not (math.isfinite(x) and math.isfinite(y)):
+                    raise ValueError("Tone curve points must be finite")
+                if not (0 <= x <= 255 and 0 <= y <= 255):
+                    raise ValueError("Tone curve points must be between 0 and 255")
+                points.append((x, y))
+            points.sort(key=lambda point: point[0])
+            if len(points) < 2 or any(b[0] <= a[0] for a, b in zip(points, points[1:])):
+                raise ValueError("Tone curve needs at least two distinct X values")
+            return points
+
+        def parse_property(name, value, element=None):
+            if name in self._scalar_fields:
+                params[self._scalar_fields[name]] = parse_number(value, name)
+            elif name in curve_names:
+                if element is not None:
+                    target = "ToneCurve" if name in ("ToneCurve", "ToneCurvePV2012") else "ToneCurve" + name.split("Curve")[-1].replace("PV2012", "")
+                    params[target] = parse_curve(element)
+            else:
+                for prefix, target in (("HueAdjustment", "HSL_Hue"), ("SaturationAdjustment", "HSL_Sat"), ("LuminanceAdjustment", "HSL_Lum")):
+                    if name.startswith(prefix) and name[len(prefix):] in color_names:
+                        params[target][name[len(prefix):]] = parse_number(value, name)
+                        return
+
+        for desc in descriptions:
+            for key, value in desc.attrib.items():
+                if key.startswith(crs_prefix):
+                    name = key[len(crs_prefix):]
+                    if name in supported:
+                        parse_property(name, value)
+                    elif name not in self._metadata_fields:
+                        unsupported.add(name)
+            for child in desc:
+                if child.tag.startswith(crs_prefix):
+                    name = child.tag[len(crs_prefix):]
+                    if name in supported:
+                        parse_property(name, child.text, child)
+                    elif name not in self._metadata_fields:
+                        unsupported.add(name)
+        if unsupported:
+            stat = os.stat(file_path)
+            report_key = (file_path, stat.st_mtime_ns, stat.st_size)
+            if report_key not in self._reported_unsupported:
+                if len(self._reported_unsupported) >= 128:
+                    self._reported_unsupported.clear()
+                self._reported_unsupported.add(report_key)
+                print(f"[DINKIssTyle] XMP settings not applied in {os.path.basename(file_path)}: {', '.join(sorted(unsupported))}")
+        with self._parsed_cache_lock:
+            self._parsed_cache[cache_key] = copy.deepcopy(params)
+            while len(self._parsed_cache) > 32:
+                self._parsed_cache.popitem(last=False)
         return params
 
     def apply_hsl(self, img, p, device):
-        has_hsl = (len(p["HSL_Hue"]) + len(p["HSL_Sat"]) + len(p["HSL_Lum"])) > 0
+        has_hsl = any(
+            value != 0
+            for group in (p["HSL_Hue"], p["HSL_Sat"], p["HSL_Lum"])
+            for value in group.values()
+        )
         if not has_hsl: return img
 
         h, s, v = _rgb_to_hsv_torch(img)
@@ -215,16 +380,20 @@ class DINKI_adobe_xmp:
         v_new = torch.clamp(v * (1.0 + total_val_scale * protection_mask), 0.0, 1.0)
         return _hsv_to_rgb_torch(h_new, s_new, v_new)
 
-    def apply_preset(self, image, xmp_file, strength):
-        if not xmp_file or xmp_file == "-- None --": return (image,)
-        xmp_path = folder_paths.get_full_path("adobe_xmp", xmp_file)
-        if not xmp_path: return (image,)
-
-        p = self.parse_xmp(xmp_path)
+    def apply_preset(self, image, xmp_file, strength, grain_seed=0):
+        if strength <= 0 or not xmp_file or xmp_file == "-- None --":
+            return (image,)
+        if image.shape[-1] not in (3, 4):
+            raise ValueError("Adobe XMP expects an RGB or RGBA image")
+        p = self.parse_xmp(self._xmp_path(xmp_file))
         device = image.device
-        out = image.clone()
+        rgb = image[..., :3]
+        alpha = image[..., 3:4] if image.shape[-1] == 4 else None
+        out = rgb.clone()
 
-        if p["Exposure"] != 0: out = out * torch.pow(2.0, torch.tensor(p["Exposure"], device=device))
+        if p["Exposure"] != 0:
+            exposure = max(-10.0, min(10.0, p["Exposure"]))
+            out = _linear_to_srgb(_srgb_to_linear(out) * (2.0 ** exposure))
         if p["Contrast"] != 0:
             c_val = p["Contrast"] / 100.0
             scale = 1.0 + c_val if c_val > 0 else 1.0 / (1.0 - c_val)
@@ -233,33 +402,42 @@ class DINKI_adobe_xmp:
 
         if p["ToneCurve"]:
             lut = _calculate_pchip_lut(p["ToneCurve"])
-            lut_t = torch.from_numpy(lut).to(device)
+            lut_t = torch.from_numpy(lut).to(device=device, dtype=out.dtype)
             for c in range(3): out[..., c] = _apply_lut_torch(out[..., c], lut_t)
         for i, key in enumerate(["ToneCurveRed", "ToneCurveGreen", "ToneCurveBlue"]):
             if p[key]:
                 lut = _calculate_pchip_lut(p[key])
-                lut_t = torch.from_numpy(lut).to(device)
+                lut_t = torch.from_numpy(lut).to(device=device, dtype=out.dtype)
                 out[..., i] = _apply_lut_torch(out[..., i], lut_t)
         out = torch.clamp(out, 0.0, 1.0)
 
         out = self.apply_hsl(out, p, device)
 
         if p["Saturation"] != 0 or p["Vibrance"] != 0:
-            luma = 0.299 * out[..., 0] + 0.587 * out[..., 1] + 0.114 * out[..., 2]
-            luma = luma.unsqueeze(-1)
-            max_ch, _ = torch.max(out, dim=-1, keepdim=True); min_ch, _ = torch.min(out, dim=-1, keepdim=True)
-            curr_sat = max_ch - min_ch
-            sat_mul = 1.0 + (p["Saturation"] / 100.0)
-            vib_val = p["Vibrance"] / 100.0
-            vib_mul = 1.0 + (vib_val * (1.0 - curr_sat)) if vib_val >= 0 else 1.0 + vib_val
-            out = luma + (out - luma) * (sat_mul * vib_mul)
-            out = torch.clamp(out, 0.0, 1.0)
+            h, s, v = _rgb_to_hsv_torch(out)
+            skin_distance = torch.abs(h - 25.0 / 360.0)
+            skin_distance = torch.minimum(skin_distance, 1.0 - skin_distance)
+            skin_protection = (1.0 - skin_distance / (45.0 / 360.0)).clamp(0.0, 1.0)
+            skin_protection = skin_protection * ((s - 0.1) * 5.0).clamp(0.0, 1.0)
+            vibrance_weight = (1.0 - s) * (1.0 - 0.75 * skin_protection)
+            s = (s * (1.0 + p["Vibrance"] / 100.0 * vibrance_weight)).clamp(0.0, 1.0)
+            s = (s * (1.0 + p["Saturation"] / 100.0)).clamp(0.0, 1.0)
+            out = _hsv_to_rgb_torch(h, s, v).clamp(0.0, 1.0)
 
         if p["VignetteAmount"] != 0:
-            B, H, W, C = out.shape
-            y = torch.linspace(-1, 1, H, device=device); x = torch.linspace(-1, 1, W, device=device)
+            _, H, W, _ = out.shape
+            y = torch.linspace(-1, 1, H, device=device, dtype=out.dtype) if H > 1 else torch.zeros(1, device=device, dtype=out.dtype)
+            x = torch.linspace(-1, 1, W, device=device, dtype=out.dtype) if W > 1 else torch.zeros(1, device=device, dtype=out.dtype)
             mesh_y, mesh_x = torch.meshgrid(y, x, indexing='ij')
-            dist = torch.sqrt(mesh_x**2 + mesh_y**2)
+            roundness = max(-1.0, min(1.0, p["VignetteRoundness"] / 100.0))
+            circular_x = mesh_x * (W / max(min(H, W), 1))
+            circular_y = mesh_y * (H / max(min(H, W), 1))
+            shape_mix = max(roundness, 0.0)
+            radius_x = mesh_x * (1.0 - shape_mix) + circular_x * shape_mix
+            radius_y = mesh_y * (1.0 - shape_mix) + circular_y * shape_mix
+            if roundness < 0:
+                radius_x = radius_x * (1.0 + roundness * 0.5)
+            dist = torch.sqrt(radius_x**2 + radius_y**2)
             midpoint = p["VignetteMidpoint"] / 100.0
             dist_norm = torch.clamp((dist - midpoint) / (1.5 - midpoint + 1e-6), 0.0, 1.0)
             feather = p["VignetteFeather"] / 100.0
@@ -271,17 +449,23 @@ class DINKI_adobe_xmp:
 
         if p["GrainAmount"] > 0:
             amount = p["GrainAmount"] / 100.0; size = max(p["GrainSize"] / 100.0, 0.01)
-            noise = torch.randn_like(out)
+            generator = torch.Generator(device="cpu").manual_seed(int(grain_seed))
+            batch, height, width, _ = out.shape
             if size > 0.3:
                 down_factor = 1.0 / (1.0 + size * 2.0)
-                dH, dW = int(out.shape[1] * down_factor), int(out.shape[2] * down_factor)
-                small_noise = torch.randn((out.shape[0], 3, dH, dW), device=device)
-                noise = torch.nn.functional.interpolate(small_noise, size=(out.shape[1], out.shape[2]), mode='bilinear').permute(0, 2, 3, 1)
-            out = out + (noise * (amount * 0.15))
+                down_height = max(1, int(height * down_factor))
+                down_width = max(1, int(width * down_factor))
+                small_noise = torch.randn((batch, 1, down_height, down_width), generator=generator)
+                noise = F.interpolate(small_noise, size=(height, width), mode="bilinear", align_corners=False)
+                noise = noise.permute(0, 2, 3, 1)
+            else:
+                noise = torch.randn((batch, height, width, 1), generator=generator)
+            out = out + (noise.to(device=device, dtype=out.dtype) * (amount * 0.15))
             out = torch.clamp(out, 0.0, 1.0)
 
-        if strength < 1.0: out = torch.lerp(image, out, strength)
-        return (out,)
+        if strength < 1.0:
+            out = torch.lerp(rgb, out, strength)
+        return (torch.cat((out, alpha), dim=-1) if alpha is not None else out,)
 
 
 # ============================================================================
@@ -289,13 +473,15 @@ class DINKI_adobe_xmp:
 # ============================================================================
 
 class DINKI_Adobe_XMP_Preview(DINKI_adobe_xmp):
-    last_input_tensor = None
+    _preview_inputs = OrderedDict()
+    _preview_lock = threading.Lock()
+    _preview_limit = 8
 
     def __init__(self): super().__init__()
 
     @classmethod
     def INPUT_TYPES(s):
-        file_list = folder_paths.get_filename_list("adobe_xmp")
+        file_list = [name for name in folder_paths.get_filename_list("adobe_xmp") if name.lower().endswith(".xmp")]
         if not file_list: file_list = []
         file_list = ["-- None --"] + file_list
         return {
@@ -304,6 +490,9 @@ class DINKI_Adobe_XMP_Preview(DINKI_adobe_xmp):
                 "xmp_file": (file_list,),
                 "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
             },
+            "optional": {
+                "grain_seed": ("INT", {"default": 0, "min": 0, "max": 0x7fffffff}),
+            },
         }
 
     RETURN_TYPES = ("IMAGE",)
@@ -311,47 +500,62 @@ class DINKI_Adobe_XMP_Preview(DINKI_adobe_xmp):
     FUNCTION = "apply_preset_preview"
     CATEGORY = "DINKIssTyle/Color"
 
-    def apply_preset_preview(self, image, xmp_file, strength):
-        # Cache image
-        DINKI_Adobe_XMP_Preview.last_input_tensor = image[0:1].clone().cpu()
-        return self.apply_preset(image, xmp_file, strength)
+    def apply_preset_preview(self, image, xmp_file, strength, grain_seed=0):
+        result = self.apply_preset(image, xmp_file, strength, grain_seed)
+        source = image[:1].detach()
+        height, width = source.shape[1:3]
+        if max(height, width) > 1024:
+            scale = 1024 / max(height, width)
+            source = F.interpolate(
+                source.permute(0, 3, 1, 2),
+                size=(max(1, round(height * scale)), max(1, round(width * scale))),
+                mode="area",
+            ).permute(0, 2, 3, 1)
+        token = secrets.token_urlsafe(24)
+        with self._preview_lock:
+            self._preview_inputs[token] = source.to(device="cpu", dtype=torch.float32).clone()
+            while len(self._preview_inputs) > self._preview_limit:
+                self._preview_inputs.popitem(last=False)
+        return {"ui": {"preview_token": [token]}, "result": result}
 
-    @staticmethod
-    def process_preview(xmp_file, strength):
-        if DINKI_Adobe_XMP_Preview.last_input_tensor is None: return None
-        img = DINKI_Adobe_XMP_Preview.last_input_tensor
+    @classmethod
+    def process_preview(cls, token, xmp_file, strength, grain_seed=0):
+        with cls._preview_lock:
+            img = cls._preview_inputs.get(token)
+        if img is None:
+            return None
         node = DINKI_Adobe_XMP_Preview()
-        
-        result_tuple = node.apply_preset(img, xmp_file, strength)
+        result_tuple = node.apply_preset(img, xmp_file, strength, grain_seed)
         result_tensor = result_tuple[0]
 
         result_np = np.clip(255. * result_tensor.squeeze(0).numpy(), 0, 255).astype(np.uint8)
         pil_img = Image.fromarray(result_np)
         
-        max_size = 1024
-        if pil_img.width > max_size:
-            ratio = max_size / pil_img.width
-            new_height = int(pil_img.height * ratio)
-            pil_img = pil_img.resize((max_size, new_height), Image.BILINEAR)
-
         buff = io.BytesIO()
         pil_img.save(buff, format="PNG", compress_level=4)
         return buff.getvalue()
 
 @PromptServer.instance.routes.post("/dinki/preview_xmp")
 async def preview_xmp_route(request):
-    data = await request.json()
-    xmp_file = data.get("xmp_file")
-    strength = data.get("strength", 1.0)
-    
-    if DINKI_Adobe_XMP_Preview.last_input_tensor is None:
-        return web.Response(status=400, text="No cached image found. Please run the workflow once.")
-
-    img_bytes = DINKI_Adobe_XMP_Preview.process_preview(xmp_file, strength)
-    if img_bytes:
-        return web.Response(body=img_bytes, content_type='image/png')
-    else:
-        return web.Response(status=500, text="Processing failed")
+    try:
+        data = await request.json()
+        token = data.get("preview_token")
+        xmp_file = data.get("xmp_file")
+        strength = float(data.get("strength", 1.0))
+        grain_seed = int(data.get("grain_seed", 0))
+        if not isinstance(token, str) or not 0.0 <= strength <= 1.0 or not 0 <= grain_seed <= 0x7fffffff:
+            raise ValueError("Invalid XMP preview controls")
+        if xmp_file and xmp_file != "-- None --":
+            DINKI_Adobe_XMP_Preview._xmp_path(xmp_file)
+        img_bytes = await asyncio.to_thread(
+            DINKI_Adobe_XMP_Preview.process_preview,
+            token, xmp_file, strength, grain_seed,
+        )
+    except (ValueError, TypeError, OSError) as exc:
+        return web.Response(status=400, text=str(exc))
+    if img_bytes is None:
+        return web.Response(status=404, text="Preview expired. Run the node again.")
+    return web.Response(body=img_bytes, content_type="image/png")
 
 
 # ============================================================================
@@ -491,7 +695,26 @@ class DINKI_Auto_Adjustment:
         gamma = torch.log(target_mean + 1e-6) / torch.log(curr_mean + 1e-6)
         gamma = torch.clamp(gamma, 0.5, 2.0)
         gamma = torch.where(mask, gamma, torch.ones_like(gamma))
-        return torch.pow(src.clamp(min=1e-6), gamma)
+        return torch.pow(src.clamp(0.0, 1.0), gamma)
+
+    def _sample_luma(self, image):
+        luma = self._get_luma(image)
+        height, width = luma.shape[1:3]
+        if max(height, width) > 512:
+            scale = 512 / max(height, width)
+            luma = F.interpolate(
+                luma.permute(0, 3, 1, 2),
+                size=(max(1, round(height * scale)), max(1, round(width * scale))),
+                mode="area",
+            ).permute(0, 2, 3, 1)
+        sampled = luma.reshape(luma.shape[0], -1).float()
+        # MPS quantile has had correctness and interpolation issues; statistics are small.
+        return sampled.cpu() if sampled.device.type == "mps" else sampled
+
+    def _remap_luma(self, image, target_luma):
+        luma = self._get_luma(image)
+        ratio = torch.where(luma > 1e-6, target_luma / luma.clamp_min(1e-6), 1.0)
+        return (image * ratio).clamp(0.0, 1.0)
 
     def _apply_skin_tone(self, img):
         r, g, b = img[..., 0], img[..., 1], img[..., 2]
@@ -499,14 +722,17 @@ class DINKI_Auto_Adjustment:
         cb = (b - y) / 1.8556; cr = (r - y) / 1.5748
         
         dist = torch.sqrt((cb + 0.10)**2 + (cr - 0.10)**2)
-        skin_weight = torch.exp(-dist**2 / (2 * 0.05**2))
+        saturation = (img.max(dim=-1).values - img.min(dim=-1).values) / img.max(dim=-1).values.clamp_min(1e-6)
+        brightness_mask = ((y - 0.08) / 0.12).clamp(0.0, 1.0) * ((0.98 - y) / 0.12).clamp(0.0, 1.0)
+        saturation_mask = ((saturation - 0.08) / 0.12).clamp(0.0, 1.0) * ((0.85 - saturation) / 0.15).clamp(0.0, 1.0)
+        skin_weight = torch.exp(-dist**2 / (2 * 0.05**2)) * brightness_mask * saturation_mask
         
         sum_weight = torch.sum(skin_weight, dim=(1, 2), keepdim=True) + 1e-6
         mean_cb = torch.sum(cb * skin_weight, dim=(1, 2), keepdim=True) / sum_weight
         mean_cr = torch.sum(cr * skin_weight, dim=(1, 2), keepdim=True) / sum_weight
         
         curr_angle = torch.atan2(mean_cr, mean_cb)
-        target_angle = torch.tensor(2.18, device=img.device)
+        target_angle = 2.18
         delta_theta = torch.clamp(target_angle - curr_angle, -0.26, 0.26)
         
         sin_theta = torch.sin(delta_theta); cos_theta = torch.cos(delta_theta)
@@ -516,17 +742,33 @@ class DINKI_Auto_Adjustment:
         r_new = y + 1.5748 * cr_new
         g_new = y - 0.1873 * cb_new - 0.4681 * cr_new
         b_new = y + 1.8556 * cb_new
-        return torch.clamp(torch.stack([r_new, g_new, b_new], dim=-1), 0.0, 1.0)
+        corrected = torch.stack([r_new, g_new, b_new], dim=-1).clamp(0.0, 1.0)
+        confidence = skin_weight.mean(dim=(1, 2), keepdim=True)
+        confidence = torch.where(confidence >= 0.01, (confidence / 0.03).clamp(0.0, 1.0), 0.0)
+        blend = (skin_weight * confidence).unsqueeze(-1)
+        return torch.lerp(img, corrected, blend)
 
     def apply(self, image, enable_auto_tone, enable_auto_contrast, enable_auto_color, enable_skin_tone, clip_percent, strength):
+        if strength <= 0:
+            return (image,)
+        if image.shape[-1] not in (3, 4):
+            raise ValueError("Auto Adjust expects an RGB or RGBA image")
         rgb = image[..., :3]; alpha = image[..., 3:4] if image.shape[-1] == 4 else None
         out = rgb.clone()
 
         if enable_auto_color:
             luma = self._get_luma(out)
-            weight = torch.exp(-torch.pow(luma - 0.5, 2) / (2 * 0.25**2))
-            mean_rgb = torch.sum(out * weight, dim=(1, 2), keepdim=True) / (torch.sum(weight, dim=(1, 2), keepdim=True) + 1e-6)
+            max_ch = out.max(dim=-1, keepdim=True).values
+            min_ch = out.min(dim=-1, keepdim=True).values
+            saturation = (max_ch - min_ch) / max_ch.clamp_min(1e-6)
+            neutral_weight = ((0.4 - saturation) / 0.25).clamp(0.0, 1.0)
+            weight = torch.exp(-torch.pow(luma - 0.5, 2) / (2 * 0.25**2)) * neutral_weight
+            total_weight = torch.sum(weight, dim=(1, 2), keepdim=True)
+            mean_rgb = torch.sum(out * weight, dim=(1, 2), keepdim=True) / total_weight.clamp_min(1e-6)
             gains = torch.clamp(torch.mean(mean_rgb, dim=-1, keepdim=True) / (mean_rgb + 1e-6), 0.8, 1.25)
+            confidence = (total_weight / (out.shape[1] * out.shape[2] * 0.1)).clamp(0.0, 1.0)
+            confidence = torch.where(total_weight >= out.shape[1] * out.shape[2] * 0.02, confidence, 0.0)
+            gains = 1.0 + confidence * (gains - 1.0)
             out = torch.clamp(out * gains, 0.0, 1.0)
 
         if enable_skin_tone: out = self._apply_skin_tone(out)
@@ -535,16 +777,25 @@ class DINKI_Auto_Adjustment:
             cp = clip_percent / 100.0
             orig_mean = torch.mean(out, dim=(1, 2, 3), keepdim=True)
             if enable_auto_tone:
-                flat = out.view(out.shape[0], -1, 3)
-                lows = torch.quantile(flat, cp, dim=1, keepdim=True).view(out.shape[0], 1, 1, 3)
-                highs = torch.quantile(flat, 1.0 - cp, dim=1, keepdim=True).view(out.shape[0], 1, 1, 3)
-                out = torch.clamp((out - lows) / torch.maximum(highs - lows, torch.tensor(1e-5, device=out.device)), 0, 1)
-                out = self._match_brightness_gamma(out, orig_mean)
+                sampled = self._sample_luma(out)
+                median = torch.quantile(sampled, 0.5, dim=1).reshape(out.shape[0], 1, 1, 1).to(out.device)
+                valid = (median > 0.01) & (median < 0.99)
+                gamma = (math.log(0.5) / torch.log(median.clamp(0.01, 0.99))).clamp(0.5, 2.0)
+                target_luma = self._get_luma(out).clamp(0.0, 1.0).pow(gamma.to(out.dtype))
+                adjusted = self._remap_luma(out, target_luma)
+                out = torch.where(valid, adjusted, out)
             if enable_auto_contrast:
-                luma_flat = self._get_luma(out).view(out.shape[0], -1)
-                lo = torch.quantile(luma_flat, cp, dim=1, keepdim=True).view(out.shape[0], 1, 1, 1)
-                hi = torch.quantile(luma_flat, 1.0 - cp, dim=1, keepdim=True).view(out.shape[0], 1, 1, 1)
-                out = torch.clamp((out - lo) / torch.maximum(hi - lo, torch.tensor(1e-5, device=out.device)), 0, 1)
+                sampled = self._sample_luma(out)
+                levels = torch.quantile(
+                    sampled, torch.tensor([cp, 1.0 - cp], device=sampled.device), dim=1,
+                )
+                lo = levels[0].reshape(out.shape[0], 1, 1, 1).to(device=out.device, dtype=out.dtype)
+                hi = levels[1].reshape(out.shape[0], 1, 1, 1).to(device=out.device, dtype=out.dtype)
+                valid = (hi - lo) > 1e-4
+                luma = self._get_luma(out)
+                target_luma = ((luma - lo) / (hi - lo).clamp_min(1e-4)).clamp(0.0, 1.0)
+                adjusted = self._remap_luma(out, target_luma)
+                out = torch.where(valid, adjusted, out)
                 out = self._match_brightness_gamma(out, orig_mean)
 
         if strength < 1.0: out = torch.lerp(rgb, out, strength)
