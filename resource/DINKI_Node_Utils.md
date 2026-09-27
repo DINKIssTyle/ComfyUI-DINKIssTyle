@@ -73,6 +73,9 @@ Perfect for creating "Control Panels" in complex workflows, allowing you to turn
 
 Switch between two groups of nodes using comma-separated IDs in `node_ids_1`
 and `node_ids_2` (for example, `5, 12, 44`).
+Only the `active` switch is shown by default. Use ComfyUI's **Show advanced inputs**
+control to edit the node IDs, disable mode, and toggle labels; collapse it again
+to keep just the switch visible. The advanced values remain in the workflow.
 
 * **Group 1 / On:** Enable group 1 and disable group 2.
 * **Group 2 / Off:** Disable group 1 and enable group 2.

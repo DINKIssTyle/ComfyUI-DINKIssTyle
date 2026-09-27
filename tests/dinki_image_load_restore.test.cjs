@@ -69,6 +69,8 @@ test('pasted Image Load preview retains its temp source after tab reconstruction
     await new Promise(resolve => setImmediate(resolve));
 
     assert.equal(node.widgets[2].value, 'temp');
+    assert.equal(node.widgets[2].hidden, true);
+    assert.equal(node.widgets.find(widget => widget.name === 'image').hidden, true);
     assert.equal(node.widgets[1].value, 'DKST_Paste_saved.png');
     assert.deepEqual(Array.from(node.widgets[1].options.values),
         ['DKST_Paste_saved.png', 'ordinary.png']);

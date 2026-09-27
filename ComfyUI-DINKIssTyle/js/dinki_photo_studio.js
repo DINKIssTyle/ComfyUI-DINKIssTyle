@@ -201,7 +201,8 @@ app.registerExtension({
             const serializable = this.widgets?.filter(widget =>
                 widget.name === "active" || widget.name === "preset" ||
                 /^(light|color|effects|detail|optics|lens_blur|depth_near_is_white|grain_seed)/.test(widget.name)) ?? [];
-            const named = info?.dkst_photo_settings ?? info?.widgets_values_named;
+            const named = info?.properties?.dkstPhotoStudioSettings ??
+                info?.dkst_photo_settings ?? info?.widgets_values_named;
             if (named && typeof named === "object" && !Array.isArray(named)) {
                 for (const widget of serializable) {
                     if (Object.hasOwn(named, widget.name)) widget.value = named[widget.name];
@@ -234,7 +235,13 @@ app.registerExtension({
         nodeType.prototype.onSerialize = function (info) {
             const result = originalSerialize?.apply(this, arguments);
             if (info) {
-                info.dkst_photo_settings = Object.fromEntries((this.widgets ?? [])
+                // ComfyUI versions that leave null holes for serialize:false
+                // widgets read those same arrays back as compacted values.
+                if (Array.isArray(info.widgets_values)) {
+                    info.widgets_values = info.widgets_values.filter(value => value != null);
+                }
+                info.properties ??= {};
+                info.properties.dkstPhotoStudioSettings = Object.fromEntries((this.widgets ?? [])
                     .filter(widget => widget.name === "active" || widget.name === "preset" ||
                         /^(light|color|effects|detail|optics|lens_blur|depth_near_is_white|grain_seed)/.test(widget.name))
                     .map(widget => [widget.name, widget.value]));

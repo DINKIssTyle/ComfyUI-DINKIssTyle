@@ -1933,7 +1933,8 @@ app.registerExtension({
 app.registerExtension({
     name: "DINKI.ImageLoad",
     async beforeRegisterNodeDef(nodeType, nodeData) {
-        if (nodeData.name !== "DINKI_Image_Load") return;
+        if (!["DINKI_Image_Load", "DINKI_Image_Load_Crop"].includes(nodeData.name)) return;
+        const combinedCrop = nodeData.name === "DINKI_Image_Load_Crop";
 
         const onNodeCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function() {
@@ -1945,6 +1946,7 @@ app.registerExtension({
             if (!categoryWidget || !filenameWidget || !sourceTypeWidget) return result;
 
             sourceTypeWidget.type = "converted-widget";
+            sourceTypeWidget.hidden = true;
             sourceTypeWidget.computeSize = () => [0, -4];
 
             const previewContainer = document.createElement("div");
@@ -1987,7 +1989,7 @@ app.registerExtension({
             });
             previewContainer.append(previewElement, resolutionElement);
 
-            if (typeof node.addDOMWidget === "function") {
+            if (!combinedCrop && typeof node.addDOMWidget === "function") {
                 const previewWidget = node.addDOMWidget(
                     "dkst_image_preview",
                     "DKST_IMAGE_PREVIEW",
@@ -2028,6 +2030,7 @@ app.registerExtension({
                 if (!filename) {
                     node.dkstLoadedImage = null;
                     node.dkstImageResolution = "";
+                    node.dkstCropSourcePreview?.(null);
                     previewElement.removeAttribute("src");
                     resolutionElement.textContent = "";
                     previewContainer.style.display = "none";
@@ -2046,6 +2049,8 @@ app.registerExtension({
                     if (generation !== previewGeneration) return;
                     node.dkstLoadedImage = image;
                     node.dkstImageResolution = `${image.naturalWidth} × ${image.naturalHeight}`;
+                    node.dkstCropSourcePreview?.(image,
+                        `${sourceTypeWidget.value}:${categoryWidget.value}:${filename}`);
                     previewElement.src = image.src;
                     resolutionElement.textContent = node.dkstImageResolution;
                     previewContainer.style.display = "flex";
@@ -2054,6 +2059,7 @@ app.registerExtension({
                 image.onerror = () => {
                     if (generation !== previewGeneration) return;
                     node.dkstLoadedImage = null;
+                    node.dkstCropSourcePreview?.(null);
                     node.dkstImageResolution = "Unable to preview image";
                     previewElement.removeAttribute("src");
                     resolutionElement.textContent = node.dkstImageResolution;
@@ -2129,6 +2135,7 @@ app.registerExtension({
             // Keep this bridge out of the visible controls and prompt inputs.
             const editorWidget = node.addWidget("combo", "image", "", () => {}, { values: [] });
             editorWidget.type = "converted-widget";
+            editorWidget.hidden = true;
             editorWidget.computeSize = () => [0, -4];
             editorWidget.serialize = false;
             editorWidget.options.serialize = false;
@@ -2189,6 +2196,23 @@ app.registerExtension({
             };
 
             let closeImageMenu = () => {};
+            const openMaskEditor = () => {
+                if (typeof ComfyApp.open_maskeditor !== "function") {
+                    throw new Error("ComfyUI mask editor is unavailable.");
+                }
+                const descriptor = {
+                    filename: filenameWidget.value,
+                    subfolder: sourceTypeWidget.value === "temp" ? "" : (categoryWidget.value || ""),
+                    type: sourceTypeWidget.value || "input",
+                };
+                editorValue = `${descriptor.subfolder ? descriptor.subfolder + "/" : ""}${descriptor.filename} [${descriptor.type}]`;
+                node.imgs = [node.dkstLoadedImage];
+                node.imageIndex = 0;
+                ComfyApp.copyToClipspace(node);
+                ComfyApp.clipspace.images = [descriptor];
+                ComfyApp.clipspace_return_node = node;
+                ComfyApp.open_maskeditor();
+            };
             for (const eventName of ["pointerdown", "mousedown"]) {
                 previewElement.addEventListener(eventName, event => {
                     if (event.button === 2) event.stopPropagation();
@@ -2233,23 +2257,7 @@ app.registerExtension({
                 addAction("Upload Image", openImageFilePicker);
                 addAction("Paste Image", () => pasteImageFromClipboard(node));
                 addAction("Open Image", () => window.open(node.dkstLoadedImage.src, "_blank", "noopener,noreferrer"));
-                addAction("Open Mask Editor", () => {
-                    if (typeof ComfyApp.open_maskeditor !== "function") {
-                        throw new Error("ComfyUI mask editor is unavailable.");
-                    }
-                    const descriptor = {
-                        filename: filenameWidget.value,
-                        subfolder: sourceTypeWidget.value === "temp" ? "" : (categoryWidget.value || ""),
-                        type: sourceTypeWidget.value || "input",
-                    };
-                    editorValue = `${descriptor.subfolder ? descriptor.subfolder + "/" : ""}${descriptor.filename} [${descriptor.type}]`;
-                    node.imgs = [node.dkstLoadedImage];
-                    node.imageIndex = 0;
-                    ComfyApp.copyToClipspace(node);
-                    ComfyApp.clipspace.images = [descriptor];
-                    ComfyApp.clipspace_return_node = node;
-                    ComfyApp.open_maskeditor();
-                });
+                addAction("Open Mask Editor", openMaskEditor);
                 document.body.appendChild(menu);
                 document.addEventListener("pointerdown", dismiss, true);
                 document.addEventListener("keydown", escape, true);
@@ -2324,6 +2332,11 @@ app.registerExtension({
                 const result = extraMenu?.apply(this, arguments);
                 options.push({ content: "Upload Image", callback: openImageFilePicker });
                 options.push(clipboardMenuAction("Paste Image", () => pasteImageFromClipboard(node)));
+                if (combinedCrop && node.dkstLoadedImage) {
+                    options.push({ content: "Open Image", callback: () =>
+                        window.open(node.dkstLoadedImage.src, "_blank", "noopener,noreferrer") });
+                    options.push({ content: "Open Mask Editor", callback: openMaskEditor });
+                }
                 return result;
             };
 
@@ -2391,7 +2404,7 @@ app.registerExtension({
             if (activeElement?.matches?.("input, textarea, [contenteditable='true']")) return;
 
             const selected = Object.values(app.canvas?.selected_nodes || {}).find(
-                (node) => node.comfyClass === "DINKI_Image_Load",
+                (node) => ["DINKI_Image_Load", "DINKI_Image_Load_Crop"].includes(node.comfyClass),
             );
             if (!selected?.dkstUploadClipboardImage) return;
 

@@ -301,6 +301,13 @@ class PhotoStudioTests(unittest.TestCase):
         raw = self.module["_prepare_depth"](depth, rgb, True, 0, 2.0)
         smooth = self.module["_prepare_depth"](depth, rgb, True, 5, 2.0)
         self.assertTrue(torch.equal(raw, depth.permute(0, 3, 1, 2)))
+        axis = torch.linspace(-1, 1, 11)
+        yy, xx = torch.meshgrid(axis, axis, indexing="ij")
+        kernel = torch.exp(-(xx.square() + yy.square()) / (2 * 2.0 ** 2))
+        kernel = (kernel / kernel.sum()).view(1, 1, 11, 11)
+        reference = torch.nn.functional.conv2d(
+            torch.nn.functional.pad(raw, (5, 5, 5, 5), mode="reflect"), kernel)
+        self.assertTrue(torch.allclose(smooth, reference, atol=1e-6))
         self.assertLess(float(smooth[0, 0, 16, 15]), 1)
         self.assertGreater(float(smooth[0, 0, 16, 16]), 0)
         response = self.node.execute(image, active=False, depth_image=depth)

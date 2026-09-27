@@ -129,6 +129,14 @@ test("loading presets keeps workflow widget values until selection", async () =>
     assert.equal(node.widgets.find(widget => widget.name === "lens_blur_apply").label, "Apply");
     assert.equal(node.widgets.find(widget => widget.name === "lens_blur_aperture_blades").label,
         "Aperture Blades");
+    assert.equal(node.widgets.find(widget => widget.name === "lens_blur_depth_blur_radius").label,
+        "Depth Blur Radius");
+    assert.equal(node.widgets.find(widget => widget.name === "lens_blur_depth_sigma").label,
+        "Depth Sigma");
+    assert.ok(node.widgets.findIndex(widget => widget.name === "lens_blur_bokeh_boost") <
+        node.widgets.findIndex(widget => widget.name === "lens_blur_depth_blur_radius"));
+    assert.ok(node.widgets.findIndex(widget => widget.name === "lens_blur_depth_blur_radius") <
+        node.widgets.findIndex(widget => widget.name === "lens_blur_depth_sigma"));
     assert.ok(node.widgets.filter(widget => widget.type === "dkst_photo_section").every(widget => widget.serialize === false));
     assert.equal(exposure.value, 0.4);
     preset.callback("Portrait");
@@ -204,7 +212,8 @@ test("workflow reload restores named control values despite widget placeholders"
     const info = { widgets_values: node.widgets.map(widget =>
         widget.serialize === false ? null : widget.value) };
     nodeType.prototype.onSerialize.call(node, info);
-    assert.equal(info.dkst_photo_settings.lens_blur_focus, 0.73);
+    assert.equal(info.properties.dkstPhotoStudioSettings.lens_blur_focus, 0.73);
+    assert.ok(info.widgets_values.every(value => value !== null));
     get("light_exposure").value = 0;
     get("lens_blur_focus").value = 0.5;
     get("lens_blur_depth_blur_radius").value = 5;

@@ -18,6 +18,16 @@ Select an image from the ComfyUI input folder, upload a file, or paste an image 
 
 ---
 
+## ✂️ DKST Image (Load & Crop)
+
+Select a `category` and `filename` as in **DKST Image (Load)**. The source image appears in the crop canvas as soon as it loads; a workflow run is not required to position the crop box. Choose `Original`, a preset `aspect_ratio`, or `Custom` with two ratio numbers. Drag inside the box to move it or drag a corner to resize it while preserving the selected ratio.
+
+The `image`, `mask`, and `alpha` outputs contain the same cropped region, resized to the dimensions selected by `resolution_multiple` (4, 8, 16, or 32) and `megapixels` (1MP to 4MP). The crop canvas shows the region's size in source pixels; the output image uses the selected target size. Here, 1MP targets 1024 × 1024 pixels for a square crop (about 1.05 million pixels), with each dimension rounded to the selected multiple. Resizing uses antialiased interpolation for images and alpha, and `mask` remains the inverse of alpha.
+
+Upload, paste, drag and drop, and the mask editor remain available through the node menu. The crop preview refreshes when another file is selected and on each queued run.
+
+---
+
 
 ## 🌓 DKST Image (Image comparison tool)
 
@@ -33,6 +43,18 @@ The comparison is an output node and saves three temporary PNG previews (two ali
 The node has no `IMAGE` output; use its preview to inspect the two inputs.
 
 Right-click the comparison preview for `Mode: Slide`, `Mode: Difference`, `Open Image 1`, `Save Image 1`, `Open Image 2`, and `Save Image 2`. The image actions use the aligned temporary previews produced by the last run. Mode changes also update the node's `mode` widget.
+
+---
+
+## ✂️ DKST Image (Crop)
+
+Connect an `IMAGE` and run the node once to show the input in its crop preview. Choose `Original`, a preset aspect ratio, or `Custom` with two numbers such as `4 : 5`. Changing the ratio starts with the largest centered crop that fits the source.
+
+The node refreshes its input preview on each queued run, including when the source image changes. It can run as a preview endpoint even when its `IMAGE` output is not connected downstream.
+
+Drag inside the rectangle to move it. Drag a corner to resize it while keeping the selected aspect ratio. The rectangle stays inside the input image. Its normalized coordinates are saved with the workflow. Run the workflow again after editing to output the crop.
+
+The node crops pixels without resizing. The same crop is applied to every image in an input batch; the preview shows the first image. RGB and RGBA inputs are supported. A preview from a prior run can be restored when reopening the workflow, while the saved crop coordinates remain the source of truth.
 
 ---
 

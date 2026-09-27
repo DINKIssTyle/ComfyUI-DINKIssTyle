@@ -41,14 +41,18 @@ class DINKI_Node_Change:
     def INPUT_TYPES(cls):
         return {"required": {
             "node_ids_1": ("STRING", {"default": "", "multiline": False,
-                                      "tooltip": "Group 1 node IDs, separated by commas."}),
+                                      "tooltip": "Group 1 node IDs, separated by commas.",
+                                      "advanced": True}),
             "node_ids_2": ("STRING", {"default": "", "multiline": False,
-                                      "tooltip": "Group 2 node IDs, separated by commas."}),
+                                      "tooltip": "Group 2 node IDs, separated by commas.",
+                                      "advanced": True}),
             "active": ("BOOLEAN", {"default": True, "label_on": "Group 1",
                                    "label_off": "Group 2"}),
-            "disable_mode": (["Bypass", "Mute"], {"default": "Bypass"}),
-            "group_1_label": ("STRING", {"default": "Group 1", "multiline": False, "dynamicPrompts": False}),
-            "group_2_label": ("STRING", {"default": "Group 2", "multiline": False, "dynamicPrompts": False}),
+            "disable_mode": (["Bypass", "Mute"], {"default": "Bypass", "advanced": True}),
+            "group_1_label": ("STRING", {"default": "Group 1", "multiline": False,
+                                         "dynamicPrompts": False, "advanced": True}),
+            "group_2_label": ("STRING", {"default": "Group 2", "multiline": False,
+                                         "dynamicPrompts": False, "advanced": True}),
         }}
 
     RETURN_TYPES = ()

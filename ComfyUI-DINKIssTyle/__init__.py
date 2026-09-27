@@ -101,7 +101,9 @@ from .dinki_depth_parallax import DINKI_DepthParallax_MOV
 from .dinki_text import DINKI_Text_Note, DINKI_Text_Multiline, DINKI_Text_Concatenate, DINKI_Text_Split
 from .dinki_preview import DINKI_Preview_Image
 from .dinki_image_comparison import DINKI_Image_Comparison
+from .dinki_image_crop import DINKI_Image_Crop
 from .dinki_load import DINKI_Image_Load
+from .dinki_load_crop import DINKI_Image_Load_Crop
 from . import dinki_monitor  # Register host telemetry endpoint.
 
 
@@ -184,7 +186,9 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Text_Split": DINKI_Text_Split,
     "DINKI_Preview_Image": DINKI_Preview_Image,
     "DINKI_Image_Comparison": DINKI_Image_Comparison,
+    "DINKI_Image_Crop": DINKI_Image_Crop,
     "DINKI_Image_Load": DINKI_Image_Load,
+    "DINKI_Image_Load_Crop": DINKI_Image_Load_Crop,
 
 
 }
@@ -256,7 +260,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Text_Split": "DKST Text (Split)",
     "DINKI_Preview_Image": "DKST Image (Viewer)",
     "DINKI_Image_Comparison": "DKST Image (Image comparison tool)",
+    "DINKI_Image_Crop": "DKST Image (Crop)",
     "DINKI_Image_Load": "DKST Image (Load)",
+    "DINKI_Image_Load_Crop": "DKST Image (Load & Crop)",
 
 
 }

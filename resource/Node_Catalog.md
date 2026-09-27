@@ -2,7 +2,7 @@
 
 [Home](../README.md)
 
-51 nodes across 9 categories. Display names use `DKST Category (Function)`.
+53 nodes across 9 categories. Display names use `DKST Category (Function)`.
 Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` is now `DINKIssTyle/Util`.
 
 Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · [LM Studio](DINKI_LM_Studio_Assistant.md) · [Processing](DINKI_PS.md) · [Prompts and Text](DINKI_Prompt_and_String.md) · [Utilities](DINKI_Node_Utils.md) · [Video and Player](DINKI_Video_Tools.md). [System Monitor](DKST_System_Monitor.md) is a frontend feature and does not register a workflow node.
@@ -18,9 +18,11 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Color` | DKST Color (Photo Studio) | `DINKI_Photo_Studio` |
 | `DINKIssTyle/Color` | DKST Color (XMP Preview) | `DINKI_Adobe_XMP_Preview` |
 | `DINKIssTyle/Image` | DKST Image (Batch) | `DINKI_BatchImages` |
+| `DINKIssTyle/Image` | DKST Image (Crop) | `DINKI_Image_Crop` |
 | `DINKIssTyle/Image` | DKST Image (Grid) | `DINKI_Grid` |
 | `DINKIssTyle/Image` | DKST Image (Image comparison tool) | `DINKI_Image_Comparison` |
 | `DINKIssTyle/Image` | DKST Image (Load) | `DINKI_Image_Load` |
+| `DINKIssTyle/Image` | DKST Image (Load & Crop) | `DINKI_Image_Load_Crop` |
 | `DINKIssTyle/Image` | DKST Image (Overlay) | `DINKI_Overlay` |
 | `DINKIssTyle/Image` | DKST Image (Photo Specs) | `DINKI_photo_specifications` |
 | `DINKIssTyle/Image` | DKST Image (Resize) | `DINKI_Image_Resize` |

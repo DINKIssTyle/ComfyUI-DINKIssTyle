@@ -50,8 +50,8 @@ CONTROLS = {
     "lens_blur_bokeh": ("float", 4.0, 0.1, 30.0, 0.1),
     "lens_blur_aperture_blades": ("int", 9, 5, 18, 1),
     "lens_blur_bokeh_boost": ("float", 0.0, 0.0, 100.0, 1.0),
-    "lens_blur_depth_blur_radius": ("int", 5, 0, 32, 1),
-    "lens_blur_depth_sigma": ("float", 2.0, 0.1, 20.0, 0.1),
+    "lens_blur_depth_blur_radius": ("int", 5, 0, 31, 1),
+    "lens_blur_depth_sigma": ("float", 2.0, 0.1, 10.0, 0.1),
     "depth_near_is_white": ("bool", True),
     "grain_seed": ("int", 0, 0, 2147483647, 1),
 }
@@ -72,7 +72,7 @@ TOOLTIPS = {
     "lens_blur_aperture_blades": "Number of straight aperture blades. Changes the shape of out-of-focus highlights.",
     "lens_blur_bokeh_boost": "Brightens out-of-focus highlights.",
     "lens_blur_depth_blur_radius": "Gaussian blur radius for the depth map. Zero disables depth smoothing.",
-    "lens_blur_depth_sigma": "Gaussian sigma for smoothing depth boundaries before Lens Blur.",
+    "lens_blur_depth_sigma": "Gaussian sigma for depth boundaries, using the Blur Image node's kernel scale.",
 }
 
 
@@ -131,6 +131,21 @@ def _gaussian_blur(image, radius, sigma):
     return F.conv2d(F.pad(image, (0, 0, radius, radius), mode="replicate"), vertical, groups=channels)
 
 
+def _depth_blur(image, radius, sigma):
+    """Match ComfyUI Blur Image's normalized Gaussian kernel on a depth map."""
+    if radius <= 0:
+        return image
+    coords = torch.linspace(-1, 1, radius * 2 + 1,
+                            device=image.device, dtype=image.dtype)
+    kernel = torch.exp(-0.5 * (coords / sigma).square())
+    kernel = kernel / kernel.sum()
+    mode = "reflect" if min(image.shape[-2:]) > radius else "replicate"
+    image = F.conv2d(F.pad(image, (radius, radius, 0, 0), mode=mode),
+                     kernel.view(1, 1, 1, -1))
+    return F.conv2d(F.pad(image, (0, 0, radius, radius), mode=mode),
+                    kernel.view(1, 1, -1, 1))
+
+
 def _luminance(rgb):
     return (rgb * rgb.new_tensor([0.2126, 0.7152, 0.0722]).view(1, 3, 1, 1)).sum(1, keepdim=True)
 
@@ -174,7 +189,7 @@ def _prepare_depth(depth_image, rgb, near_is_white, blur_radius=0, sigma=2.0):
     if not torch.isfinite(depth).all():
         raise ValueError("depth_image contains non-finite values")
     depth = depth.permute(0, 3, 1, 2)
-    depth = _gaussian_blur(depth, blur_radius, sigma)
+    depth = _depth_blur(depth, blur_radius, sigma)
     if batch > 1 and depth.shape[0] == 1:
         depth = depth.expand(batch, -1, -1, -1)
     if (dh, dw) != (height, width):
@@ -238,7 +253,7 @@ def _depth_preview(depth_image, blur_radius=0, sigma=2.0):
     depth = depth_image[:1, ..., :3].detach().float().mean(-1, keepdim=True)
     if not torch.isfinite(depth).all():
         return None
-    depth = _gaussian_blur(depth.permute(0, 3, 1, 2), blur_radius, sigma).permute(0, 2, 3, 1)
+    depth = _depth_blur(depth.permute(0, 3, 1, 2), blur_radius, sigma).permute(0, 2, 3, 1)
     height, width = depth.shape[1:3]
     if min(height, width) < 1:
         return None
