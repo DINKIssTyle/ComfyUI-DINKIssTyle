@@ -1,12 +1,5 @@
 import { app } from "../../scripts/app.js";
 
-const SLIDER_MIN = -3;
-const SLIDER_MAX = 3;
-
-function sliderValue(strength) {
-    return String(Math.max(SLIDER_MIN, Math.min(SLIDER_MAX, strength)));
-}
-
 function element(tag, styles = {}) {
     const item = document.createElement(tag);
     Object.assign(item.style, styles);
@@ -109,19 +102,40 @@ app.registerExtension({
                             changed();
                         });
                         toggleLabel.append(toggle, document.createTextNode("On"));
-                        const slider = element("input", { flex: "1 1 auto", minWidth: "0", cursor: "pointer" });
-                        slider.type = "range";
-                        slider.min = String(SLIDER_MIN);
-                        slider.max = String(SLIDER_MAX);
-                        slider.step = "0.01";
-                        slider.value = sliderValue(row.strength_model);
-                        slider.title = "strength_model slider (-3 to 3)";
-                        slider.setAttribute("aria-label", `LoRA ${index + 1} strength_model slider`);
-                        slider.addEventListener("input", () => {
-                            row.strength_model = Math.max(SLIDER_MIN, Math.min(SLIDER_MAX, Number(slider.value)));
-                            strength.value = String(row.strength_model);
-                            changed();
+                        const order = element("div", {
+                            display: "flex", flex: "1 1 auto", minWidth: "0", gap: "5px",
                         });
+                        for (const [direction, offset, symbol] of [
+                            ["up", -1, "↑"], ["down", 1, "↓"],
+                        ]) {
+                            const move = element("button", {
+                                ...controlStyle, flex: "1 1 0", minWidth: "0", cursor: "pointer",
+                                fontSize: "16px", lineHeight: "20px",
+                            });
+                            move.type = "button";
+                            move.textContent = symbol;
+                            move.title = `Move LoRA ${direction}`;
+                            move.setAttribute("aria-label", `Move LoRA ${index + 1} ${direction}`);
+                            move.disabled = index + offset < 0 || index + offset >= rows.length;
+                            if (move.disabled) {
+                                move.style.cursor = "default";
+                                move.style.opacity = "0.4";
+                            }
+                            move.addEventListener("click", () => {
+                                const target = index + offset;
+                                if (target < 0 || target >= rows.length) return;
+                                [rows[index], rows[target]] = [rows[target], rows[index]];
+                                render();
+                                const movedButton = root.querySelector?.(
+                                    `[aria-label="Move LoRA ${target + 1} ${direction}"]`);
+                                const opposite = direction === "up" ? "down" : "up";
+                                const fallback = root.querySelector?.(
+                                    `[aria-label="Move LoRA ${target + 1} ${opposite}"]`);
+                                (movedButton?.disabled ? fallback : movedButton)?.focus?.();
+                                changed();
+                            });
+                            order.appendChild(move);
+                        }
                         const strength = element("input", { ...controlStyle, width: "75px", padding: "0 4px" });
                         strength.type = "number";
                         strength.min = "-100";
@@ -135,7 +149,6 @@ app.registerExtension({
                             const value = Number(strength.value);
                             if (!Number.isFinite(value) || value < -100 || value > 100) return;
                             row.strength_model = value;
-                            slider.value = sliderValue(value);
                             changed();
                         });
                         strength.addEventListener("change", () => {
@@ -145,10 +158,9 @@ app.registerExtension({
                                 return;
                             }
                             row.strength_model = value;
-                            slider.value = sliderValue(value);
                             changed();
                         });
-                        bottom.append(toggleLabel, slider, strength);
+                        bottom.append(toggleLabel, order, strength);
                         group.append(top, bottom);
                         root.appendChild(group);
                     });
