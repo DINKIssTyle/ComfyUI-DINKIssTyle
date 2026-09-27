@@ -30,6 +30,8 @@ Use the **Lock / Unlock** switch to Pin every node in the workflow, including no
 
 This is a canvas control. It has no connections and does not affect image generation.
 
+Pinned nodes display a customizable Pin icon on their title bar. You can customize the icon style (`Default`, `Lock`, `Circle`) and color (`Red`, `Orange`, `Yellow`, `Blue`, `Green`, `Purple`, `White`, `Gray`, `Black`) in ComfyUI Settings under **Other** → **DKST** → **Appearance** (`Pin Icon Style`, `Pin Icon Color`).
+
 ---
 
 

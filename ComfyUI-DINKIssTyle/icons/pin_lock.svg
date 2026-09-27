@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- Rounded Cute Shackle -->
+  <path d="M7.5 10V7C7.5 4.51 9.51 2.5 12 2.5C14.49 2.5 16.5 4.51 16.5 7V10" fill="none" stroke="#ef4444" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Chubby Rounded Body -->
+  <rect x="4.5" y="9.5" width="15" height="12" rx="4" ry="4" fill="#ef4444"/>
+  <!-- Cute Keyhole -->
+  <circle cx="12" cy="14" r="1.4" fill="#ffffff"/>
+  <path d="M11.3 14.5H12.7L13 17.2C13 17.6 12.6 18 12.2 18H11.8C11.4 18 11 17.6 11 17.2L11.3 14.5Z" fill="#ffffff"/>
+  <!-- Soft Rounded Highlight -->
+  <path d="M7 12C6 12.5 5.5 13.5 5.5 15" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" opacity="0.35"/>
+</svg>
