@@ -95,8 +95,8 @@ test("preset ratio centers a maximum crop and custom fields form a ratio pair", 
     assert.equal(get("crop_height").value, 1);
     get("aspect_ratio").value = "Custom";
     get("aspect_ratio").callback("Custom");
-    const row = get("__dkst_custom_ratio").element;
-    const inputs = row.children.filter(child => child.tag === "input");
+    const row = get("__dkst_crop_preview").element.children[0];
+    const inputs = row.children[1].children.filter(child => child.tag === "input");
     inputs[0].value = "16";
     inputs[0].listeners.change();
     inputs[1].value = "9";
@@ -113,7 +113,7 @@ test("dragging moves inside bounds and corner resize keeps selected aspect", () 
     get("aspect_ratio").value = "1:1";
     get("aspect_ratio").callback("1:1");
     const preview = get("__dkst_crop_preview");
-    const canvas = preview.element.children[0];
+    const canvas = preview.element.children[1];
     preview.render();
     const r = preview.imageRect;
     const event = (x, y) => ({ button: 0, pointerId: 1, clientX: x, clientY: y,
@@ -135,14 +135,12 @@ test("dragging moves inside bounds and corner resize keeps selected aspect", () 
     assert.ok(get("crop_x").value >= 0 && get("crop_y").value >= 0);
 });
 
-test("node resize enlarges crop canvas while custom row remains fixed", () => {
+test("node resize enlarges the canvas without adding a separate Custom widget", () => {
     const { node, get, output, observers } = fixture();
     node.dkstCropOutput(output(400, 300, [0, 0, 400, 300]));
     const preview = get("__dkst_crop_preview");
-    const ratio = get("__dkst_custom_ratio");
-    assert.equal(ratio.options.getMinHeight(), 36);
-    assert.equal(ratio.options.getMaxHeight(), 36);
-    const canvas = preview.element.children[0];
+    assert.equal(get("__dkst_custom_ratio"), undefined);
+    const canvas = preview.element.children[1];
     const before = preview.imageRect.h;
     canvas.clientWidth = 500;
     canvas.clientHeight = 500;
@@ -158,7 +156,7 @@ test("pointer hit testing follows the graph zoom scale", () => {
     const { node, get, output } = fixture();
     node.dkstCropOutput(output(400, 300, [50, 0, 300, 300]));
     const preview = get("__dkst_crop_preview");
-    const canvas = preview.element.children[0];
+    const canvas = preview.element.children[1];
     canvas.displayScale = 0.5;
     const r = preview.imageRect;
     const initialX = get("crop_x").value;
@@ -202,16 +200,20 @@ test("Load & Crop previews a newly selected file before a workflow run", () => {
 test("Load & Crop keeps resolution controls below the canvas in one flexible widget", () => {
     const { node, get } = fixture("DINKI_Image_Load_Crop");
     const position = name => node.widgets.indexOf(get(name));
-    assert.ok(position("__dkst_custom_ratio") < position("__dkst_crop_preview"));
+    assert.ok(position("aspect_ratio") < position("__dkst_crop_preview"));
+    assert.equal(node.widgets.filter(widget => widget.element).length, 1);
     const preview = get("__dkst_crop_preview");
-    const [canvas, resolutionRow, megapixelsRow] = preview.element.children;
+    const [custom, canvas, footer] = preview.element.children;
+    const [resolutionRow, megapixelsRow] = footer.children;
+    assert.equal(custom.style.display, "none");
     assert.equal(canvas.tag, "canvas");
-    assert.equal(resolutionRow.children[0].textContent, "resolution_multiple");
-    assert.equal(megapixelsRow.children[0].textContent, "megapixels");
+    assert.equal(resolutionRow.children[0].textContent, "Multiple");
+    assert.equal(megapixelsRow.children[0].textContent, "Megapixels");
     assert.equal(preview.element.style.height, "100%");
     assert.equal(preview.element.style.contain, "size layout paint");
     assert.equal(canvas.style.height, "0");
-    assert.equal(preview.options.getMinHeight(), 312);
+    assert.equal(preview.options.getMinHeight(), 308);
+    assert.equal(preview.element.style.minHeight, "308px");
     assert.equal(node.widgets.filter(widget => !widget.hidden).at(-1).name,
         "__dkst_crop_preview");
     assert.equal(get("resolution_multiple").hidden, true);
@@ -222,6 +224,28 @@ test("Load & Crop keeps resolution controls below the canvas in one flexible wid
     get("resolution_multiple").value = "16";
     preview.render();
     assert.equal(resolutionRow.children[1].value, "16");
+});
+
+test("Custom controls appear only for Custom and restore without an input image", () => {
+    const { node, Node, get } = fixture("DINKI_Image_Load_Crop");
+    const preview = get("__dkst_crop_preview");
+    const row = preview.element.children[0];
+    get("aspect_ratio").value = "Custom";
+    get("aspect_ratio").callback("Custom");
+    assert.equal(row.style.display, "flex");
+    assert.equal(preview.options.getMinHeight(), 344);
+    assert.equal(preview.element.style.minHeight, "344px");
+    Node.prototype.onConfigure.call(node, { properties: { dkstCropSettings: {
+        aspect_ratio: "Custom", custom_width: 16, custom_height: 9,
+    } } });
+    const [width, , height] = row.children[1].children;
+    assert.equal(width.value, "16");
+    assert.equal(height.value, "9");
+    get("aspect_ratio").value = "16:9";
+    get("aspect_ratio").callback("16:9");
+    assert.equal(row.style.display, "none");
+    assert.equal(preview.options.getMinHeight(), 308);
+    assert.equal(get("custom_width").value, 16);
 });
 
 test("Load & Crop removes an old unconnected source_type socket", () => {

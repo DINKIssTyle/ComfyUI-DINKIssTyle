@@ -90,55 +90,114 @@ function centeredRect(node, width, height) {
         w: w / width, h: h / height };
 }
 
+function customRatioControls(node, state, widgets) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:none;align-items:center;gap:8px;flex:0 0 28px;min-height:28px;box-sizing:border-box;width:100%";
+    const label = document.createElement("span");
+    label.textContent = "Custom ratio";
+    label.style.cssText = "flex:0 0 84px;font-size:12px";
+    const fields = document.createElement("div");
+    fields.style.cssText = "display:flex;align-items:center;gap:6px;flex:1;min-width:0";
+    const sources = [widgets.custom_width, widgets.custom_height];
+    const inputs = sources.map((source, index) => {
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "1";
+        input.max = "10000";
+        input.step = "1";
+        input.value = String(source.value);
+        input.setAttribute("aria-label", index === 0 ? "Custom width ratio" : "Custom height ratio");
+        input.style.cssText = "flex:1;width:0;min-width:0;height:28px;box-sizing:border-box;background:var(--comfy-input-bg,#32343a);color:var(--input-text,#eee);border:1px solid var(--border-color,#555);border-radius:5px;padding:0 8px;font:inherit";
+        input.addEventListener("change", () => {
+            const number = clamp(Math.round(Number(input.value) || 1), 1, 10000);
+            input.value = String(number);
+            setWidget(node, source, number);
+            if (widgets.aspect_ratio.value === "Custom" && state.width) {
+                setRect(node, widgets, centeredRect(node, state.width, state.height));
+            }
+        });
+        return input;
+    });
+    const colon = document.createElement("span");
+    colon.textContent = ":";
+    fields.append(inputs[0], colon, inputs[1]);
+    row.append(label, fields);
+    return { row, sync() {
+        const visible = widgets.aspect_ratio.value === "Custom";
+        row.style.display = visible ? "flex" : "none";
+        inputs.forEach((input, index) => { input.value = String(sources[index].value); });
+    } };
+}
+
 function cropPreviewWidget(node, state, widgets) {
     const root = document.createElement("div");
-    Object.assign(root.style, { width: "100%", height: "100%", minHeight: "0",
+    Object.assign(root.style, { width: "100%", height: "100%",
         flex: "1 1 0", display: "flex", flexDirection: "column",
+        gap: "8px", color: "var(--fg-color,#bbb)", font: "12px sans-serif",
         overflow: "hidden", boxSizing: "border-box", contain: "size layout paint" });
+    // Vue nodes stretch every DOM widget's grid row independently. Keep the
+    // fixed controls and the flexible canvas in one widget to avoid empty rows.
+    const custom = customRatioControls(node, state, widgets);
     const canvas = document.createElement("canvas");
     Object.assign(canvas.style, { width: "100%", height: "0", minHeight: "0",
-        flex: "1 1 0", display: "block", touchAction: "none", cursor: "default" });
-    root.append(canvas);
+        flex: "1 1 0", display: "block", borderRadius: "6px",
+        touchAction: "none", cursor: "default" });
+    root.append(custom.row, canvas);
     const sizeSelectors = [];
+    const footer = document.createElement("div");
+    footer.style.cssText = "display:flex;flex-direction:column;gap:4px;flex:0 0 60px";
     if (node.comfyClass === "DINKI_Image_Load_Crop") {
-        for (const [name, choices] of [
-            ["resolution_multiple", ["4", "8", "16", "32"]],
-            ["megapixels", ["1MP", "2MP", "3MP", "4MP"]],
+        for (const [name, title, choices] of [
+            ["resolution_multiple", "Multiple", ["4", "8", "16", "32"]],
+            ["megapixels", "Megapixels", ["1MP", "2MP", "3MP", "4MP"]],
         ]) {
             const source = node.widgets.find(widget => widget.name === name);
             if (!source) continue;
             const row = document.createElement("div");
-            row.style.cssText = "display:flex;align-items:center;gap:8px;flex:0 0 36px;padding:2px 0;box-sizing:border-box";
+            row.style.cssText = "display:flex;align-items:center;gap:8px;height:28px;box-sizing:border-box";
             const label = document.createElement("label");
-            label.textContent = name;
-            label.style.cssText = "flex:0 0 40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg-color,#bbb);font-size:12px";
+            label.textContent = title;
+            label.title = name === "resolution_multiple" ? "Round output dimensions to a multiple of this many pixels" : "Target output size in megapixels";
+            label.style.cssText = "flex:0 0 84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px";
             const select = document.createElement("select");
             select.setAttribute("aria-label", name);
-            select.style.cssText = "flex:1;min-width:0;height:28px;background:#32343a;color:#eee;border:0;border-radius:5px;padding:0 8px";
+            select.style.cssText = "flex:1;min-width:0;height:28px;background:var(--comfy-input-bg,#32343a);color:var(--input-text,#eee);border:0;border-radius:5px;padding:0 8px;font:inherit";
             for (const choice of choices) {
                 const option = document.createElement("option");
                 option.value = choice;
-                option.textContent = choice;
+                option.textContent = name === "resolution_multiple" ? `${choice} px` : choice.replace("MP", " MP");
                 select.append(option);
             }
             select.value = String(source.value);
             select.addEventListener("change", () => setWidget(node, source, select.value));
             row.append(label, select);
-            root.append(row);
+            footer.append(row);
             sizeSelectors.push([source, select]);
         }
     }
+    if (sizeSelectors.length) root.append(footer);
+    const controlsHeight = () => (custom.row.style.display === "none" ? 0 : 36) +
+        (sizeSelectors.length ? 68 : 0);
+    const sync = () => {
+        custom.sync();
+        // WidgetDOM in Vue nodes does not apply the legacy height callbacks.
+        // A CSS minimum keeps the preview usable there as well as on canvas nodes.
+        root.style.minHeight = `${240 + controlsHeight()}px`;
+    };
+    sync();
+    node.dkstCropSync = sync;
     let imageRect = null;
     let active = null;
     const widget = node.addDOMWidget("__dkst_crop_preview", "dkst-crop-preview", root, {
-        hideOnZoom: false, getMinHeight: () => 240 + sizeSelectors.length * 36,
-        getMaxHeight: () => 10000, getHeight: () => 300 + sizeSelectors.length * 36,
+        hideOnZoom: false, getMinHeight: () => 240 + controlsHeight(),
+        getMaxHeight: () => 10000, getHeight: () => 300 + controlsHeight(),
     });
     widget.serialize = false;
     widget.options ??= {};
     widget.options.serialize = false;
 
     function render() {
+        sync();
         for (const [source, select] of sizeSelectors) {
             if (select.value !== String(source.value)) select.value = String(source.value);
         }
@@ -164,15 +223,19 @@ function cropPreviewWidget(node, state, widgets) {
             ctx.fillStyle = "#a0a4ac";
             ctx.font = "12px sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText("Run the node to preview the input image", width / 2, height / 2);
+            const message = node.comfyClass === "DINKI_Image_Load_Crop" ?
+                "Select an image to preview and crop" : "Run the node to preview the input image";
+            ctx.fillText(message, width / 2, height / 2);
             return;
         }
-        const availableHeight = Math.max(1, height - 18);
-        const scale = Math.min(width / state.image.width, availableHeight / state.image.height);
+        const inset = 8;
+        const availableWidth = Math.max(1, width - inset * 2);
+        const availableHeight = Math.max(1, height - 18 - inset * 2);
+        const scale = Math.min(availableWidth / state.image.width, availableHeight / state.image.height);
         const iw = state.image.width * scale;
         const ih = state.image.height * scale;
         const ix = (width - iw) / 2;
-        const iy = (availableHeight - ih) / 2;
+        const iy = inset + (availableHeight - ih) / 2;
         imageRect = { x: ix, y: iy, w: iw, h: ih };
         widget.imageRect = imageRect;
         ctx.drawImage(state.image, ix, iy, iw, ih);
@@ -315,7 +378,7 @@ app.registerExtension({
             const preview = cropPreviewWidget(node, state, widgets);
             node.dkstCropRender = () => preview.render();
             node.widgets.splice(node.widgets.indexOf(preview), 1);
-            node.widgets.splice(node.widgets.indexOf(widgets.crop_x), 0, preview);
+            node.widgets.splice(node.widgets.indexOf(widgets.custom_width), 0, preview);
             const hiddenControls = ["custom_width", "custom_height", "crop_x", "crop_y",
                 "crop_width", "crop_height"];
             if (nodeData.name === "DINKI_Image_Load_Crop") {
@@ -331,55 +394,15 @@ app.registerExtension({
                 control.draw = () => {};
             }
 
-            const customWidth = widgets.custom_width;
-            const customHeight = widgets.custom_height;
-            if (node.addDOMWidget && typeof document !== "undefined") {
-                const row = document.createElement("div");
-                row.style.cssText = "display:flex;align-items:center;gap:6px;padding:2px 8px;box-sizing:border-box;width:100%";
-                const label = document.createElement("span");
-                label.textContent = "Custom";
-                label.style.cssText = "flex:1;color:var(--fg-color,#bbb);font-size:12px";
-                row.append(label);
-                const inputs = [customWidth, customHeight].map((widget, index) => {
-                    const input = document.createElement("input");
-                    input.type = "number";
-                    input.min = "1";
-                    input.max = "10000";
-                    input.step = "1";
-                    input.value = String(widget.value);
-                    input.setAttribute("aria-label", index === 0 ? "Custom width ratio" : "Custom height ratio");
-                    input.style.cssText = "width:64px;min-width:0;background:#32343a;color:#eee;border:1px solid #666;border-radius:4px;padding:3px";
-                    input.addEventListener("change", () => {
-                        const number = clamp(Math.round(Number(input.value) || 1), 1, 10000);
-                        input.value = String(number);
-                        setWidget(node, widget, number);
-                        if (widgets.aspect_ratio.value === "Custom" && state.width) {
-                            setRect(node, widgets, centeredRect(node, state.width, state.height));
-                        }
-                    });
-                    return input;
-                });
-                row.append(inputs[0]);
-                const colon = document.createElement("span");
-                colon.textContent = ":";
-                row.append(colon, inputs[1]);
-                const dom = node.addDOMWidget("__dkst_custom_ratio", "custom_ratio", row, {
-                    getMinHeight: () => 36, getMaxHeight: () => 36, getHeight: () => 36,
-                });
-                dom.serialize = false;
-                dom.options ??= {};
-                dom.options.serialize = false;
-                node.widgets.splice(node.widgets.indexOf(dom), 1);
-                node.widgets.splice(node.widgets.indexOf(customWidth), 0, dom);
-                node.dkstCropSync = () => inputs.forEach((input, index) => {
-                    input.value = String([customWidth, customHeight][index].value);
-                });
-            }
             if (nodeData.name === "DINKI_Image_Load_Crop") removeUnusedSourceTypeSocket(node);
             const originalRatioCallback = widgets.aspect_ratio.callback;
             widgets.aspect_ratio.callback = function (value, ...callbackArgs) {
                 originalRatioCallback?.call(this, value, ...callbackArgs);
+                node.dkstCropSync?.();
                 if (state.width) setRect(node, widgets, centeredRect(node, state.width, state.height));
+                else preview.render();
+                node.expandToFitContent?.();
+                node.setDirtyCanvas?.(true, true);
             };
             if (nodeData.name === "DINKI_Image_Load_Crop") {
                 node.dkstCropSourcePreview = (image, sourceKey = null) => {
@@ -447,6 +470,7 @@ app.registerExtension({
             node.dkstCropRestore = () => {
                 node.dkstCropSync?.();
                 preview.render();
+                node.expandToFitContent?.();
                 node.setDirtyCanvas?.(true, true);
             };
             const executedHandler = ({ detail }) => {
@@ -463,6 +487,7 @@ app.registerExtension({
                 api.removeEventListener("executed", executedHandler);
                 delete node.dkstCropOutput;
                 delete node.dkstCropRender;
+                delete node.dkstCropSync;
                 delete node.dkstCropSourcePreview;
                 return originalRemoved?.apply(this, removedArgs);
             };

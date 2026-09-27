@@ -1,5 +1,20 @@
 import sys
 
+class DINKI_Arrange:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {}}
+
+    RETURN_TYPES = ()
+    FUNCTION = "arrange"
+    CATEGORY = "DINKIssTyle/Util"
+    DESCRIPTION = "Align or distribute selected workflow nodes using the buttons on this node."
+
+    def arrange(self):
+        # Arrangement is an immediate frontend action, without a queued run.
+        return ()
+
+
 class DINKI_Workflow_Lock:
     @classmethod
     def INPUT_TYPES(cls):

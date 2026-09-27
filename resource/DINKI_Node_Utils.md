@@ -14,6 +14,18 @@ This node lets you quickly jump to any desired location using a hotkey, and also
 
 ---
 
+## DKST Util (Arrange)
+
+Multi-select workflow nodes, then click a button on this node. The buttons preserve the selection and act immediately, without running the workflow. Arrange nodes, pinned nodes, groups, and reroutes are excluded. Only nodes in the currently displayed graph or subgraph are arranged. Changes support ComfyUI Undo/Redo.
+
+- **Align — Left / Center / Right / Top / Middle / Bottom:** align the visible node edges or centers within the selection's bounding rectangle. Requires at least two unpinned nodes.
+- **Distribute — Horizontally / Vertically:** preserve spatial order and equalize the gaps between visible node edges. Requires at least three unpinned nodes. The selection's outer span is preserved when the nodes fit; overlapping selections expand enough to avoid negative gaps.
+- **Distribute — Evenly:** arrange nodes in a grid anchored at the selection's top-left corner, ordered from top to bottom and left to right. Cells use the largest selected node's width and height, with 40 px between cells. The number of columns is the square root of the node count, rounded up. Requires at least two unpinned nodes.
+
+The status line shows the number of eligible selected nodes. Buttons are disabled when too few nodes are selected. Node sizes and connections are preserved.
+
+---
+
 ## 🧭 DKST Util (Auto Focus)
 ![Preview](DINKI_Auto_Focus.gif)  
 Automatically moves to the selected node and applies a custom zoom level. It follows selection in both classic ComfyUI and Nodes 2.0, including the currently displayed subgraph. The shortcut key toggles Auto Focus on or off.

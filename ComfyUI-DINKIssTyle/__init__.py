@@ -79,6 +79,7 @@ from .dinki_switch import (
 
 # 7. 도구 관련
 from .dinki_tool import (
+    DINKI_Arrange,
     DINKI_Workflow_Lock,
     DINKI_Note,
     DINKI_Node_Check,
@@ -154,6 +155,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_String_Switch_RT": DINKI_String_Switch_RT,
 
     # Tool
+    "DINKI_Arrange": DINKI_Arrange,
     "DINKI_Workflow_Lock": DINKI_Workflow_Lock,
     "DINKI_Note": DINKI_Note,
     "DINKI_Node_Check": DINKI_Node_Check,
@@ -228,6 +230,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_String_Switch_RT": "DKST Util (String Switch)",
 
     # Tool
+    "DINKI_Arrange": "DKST Util (Arrange)",
     "DINKI_Workflow_Lock": "DKST Util (Workflow Lock)",
     "DINKI_Note": "DKST Util (Note)",
     "DINKI_Node_Check": "DKST Util (Node Check)",

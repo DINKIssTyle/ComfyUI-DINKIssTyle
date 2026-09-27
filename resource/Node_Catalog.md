@@ -45,6 +45,7 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Text` | DKST Text (Note) | `DINKI_Text_Note` |
 | `DINKIssTyle/Text` | DKST Text (Split) | `DINKI_Text_Split` |
 | `DINKIssTyle/Util` | DKST Util (Anchor) | `DINKI_Anchor` |
+| `DINKIssTyle/Util` | DKST Util (Arrange) | `DINKI_Arrange` |
 | `DINKIssTyle/Util` | DKST Util (Auto Focus) | `DINKI_Auto_Focus` |
 | `DINKIssTyle/Util` | DKST Util (Base64 Input) | `DINKI_Base64Input` |
 | `DINKIssTyle/Util` | DKST Util (Base64 Viewer) | `DINKI_Base64Viewer` |
