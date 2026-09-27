@@ -6,14 +6,14 @@ const vm = require('node:vm');
 
 const source = readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_text_note.js'), 'utf8');
 
-function fixture(secure = false) {
-    let extension, copied, commandCount = 0, changed;
+function fixture(secure = false, copyAllowed = true) {
+    let extension, copied, commandCount = 0, changed, feedbackTimer, alertMessage;
     const app = { canvas: {}, registerExtension(value) { extension = value; } };
     const document = { activeElement: null, createElement, execCommand(command) {
         assert.equal(command, 'copy');
         commandCount++;
         copied = selected;
-        return true;
+        return copyAllowed;
     } };
     let selected;
     function createElement(tag) {
@@ -31,9 +31,10 @@ function fixture(secure = false) {
     document.body = createElement('body');
     const navigator = secure ? { clipboard: { writeText: async text => { copied = text; } } } : {};
     vm.runInNewContext(source.replace(/^import .*;\r?\n/gm, ''), {
-        app, document, navigator, isSecureContext: secure, queueMicrotask, alert(message) {
-            throw new Error(message);
-        },
+        app, document, navigator, isSecureContext: secure, queueMicrotask,
+        setTimeout(callback) { feedbackTimer = callback; return 1; },
+        clearTimeout() { feedbackTimer = undefined; },
+        alert(message) { alertMessage = message; },
     });
     class Note {
         constructor(value = '', properties = {}) {
@@ -55,7 +56,9 @@ function fixture(secure = false) {
     }
     extension.beforeRegisterNodeDef(Note, { name: 'DINKI_Text_Note' });
     return { extension, Note, get copied() { return copied; },
-        get commandCount() { return commandCount; }, get changed() { return changed; } };
+        get commandCount() { return commandCount; }, get changed() { return changed; },
+        get alertMessage() { return alertMessage; },
+        resetFeedback() { const callback = feedbackTimer; feedbackTimer = undefined; callback?.(); } };
 }
 
 test('note text persists, Lock prevents editing, and HTTP Copy uses selection', async () => {
@@ -79,10 +82,14 @@ test('note text persists, Lock prevents editing, and HTTP Copy uses selection', 
     textarea.value = 'altered';
     textarea.events.input();
     assert.equal(textarea.value, 'first line\nsecond line');
-    copy.events.click();
-    await Promise.resolve();
+    await copy.events.click();
     assert.equal(context.copied, 'first line\nsecond line');
     assert.equal(context.commandCount, 1);
+    assert.equal(copy.textContent, 'Copied!');
+    assert.equal(copy.style.background, '#326547');
+    assert.equal(copy.disabled, false);
+    context.resetFeedback();
+    assert.equal(copy.textContent, 'Copy');
 
     const restored = new context.Note();
     restored.widgets[0].value = node.widgets[0].value;
@@ -99,8 +106,21 @@ test('note text persists, Lock prevents editing, and HTTP Copy uses selection', 
 test('secure context Copy uses the Clipboard API', async () => {
     const context = fixture(true);
     const node = new context.Note('copy me');
-    node.root.children[0].children[1].events.click();
-    await Promise.resolve();
+    const copy = node.root.children[0].children[1];
+    await copy.events.click();
     assert.equal(context.copied, 'copy me');
     assert.equal(context.commandCount, 0);
+    assert.equal(copy.textContent, 'Copied!');
+});
+
+test('copy failure is shown on the button and can be retried', async () => {
+    const context = fixture(false, false);
+    const node = new context.Note('note');
+    const copy = node.root.children[0].children[1];
+    await copy.events.click();
+    assert.equal(copy.textContent, 'Copy failed');
+    assert.equal(copy.disabled, false);
+    assert.match(context.alertMessage, /blocked copying/);
+    context.resetFeedback();
+    assert.equal(copy.textContent, 'Copy');
 });

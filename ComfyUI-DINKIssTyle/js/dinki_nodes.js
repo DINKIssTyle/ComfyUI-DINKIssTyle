@@ -3,13 +3,17 @@
 import { app, ComfyApp } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
-// Convert the old orientation dropdown when loading existing workflows.
+// Keep saved Photo Specs widgets aligned after adding resolution controls.
 app.registerExtension({
     name: "DINKI.PhotoSpecifications.Orientation",
     beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== "DINKI_photo_specifications") return;
         const onConfigure = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function() {
+            const values = arguments[0]?.widgets_values;
+            if (Array.isArray(values) && /^[1-4]MP$/.test(values[0])) {
+                values.unshift("Custom", "8");
+            }
             const result = onConfigure?.apply(this, arguments);
             const widget = getWidget(this, "orientation");
             if (widget?.value === "Portrait" || widget?.value === "Landscape") {

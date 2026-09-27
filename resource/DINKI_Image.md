@@ -23,7 +23,7 @@ Select an image from the ComfyUI input folder, upload a file, or paste an image 
 
 <div align="center"><img src="DINKI_Image_Image_comparison_tool.gif" alt="" width="650"><br><br></div>
 
-Connect `image_1` and `image_2`, then run the workflow. The node compares the first image in each input batch. It uses the dimensions of the image with more pixels and resizes the smaller image to match; ties use `image_1`. Both images are aligned at exactly the same width and height, including when their aspect ratios differ.
+Connect `image_1` and `image_2`, then run the workflow. The node compares the first image in each input batch. It uses the dimensions of the image with more pixels as the comparison canvas; ties use `image_1`. Each image is resized proportionally to fit within that canvas and centered. Unused space is filled with black, so neither image is stretched or cropped. The node preview also preserves the full image when its display area has a different aspect ratio.
 
 * **Slide:** Move the pointer horizontally over the preview. Image 2 appears to the left of the divider and image 1 to the right.
 * **Difference:** Show Photoshop-style Difference blending, calculated per RGB channel as `abs(image_1 - image_2)`. Black means identical pixels. The preview changes immediately when the mode changes after the images have been processed.
@@ -84,19 +84,21 @@ To properly overlay a logo with a transparent background:
 ## 📸 DKST Image (Photo Specs)
 ![Preview](DINKI_photo_specifications.png)
 
-A smart utility node designed to calculate the **optimal resolution** for AI generation by selecting target **megapixels** and **real-world standard aspect ratios**.
+A utility node that calculates a target resolution from an input image or a selected aspect ratio and megapixel budget.
 
-Eliminate the guesswork of manual pixel entry. This node ensures your images are generated at the perfect size for models like SDXL, Flux, and Z-Image Turbo.
+Use the resulting width and height as generation settings. The selected `resolution_multiple` rounds each dimension to a multiple supported by the workflow you are using; no single resolution is optimal for every model.
 
 ### ✨ Key Features
 
-* **Real-World Standards:** Supports a wide range of formats, from standard **Photography** ratios (3:4, 4:6) to professional **Cinema/Film** specifications (Academy, IMAX, Super 35).
-* **AI Optimization:** Automatically adjusts Width and Height values to **multiples of 8**, preventing encoding errors and ensuring compatibility with latent diffusion models.
-* **Megapixel Targeting:** Select from **1MP to 4MP** based on your model's capacity (Base: 1MP = 1024x1024). It maintains consistent quality by preserving the total pixel area across different aspect ratios.
-* **Instant Orientation:** Easily toggle between **Portrait** and **Landscape** modes without recalculating.
+* **Image or Custom:** Choose a mode from the `resolution` dropdown; `Custom` is selected by default. `Image` reads the connected image's width, height, aspect ratio, and direction. Its calculation uses `resolution_multiple` and `megapixels` while bypassing the visible `aspect_ratio` and `orientation` settings. `Custom` uses those settings. An image is required only in `Image` mode.
+* **Resolution Multiple:** Round both dimensions to a multiple of **4, 8, 16, or 32**. The default of 8 preserves the previous node behavior. This setting is a rounding unit, not a magnification factor or image batch size.
+* **Megapixel Targeting:** Select from **1MP to 4MP** as an approximate pixel-area budget (base: 1MP = 1024x1024 pixels). Rounding can make the final area differ slightly from the target.
+* **Custom Formats:** Choose photography and cinema ratios, then toggle **Portrait** or **Landscape**. These two controls are ignored in `Image` mode, which preserves the input image's ratio and direction.
 
 #### 💡 Workflow Tip
-I found this node to work especially well with **Z-Image Turbo** workflows, ensuring fast generation at the most efficient resolutions.
+For a workflow that previously used this node, keep `Custom` and `resolution_multiple: 8` to retain the same size calculation.
+
+The [Diffusers Qwen Image Edit implementation](https://github.com/huggingface/diffusers/blob/main/src/diffusers/pipelines/qwenimage/pipeline_qwenimage_edit.py) rounds calculated dimensions to 32; select `resolution_multiple: 32` to match that calculation. Check the size requirements of the specific model and workflow before choosing a smaller multiple.
 
 
 #### 🎛️ Supported Formats
@@ -110,9 +112,11 @@ I found this node to work especially well with **Z-Image Turbo** workflows, ensu
 | **Super** | Super 35 (1.85:1 / 2.39:1), Super 16 (1.66:1 / 1.78:1) |
 
 #### 📤 Outputs
-* **width (INT):** Calculated width (multiple of 8).
-* **height (INT):** Calculated height (multiple of 8).
+* **width (INT):** Calculated width, rounded to the selected `resolution_multiple`.
+* **height (INT):** Calculated height, rounded to the selected `resolution_multiple`.
 * **info_string (STRING):** Summary of current settings (e.g., `896x1152 (Photo 3.5:5, 1MP)`).
+
+`Image` mode reports both the source dimensions and calculated dimensions in `info_string`; it does not resize or output the input image.
 
 
 ---

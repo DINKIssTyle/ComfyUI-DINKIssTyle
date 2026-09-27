@@ -147,6 +147,12 @@ GGUF loading requires the separate ComfyUI-GGUF custom node (`UnetLoaderGGUF` or
 
 ---
 
+## DKST PS (Multi LoRA Loader)
+
+Connect a `MODEL`, then add LoRA rows with **+ Add LoRA**. Each row has a remove button, a LoRA dropdown, an On switch, and linked `strength_model` slider and number inputs (-100 to 100). Adding rows preserves the node's current width and any extra height. Enabled rows are applied from top to bottom; off rows, `None`, and zero strength are bypassed. The node outputs only the modified `MODEL`. It does not change CLIP. LoRA files come from ComfyUI's `models/loras` folders; refresh the node list after adding files.
+
+---
+
 ## DKST PS (Mask Mix)
 
 Connect up to five optional `mask_1`–`mask_5` inputs. Each matching `strength_1`–`strength_5` scales its mask from 0 to 1. The node resizes later masks to the first connected mask's dimensions and combines them with a pixelwise maximum. With no masks, `mixed_mask` is a 64×64 zero mask.

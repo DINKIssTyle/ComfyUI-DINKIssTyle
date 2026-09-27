@@ -93,7 +93,7 @@ Uses the same `csv/DINKI_Prompt_List.csv` file and exposes only `title`. It look
 
 ## DKST Text (Note)
 
-Write a multiline note directly in the workflow. Use **Lock** above the note to prevent edits while keeping the text selectable; click it again to unlock. **Copy** copies the entire note. The text and lock state are saved with the workflow. On ordinary HTTP connections, Copy uses the browser's legacy copy command when the secure Clipboard API is unavailable; the browser may still restrict clipboard access. This node has no output.
+Write a multiline note directly in the workflow. Use **Lock** above the note to prevent edits while keeping the text selectable; click it again to unlock. **Copy** copies the entire note and briefly shows `Copied!` on success. The text and lock state are saved with the workflow. On ordinary HTTP connections, Copy uses the browser's legacy copy command when the secure Clipboard API is unavailable; the browser may still restrict clipboard access. This node has no output.
 
 ---
 

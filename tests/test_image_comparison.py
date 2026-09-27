@@ -51,6 +51,34 @@ class ImageComparisonTests(unittest.TestCase):
         self.assertEqual(aligned_first.shape, (3, 5, 3))
         self.assertEqual(aligned_second.shape, (3, 5, 3))
 
+    def test_fit_contain_centers_wide_and_tall_images_without_cropping(self):
+        wide = np.ones((4, 8, 3), dtype=np.float32)
+        fitted_wide = self.node_class._fit_contain(wide, 4, 4)
+        np.testing.assert_allclose(fitted_wide[0], 0.0)
+        np.testing.assert_allclose(fitted_wide[1:3], 1.0)
+        np.testing.assert_allclose(fitted_wide[3], 0.0)
+
+        tall = np.ones((8, 4, 3), dtype=np.float32)
+        fitted_tall = self.node_class._fit_contain(tall, 4, 4)
+        np.testing.assert_allclose(fitted_tall[:, 0], 0.0)
+        np.testing.assert_allclose(fitted_tall[:, 1:3], 1.0)
+        np.testing.assert_allclose(fitted_tall[:, 3], 0.0)
+
+    def test_mismatched_ratios_are_letterboxed_without_stretching(self):
+        square = Tensor(np.zeros((1, 4, 4, 3), dtype=np.float32))
+        wide_pixels = np.broadcast_to(
+            np.array([0.0, 0.2, 0.8, 1.0], dtype=np.float32)[None, :, None],
+            (2, 4, 3),
+        ).copy()
+        wide = Tensor(wide_pixels[None])
+        first, second, difference = self.node_class._prepare(square, wide)
+        self.assertEqual(first.shape, (4, 4, 3))
+        self.assertEqual(second.shape, (4, 4, 3))
+        np.testing.assert_allclose(second[0], 0.0)
+        np.testing.assert_allclose(second[1:3], wide_pixels)
+        np.testing.assert_allclose(second[3], 0.0)
+        np.testing.assert_allclose(difference, second)
+
     def test_difference_is_absolute_per_channel_and_alpha_uses_black_background(self):
         first = Tensor(np.array([[[[1.0, 0.2, 0.0, 0.5]]]], dtype=np.float32))
         second = Tensor(np.array([[[[0.2, 0.4, 0.8]]]], dtype=np.float32))

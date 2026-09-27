@@ -90,6 +90,7 @@ from .dinki_lmstudio import DINKI_LMStudio
 from .dinki_batchImages import DINKI_BatchImages
 from .dinki_tiled_upscale import DINKI_TileSplit, DINKI_TileStitch
 from .dinki_photo_specs import DINKI_photo_specifications
+from .dinki_multi_lora import DINKI_Multi_LoRA_Loader
 from .dinki_overlay import DINKI_Overlay
 from .dinki_comparer import DINKI_Image_Comparer_MOV
 from .dinki_grid import DINKI_Grid
@@ -137,6 +138,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Remove_Pad_From_Image": DINKI_Remove_Pad_From_Image,
     "DINKI_ToggleUNetLoader": DINKI_ToggleUNetLoader,
     "DINKI_Empty_Or_Image_Latent": DINKI_Empty_Or_Image_Latent,
+    "DINKI_Multi_LoRA_Loader": DINKI_Multi_LoRA_Loader,
 
     # Viewer
     "DINKI_Video_Player": DINKI_Video_Player,
@@ -206,6 +208,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Remove_Pad_From_Image": "DKST PS (Remove Padding)",
     "DINKI_ToggleUNetLoader": "DKST PS (UNet Loader)",
     "DINKI_Empty_Or_Image_Latent": "DKST PS (Latent Source)",
+    "DINKI_Multi_LoRA_Loader": "DKST PS (Multi LoRA Loader)",
 
     # Viewer
     "DINKI_Video_Player": "DKST Viewer (Video Player)",

@@ -70,6 +70,7 @@ app.registerExtension({
                 });
             }
             copyButton.textContent = "Copy";
+            copyButton.setAttribute("aria-live", "polite");
             textarea.value = String(textWidget.value ?? "");
             textarea.placeholder = "Write a note…";
             textarea.setAttribute("aria-label", "Note text");
@@ -125,10 +126,26 @@ app.registerExtension({
                 this.graph?.incrementVersion?.();
                 this.setDirtyCanvas?.(true, true);
             });
-            copyButton.addEventListener("click", () => {
-                copyNoteText(String(textWidget.value ?? "")).catch(error => {
+            let copyFeedbackTimer;
+            copyButton.addEventListener("click", async () => {
+                clearTimeout(copyFeedbackTimer);
+                copyButton.disabled = true;
+                copyButton.textContent = "Copying…";
+                try {
+                    await copyNoteText(String(textWidget.value ?? ""));
+                    copyButton.textContent = "Copied!";
+                    copyButton.style.background = "#326547";
+                } catch (error) {
+                    copyButton.textContent = "Copy failed";
+                    copyButton.style.background = "#8a3d3d";
                     alert(`Copy: ${error.message}`);
-                });
+                } finally {
+                    copyButton.disabled = false;
+                    copyFeedbackTimer = setTimeout(() => {
+                        copyButton.textContent = "Copy";
+                        copyButton.style.background = "#333";
+                    }, 1800);
+                }
             });
 
             const configured = this.onConfigure;

@@ -2,7 +2,7 @@
 
 [Home](../README.md)
 
-48 nodes across 9 categories. Display names use `DKST Category (Function)`.
+49 nodes across 9 categories. Display names use `DKST Category (Function)`.
 Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` is now `DINKIssTyle/Util`.
 
 Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · [LM Studio](DINKI_LM_Studio_Assistant.md) · [Processing](DINKI_PS.md) · [Prompts and Text](DINKI_Prompt_and_String.md) · [Utilities](DINKI_Node_Utils.md) · [Video and Player](DINKI_Video_Tools.md). [System Monitor](DKST_System_Monitor.md) is a frontend feature and does not register a workflow node.
@@ -28,6 +28,7 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/PS` | DKST PS (Latent Source) | `DINKI_Empty_Or_Image_Latent` |
 | `DINKIssTyle/PS` | DKST PS (Latent Upscale) | `DINKI_Upscale_Latent_By` |
 | `DINKIssTyle/PS` | DKST PS (Mask Mix) | `DINKI_Mask_Weighted_Mix` |
+| `DINKIssTyle/PS` | DKST PS (Multi LoRA Loader) | `DINKI_Multi_LoRA_Loader` |
 | `DINKIssTyle/PS` | DKST PS (Remove Padding) | `DINKI_Remove_Pad_From_Image` |
 | `DINKIssTyle/PS` | DKST PS (Resize & Pad) | `DINKI_Resize_And_Pad` |
 | `DINKIssTyle/PS` | DKST PS (Tile Split) | `DINKI_TileSplit` |

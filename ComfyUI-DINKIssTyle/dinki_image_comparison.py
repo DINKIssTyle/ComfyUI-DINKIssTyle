@@ -37,15 +37,30 @@ class DINKI_Image_Comparison:
         return image
 
     @staticmethod
-    def _resize(image, width, height):
+    def _fit_contain(image, width, height):
         if image.shape[:2] == (height, width):
             return image
-        channels = [
-            np.asarray(Image.fromarray(image[:, :, channel]).resize(
-                (width, height), Image.Resampling.LANCZOS), dtype=np.float32)
-            for channel in range(3)
-        ]
-        return np.clip(np.stack(channels, axis=2), 0.0, 1.0)
+        source_height, source_width = image.shape[:2]
+        if source_width * height >= width * source_height:
+            scaled_width = width
+            scaled_height = max(1, source_height * width // source_width)
+        else:
+            scaled_width = max(1, source_width * height // source_height)
+            scaled_height = height
+        if (scaled_height, scaled_width) == (source_height, source_width):
+            scaled = image
+        else:
+            channels = [
+                np.asarray(Image.fromarray(image[:, :, channel]).resize(
+                    (scaled_width, scaled_height), Image.Resampling.LANCZOS), dtype=np.float32)
+                for channel in range(3)
+            ]
+            scaled = np.clip(np.stack(channels, axis=2), 0.0, 1.0)
+        canvas = np.zeros((height, width, 3), dtype=np.float32)
+        left = (width - scaled_width) // 2
+        top = (height - scaled_height) // 2
+        canvas[top:top + scaled_height, left:left + scaled_width] = scaled
+        return canvas
 
     @classmethod
     def _prepare(cls, image_1, image_2):
@@ -54,8 +69,8 @@ class DINKI_Image_Comparison:
         first_size = first.shape[0] * first.shape[1]
         second_size = second.shape[0] * second.shape[1]
         height, width = (first if first_size >= second_size else second).shape[:2]
-        first = cls._resize(first, width, height)
-        second = cls._resize(second, width, height)
+        first = cls._fit_contain(first, width, height)
+        second = cls._fit_contain(second, width, height)
         return first, second, np.abs(first - second)
 
     def compare(self, image_1, image_2, mode="Slide"):

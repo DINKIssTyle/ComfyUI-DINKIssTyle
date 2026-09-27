@@ -70,6 +70,10 @@ test('Slide follows pointer position and Difference displays the computed previe
     node.onExecuted(output);
     const [first, second, difference, divider] = node.root.children;
     assert.match(first.src, /first\.png/);
+    assert.equal(first.style.objectFit, 'contain');
+    assert.equal(first.style.objectPosition, 'center');
+    assert.equal(second.style.objectFit, 'contain');
+    assert.equal(difference.style.objectFit, 'contain');
     assert.equal(second.style.display, 'block');
     node.root.listeners.pointermove({ clientX: 70 });
     assert.equal(second.style.clipPath, 'inset(0 75% 0 0)');

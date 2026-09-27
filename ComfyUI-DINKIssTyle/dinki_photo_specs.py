@@ -8,6 +8,8 @@ class DINKI_photo_specifications:
     def INPUT_TYPES(s):
         return {
             "required": {
+                "resolution": (["Image", "Custom"], {"default": "Custom"}),
+                "resolution_multiple": (["4", "8", "16", "32"], {"default": "8"}),
                 "megapixels": (["1MP", "2MP", "3MP", "4MP"], {"default": "1MP"}),
                 "aspect_ratio": (
                     [
@@ -46,6 +48,9 @@ class DINKI_photo_specifications:
                     "label_on": "Landscape",
                 }),
             },
+            "optional": {
+                "image": ("IMAGE",),
+            },
         }
 
     RETURN_TYPES = ("INT", "INT", "STRING")
@@ -53,47 +58,58 @@ class DINKI_photo_specifications:
     FUNCTION = "calculate_resolution"
     CATEGORY = "DINKIssTyle/Image"
     
-    DESCRIPTION = "Selects the optimal resolution based on megapixels and aspect ratio. (Calculated in multiples of 8)"
+    DESCRIPTION = "Calculates a target resolution from an image or a custom aspect ratio and rounds each dimension to the selected multiple."
 
-    def calculate_resolution(self, megapixels, aspect_ratio, orientation):
+    def calculate_resolution(self, megapixels, aspect_ratio, orientation, resolution="Custom", resolution_multiple=8, image=None):
         # 1. 목표 픽셀 수 설정 (Base: 1024x1024 = 1,048,576 pixel for 1MP)
         mp_multiplier = int(megapixels.replace("MP", ""))
         target_area = 1024 * 1024 * mp_multiplier
 
-        # 2. 비율 파싱 로직 수정
-        # 입력값이 "35mm Academy 1.37:1" 처럼 들어오므로, 공백으로 자른 후 마지막 부분만 가져옵니다.
-        # 예: "Photo 3:4" -> ["Photo", "3:4"] -> "3:4"
-        # 예: "35mm Academy 1.37:1" -> [..., "Academy", "1.37:1"] -> "1.37:1"
-        ratio_string = aspect_ratio.split(" ")[-1]
-        
-        ratio_parts = ratio_string.split(":")
-        w_ratio = float(ratio_parts[0])
-        h_ratio = float(ratio_parts[1])
-        
-        # 실제 비율 값 (Width / Height)
-        target_ratio = w_ratio / h_ratio
+        # Image uses the source image's aspect ratio and direction. Custom keeps
+        # the existing aspect-ratio and orientation controls.
+        if resolution == "Image":
+            if image is None:
+                raise ValueError("Photo Specs: connect an image when resolution is Image.")
+            if len(image.shape) != 4 or image.shape[1] < 1 or image.shape[2] < 1:
+                raise ValueError("Photo Specs: image must have shape [batch, height, width, channels].")
+            source_height, source_width = int(image.shape[1]), int(image.shape[2])
+            target_ratio = source_width / source_height
+        elif resolution == "Custom":
+            ratio_string = aspect_ratio.split(" ")[-1]
+            w_ratio, h_ratio = map(float, ratio_string.split(":"))
+            target_ratio = w_ratio / h_ratio
+        else:
+            raise ValueError(f"Photo Specs: unknown resolution mode {resolution!r}.")
 
         # 3. 너비와 높이 계산
         height_val = math.sqrt(target_area / target_ratio)
         width_val = height_val * target_ratio
 
-        # 4. 8의 배수로 보정 (반올림)
-        width = round(width_val / 8) * 8
-        height = round(height_val / 8) * 8
+        # 4. 선택한 배수로 보정 (반올림)
+        multiple = int(resolution_multiple)
+        if multiple not in (4, 8, 16, 32):
+            raise ValueError("Photo Specs: resolution_multiple must be 4, 8, 16, or 32.")
+        width = max(multiple, round(width_val / multiple) * multiple)
+        height = max(multiple, round(height_val / multiple) * multiple)
 
-        # 5. 방향(Orientation) 적용
-        # Accept saved/API values from the former dropdown as well.
-        is_portrait = orientation == "Portrait" if isinstance(orientation, str) else not orientation
-        
-        if is_portrait:
-            if width > height:
+        if resolution == "Custom":
+            # Accept saved/API values from the former dropdown as well.
+            is_portrait = orientation == "Portrait" if isinstance(orientation, str) else not orientation
+            if is_portrait and width > height:
                 width, height = height, width
-        else: # Landscape
-            if width < height:
+            elif not is_portrait and width < height:
                 width, height = height, width
 
-        # 6. 정보 텍스트 생성 (선택한 옵션 이름 전체를 포함)
-        info_string = f"{width}x{height} ({aspect_ratio}, {megapixels})"
+        if resolution == "Image":
+            divisor = math.gcd(source_width, source_height)
+            ratio_label = f"{source_width // divisor}:{source_height // divisor}"
+            info_string = (f"{width}x{height} (Image {source_width}x{source_height}, "
+                           f"{ratio_label}, {megapixels}, multiple {multiple})")
+        elif multiple == 8:
+            # Preserve the text supplied by existing workflows at the default.
+            info_string = f"{width}x{height} ({aspect_ratio}, {megapixels})"
+        else:
+            info_string = f"{width}x{height} ({aspect_ratio}, {megapixels}, multiple {multiple})"
 
         return (width, height, info_string)
 

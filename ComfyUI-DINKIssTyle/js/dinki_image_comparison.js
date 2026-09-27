@@ -78,7 +78,7 @@ app.registerExtension({
                 const image = document.createElement("img");
                 Object.assign(image.style, {
                     position: "absolute", inset: "0", width: "100%", height: "100%",
-                    objectFit: "contain", pointerEvents: "none",
+                    objectFit: "contain", objectPosition: "center", pointerEvents: "none",
                 });
                 image.draggable = false;
                 return image;
