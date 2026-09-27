@@ -1,5 +1,12 @@
 import { app } from "../../scripts/app.js";
 
+const SLIDER_MIN = -3;
+const SLIDER_MAX = 3;
+
+function sliderValue(strength) {
+    return String(Math.max(SLIDER_MIN, Math.min(SLIDER_MAX, strength)));
+}
+
 function element(tag, styles = {}) {
     const item = document.createElement(tag);
     Object.assign(item.style, styles);
@@ -104,15 +111,15 @@ app.registerExtension({
                         toggleLabel.append(toggle, document.createTextNode("On"));
                         const slider = element("input", { flex: "1 1 auto", minWidth: "0", cursor: "pointer" });
                         slider.type = "range";
-                        slider.min = "-100";
-                        slider.max = "100";
+                        slider.min = String(SLIDER_MIN);
+                        slider.max = String(SLIDER_MAX);
                         slider.step = "0.01";
-                        slider.value = String(row.strength_model);
-                        slider.title = "strength_model";
+                        slider.value = sliderValue(row.strength_model);
+                        slider.title = "strength_model slider (-3 to 3)";
                         slider.setAttribute("aria-label", `LoRA ${index + 1} strength_model slider`);
                         slider.addEventListener("input", () => {
-                            row.strength_model = Number(slider.value);
-                            strength.value = slider.value;
+                            row.strength_model = Math.max(SLIDER_MIN, Math.min(SLIDER_MAX, Number(slider.value)));
+                            strength.value = String(row.strength_model);
                             changed();
                         });
                         const strength = element("input", { ...controlStyle, width: "75px", padding: "0 4px" });
@@ -128,7 +135,7 @@ app.registerExtension({
                             const value = Number(strength.value);
                             if (!Number.isFinite(value) || value < -100 || value > 100) return;
                             row.strength_model = value;
-                            slider.value = strength.value;
+                            slider.value = sliderValue(value);
                             changed();
                         });
                         strength.addEventListener("change", () => {
@@ -138,7 +145,7 @@ app.registerExtension({
                                 return;
                             }
                             row.strength_model = value;
-                            slider.value = String(value);
+                            slider.value = sliderValue(value);
                             changed();
                         });
                         bottom.append(toggleLabel, slider, strength);

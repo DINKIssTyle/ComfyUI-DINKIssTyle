@@ -149,7 +149,7 @@ GGUF loading requires the separate ComfyUI-GGUF custom node (`UnetLoaderGGUF` or
 
 ## DKST PS (Multi LoRA Loader)
 
-Connect a `MODEL`, then add LoRA rows with **+ Add LoRA**. Each row has a remove button, a LoRA dropdown, an On switch, and linked `strength_model` slider and number inputs (-100 to 100). Adding rows preserves the node's current width and any extra height. Enabled rows are applied from top to bottom; off rows, `None`, and zero strength are bypassed. The node outputs only the modified `MODEL`. It does not change CLIP. LoRA files come from ComfyUI's `models/loras` folders; refresh the node list after adding files.
+Connect a `MODEL`, then add LoRA rows with **+ Add LoRA**. Each row has a remove button, a LoRA dropdown, an On switch, and linked `strength_model` slider and number inputs. The slider spans -3 to 3 for everyday adjustments; the number input accepts -100 to 100. Values entered outside the slider range remain intact while the slider rests at its nearest end. Adding rows preserves the node's current width and any extra height. Enabled rows are applied from top to bottom; off rows, `None`, and zero strength are bypassed. The node outputs only the modified `MODEL`. It does not change CLIP. LoRA files come from ComfyUI's `models/loras` folders; refresh the node list after adding files.
 
 ---
 

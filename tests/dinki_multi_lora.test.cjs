@@ -74,6 +74,8 @@ test('add, select, toggle, set strength, remove and serialize rows', () => {
     strengths[0].value = '0.75';
     strengths[0].fire('input');
     const sliders = descendants(widget.element, item => item.type === 'range');
+    assert.equal(sliders[0].min, '-3');
+    assert.equal(sliders[0].max, '3');
     assert.equal(sliders[0].value, '0.75');
     sliders[1].value = '-0.25';
     sliders[1].fire('input');
@@ -86,6 +88,20 @@ test('add, select, toggle, set strength, remove and serialize rows', () => {
     buttons[0].fire('click');
     assert.equal(JSON.parse(widget.value).length, 1);
     assert.equal(JSON.parse(widget.value)[0].name, 'b.safetensors');
+});
+
+test('number input keeps values outside the slider range', () => {
+    const { widget } = makeWidget();
+    const number = descendants(widget.element, item => item.type === 'number')[0];
+    const slider = descendants(widget.element, item => item.type === 'range')[0];
+    number.value = '4.5';
+    number.fire('input');
+    assert.equal(JSON.parse(widget.value)[0].strength_model, 4.5);
+    assert.equal(slider.value, '3');
+    slider.value = '-1.5';
+    slider.fire('input');
+    assert.equal(number.value, '-1.5');
+    assert.equal(JSON.parse(widget.value)[0].strength_model, -1.5);
 });
 
 test('restores saved rows including unavailable LoRA names', () => {
