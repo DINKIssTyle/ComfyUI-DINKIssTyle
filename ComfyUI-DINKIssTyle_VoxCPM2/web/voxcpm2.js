@@ -96,8 +96,8 @@ app.registerExtension({
     name: "DINKI.VoxCPM2.Controls",
     beforeRegisterNodeDef(nodeType, nodeData) {
         const isManager = nodeData.name === "DKST_VoxCPM2_Downloader";
-        const isClone = nodeData.name === "DKST_VoxCPM2_Cloning";
-        if (!isManager && !isClone) return;
+        const isReference = nodeData.name === "DKST_VoxCPM2_ReferenceAudio";
+        if (!isManager && !isReference) return;
 
         const previous = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function (...args) {
@@ -105,7 +105,7 @@ app.registerExtension({
             const node = this;
             const internalNames = isManager
                 ? ["download_action", "request_id"]
-                : ["transcribe_only", "request_id"];
+                : ["transcribe_action", "request_id"];
             node.widgets = (node.widgets ?? []).filter((widget) => !internalNames.includes(widget.name));
 
             if (isManager) {
@@ -120,17 +120,96 @@ app.registerExtension({
                         (output) => alert(output.status?.[0] ?? "Whisper download complete"));
                 }, { serialize: false });
             } else {
+                const fileWidget = node.widgets?.find((item) => item.name === "voice_file");
+                const previewWidget = node.widgets?.find((item) => item.name === "transcript_preview");
+                if (previewWidget) {
+                    previewWidget.options ??= {};
+                    previewWidget.options.read_only = true;
+                    if (previewWidget.inputEl) previewWidget.inputEl.readOnly = true;
+                }
+                let selectionVersion = 0;
+                let voiceListVersion = 0;
+                const setTranscript = (value) => {
+                    if (!previewWidget) return;
+                    previewWidget.value = value;
+                    previewWidget.callback?.(value);
+                    node.setDirtyCanvas(true, true);
+                };
+                const refreshTranscript = async () => {
+                    const name = String(fileWidget?.value ?? "");
+                    const version = ++selectionVersion;
+                    if (!name) {
+                        setTranscript("");
+                        return;
+                    }
+                    const response = await api.fetchApi(`/dkst/voxcpm2/transcript?name=${encodeURIComponent(name)}`);
+                    const payload = await response.json();
+                    if (!response.ok) throw new Error(payload.error ?? "Could not load the transcript.");
+                    if (version === selectionVersion && name === fileWidget?.value) {
+                        setTranscript(payload.transcript ?? "");
+                    }
+                };
+                const refreshVoices = async (preferredName) => {
+                    const version = ++voiceListVersion;
+                    const response = await api.fetchApi("/dkst/voxcpm2/voices");
+                    const payload = await response.json();
+                    if (!response.ok) throw new Error(payload.error ?? "Could not list voice files.");
+                    if (!fileWidget || version !== voiceListVersion) return;
+                    const files = payload.files ?? [];
+                    fileWidget.options ??= {};
+                    fileWidget.options.values = files.length ? files : [""];
+                    const current = preferredName ?? fileWidget.value;
+                    fileWidget.value = files.includes(current) ? current : (files[0] ?? "");
+                    node.setDirtyCanvas(true, true);
+                    await refreshTranscript();
+                };
+                if (fileWidget) {
+                    const previousCallback = fileWidget.callback;
+                    fileWidget.callback = function (...args) {
+                        previousCallback?.apply(this, args);
+                        refreshTranscript().catch((error) => alert(error.message));
+                    };
+                }
+                const configured = node.onConfigure;
+                node.onConfigure = function (...args) {
+                    const result = configured?.apply(this, args);
+                    queueMicrotask(() => refreshVoices().catch((error) => alert(error.message)));
+                    return result;
+                };
+                queueMicrotask(() => refreshVoices().catch((error) => alert(error.message)));
+
+                node.addWidget("button", "Upload Voice", null, () => {
+                    const picker = document.createElement("input");
+                    picker.type = "file";
+                    picker.accept = ".wav,.mp3,.flac,.ogg,.m4a,.aac,.opus,audio/*";
+                    picker.style.display = "none";
+                    picker.onchange = async () => {
+                        const file = picker.files?.[0];
+                        picker.remove();
+                        if (!file) return;
+                        try {
+                            const form = new FormData();
+                            form.append("file", file);
+                            const response = await api.fetchApi("/dkst/voxcpm2/upload-voice", {
+                                method: "POST", body: form,
+                            });
+                            const payload = await response.json();
+                            if (!response.ok) throw new Error(payload.error ?? "Voice upload failed.");
+                            await refreshVoices(payload.name);
+                        } catch (error) {
+                            alert(`Voice upload failed: ${error.message}`);
+                        }
+                    };
+                    document.body.appendChild(picker);
+                    picker.click();
+                }, { serialize: false });
+                node.addWidget("button", "Refresh Voices", null, () => {
+                    refreshVoices().catch((error) => alert(error.message));
+                }, { serialize: false });
                 const transcriptButton = node.addWidget("button", "Transcribe Reference (Whisper)", null, () => {
                     const button = transcriptButton;
-                    runNodeAction(node, { transcribe_only: true }, button, (output) => {
-                        const transcript = output.transcript?.[0] ?? "";
-                        const widget = node.widgets?.find((item) => item.name === "reference_transcript");
-                        if (widget) {
-                            widget.value = transcript;
-                            widget.callback?.(transcript);
-                            node.setDirtyCanvas(true, true);
-                        }
-                    });
+                    runNodeAction(node, { transcribe_action: true }, button,
+                        (output) => setTranscript(output.transcript?.[0] ?? ""));
                 }, { serialize: false });
             }
             return result;

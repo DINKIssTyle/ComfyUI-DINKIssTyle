@@ -10,9 +10,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 MODEL_ROOT = ROOT / "model"
+VOICE_ROOT = ROOT / "voice"
 VOX_NAME = "VoxCPM2"
 VOX_REPO = "openbmb/VoxCPM2"
 WHISPER_NAMES = ("tiny", "base", "small", "medium", "large-v3", "turbo")
+AUDIO_EXTENSIONS = frozenset({".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".opus"})
 
 _vox_cache = {"path": None, "model": None}
 _whisper_cache = {"path": None, "model": None}
@@ -38,6 +40,65 @@ def _whisper_path(name: str) -> Path:
     if name not in WHISPER_NAMES:
         raise ValueError(f"Unknown Whisper model: {name}")
     return MODEL_ROOT / "Whisper" / f"{name}.pt"
+
+
+def _voice_names() -> list[str]:
+    if not VOICE_ROOT.is_dir():
+        return []
+    return sorted(
+        path.name for path in VOICE_ROOT.iterdir()
+        if path.is_file() and path.suffix.lower() in AUDIO_EXTENSIONS
+    )
+
+
+def _voice_path(name: str) -> Path:
+    if (not isinstance(name, str) or not name or name in {".", ".."}
+            or "/" in name or "\\" in name or Path(name).suffix.lower() not in AUDIO_EXTENSIONS):
+        raise ValueError("Select a valid reference audio file from the voice folder.")
+    path = (VOICE_ROOT / name).resolve()
+    if path.parent != VOICE_ROOT.resolve():
+        raise ValueError("Reference audio must stay inside the voice folder.")
+    if not path.is_file():
+        raise FileNotFoundError(f"Reference audio not found: {name}")
+    return path
+
+
+def _read_voice_transcript(name: str) -> str:
+    path = _voice_path(name).with_suffix(".txt")
+    return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
+def _load_voice_audio(name: str):
+    import numpy as np
+    import soundfile as sf
+    import torch
+
+    path = _voice_path(name)
+    try:
+        # libsndfile handles WAV, FLAC, OGG, and some MP3 files directly.
+        samples, sample_rate = sf.read(str(path), dtype="float32", always_2d=True)
+        channels_first = samples.T.copy()
+    except (RuntimeError, ValueError):
+        # PyAV covers codecs such as M4A, AAC, and Opus without relying on
+        # ComfyUI's optional comfy.audio module.
+        import av
+
+        with av.open(str(path)) as container:
+            if not container.streams.audio:
+                raise ValueError(f"Reference file has no audio stream: {name}")
+            stream = container.streams.audio[0]
+            sample_rate = stream.codec_context.sample_rate
+            resampler = av.AudioResampler(format="fltp", layout=stream.layout, rate=sample_rate)
+            frames = []
+            for frame in container.decode(audio=0):
+                frames.extend(converted.to_ndarray() for converted in resampler.resample(frame))
+            frames.extend(converted.to_ndarray() for converted in resampler.resample(None))
+        channels_first = np.concatenate(frames, axis=1) if frames else np.empty((0, 0))
+
+    waveform = torch.from_numpy(channels_first)
+    if waveform.ndim != 2 or waveform.numel() == 0 or sample_rate <= 0:
+        raise ValueError(f"Reference audio is empty or invalid: {name}")
+    return {"waveform": waveform.unsqueeze(0), "sample_rate": int(sample_rate)}
 
 
 def _check_vox(path: Path) -> None:
@@ -170,11 +231,10 @@ def _as_comfy_audio(wav, sample_rate: int):
     return {"waveform": waveform.reshape(1, 1, -1), "sample_rate": int(sample_rate)}
 
 
-def _resolve_text(text: str, text_input: str | None) -> str:
-    chosen = text_input if text_input is not None else text
-    if not isinstance(chosen, str) or not chosen.strip():
+def _validated_text(text: str) -> str:
+    if not isinstance(text, str) or not text.strip():
         raise ValueError("Enter text to synthesize.")
-    return chosen.strip()
+    return text.strip()
 
 
 class Downloader:
@@ -215,92 +275,88 @@ class Downloader:
                 "result": (str(vox_path), str(whisper_path))}
 
 
-class TTS:
+class ReferenceAudio:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "voxcpm_model_path": ("STRING", {"forceInput": True}),
                 "whisper_model_path": ("STRING", {"forceInput": True}),
-                "text": ("STRING", {"multiline": True, "default": ""}),
-                "cfg": ("FLOAT", {"default": 2.0, "min": 0.1, "max": 10.0, "step": 0.1}),
-                "inference_steps": ("INT", {"default": 10, "min": 1, "max": 100}),
-            },
-            "optional": {"text_input": ("STRING", {"forceInput": True})},
-        }
-
-    RETURN_TYPES = ("AUDIO",)
-    RETURN_NAMES = ("audio",)
-    FUNCTION = "run"
-    CATEGORY = "DINKIssTyle/VoxCPM2"
-
-    @classmethod
-    def IS_CHANGED(cls, **kwargs):
-        return float("nan")
-
-    def run(self, voxcpm_model_path, whisper_model_path, text, cfg, inference_steps, text_input=None):
-        final_text = _resolve_text(text, text_input)
-        model = _load_vox(voxcpm_model_path)
-        wav = model.generate(
-            text=final_text,
-            cfg_value=float(cfg),
-            inference_timesteps=int(inference_steps),
-        )
-        return (_as_comfy_audio(wav, model.tts_model.sample_rate),)
-
-
-class Cloning:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "voxcpm_model_path": ("STRING", {"forceInput": True}),
-                "whisper_model_path": ("STRING", {"forceInput": True}),
-                "reference_audio": ("AUDIO",),
-                "text": ("STRING", {"multiline": True, "default": ""}),
-                "reference_transcript": ("STRING", {"multiline": True, "default": ""}),
+                "voice_file": (_voice_names() or [""],),
+                "transcript_preview": ("STRING", {"multiline": True, "default": ""}),
             },
             "optional": {
-                "text_input": ("STRING", {"forceInput": True}),
-                "transcribe_only": ("BOOLEAN", {"default": False}),
+                "transcribe_action": ("BOOLEAN", {"default": False}),
                 "request_id": ("STRING", {"default": ""}),
             },
         }
 
-    RETURN_TYPES = ("AUDIO",)
-    RETURN_NAMES = ("audio",)
+    RETURN_TYPES = ("AUDIO", "STRING")
+    RETURN_NAMES = ("sound", "reference_transcript")
     FUNCTION = "run"
     CATEGORY = "DINKIssTyle/VoxCPM2"
-    OUTPUT_NODE = True  # the STT button queues this node as the sole output
+    OUTPUT_NODE = True  # permits the transcription button to run this node alone
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
         return float("nan")
 
-    def run(self, voxcpm_model_path, whisper_model_path, reference_audio, text,
-            reference_transcript, text_input=None, transcribe_only=False, request_id=""):
-        if transcribe_only:
-            transcript = _transcribe(reference_audio, whisper_model_path)
-            return {"ui": {"transcript": [transcript], "request_id": [request_id]},
-                    "result": (reference_audio,)}
+    def run(self, whisper_model_path, voice_file, transcript_preview="", transcribe_action=False, request_id=""):
+        audio = _load_voice_audio(voice_file)
+        if transcribe_action:
+            transcript = _transcribe(audio, whisper_model_path)
+            _voice_path(voice_file).with_suffix(".txt").write_text(transcript, encoding="utf-8")
+        else:
+            transcript = _read_voice_transcript(voice_file)
+        return {"ui": {"transcript": [transcript], "request_id": [request_id]},
+                "result": (audio, transcript)}
 
-        final_text = _resolve_text(text, text_input)
-        _validated_audio(reference_audio)
+
+class TTSCloning:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "voxcpm_model_path": ("STRING", {"forceInput": True}),
+                "text": ("STRING", {"multiline": True, "default": ""}),
+                "cfg": ("FLOAT", {"default": 2.0, "min": 0.1, "max": 10.0, "step": 0.1, "advanced": True}),
+                "inference_steps": ("INT", {"default": 10, "min": 1, "max": 100, "advanced": True}),
+            },
+            "optional": {
+                "reference_audio": ("AUDIO",),
+                "reference_transcript": ("STRING", {"forceInput": True}),
+            },
+        }
+
+    RETURN_TYPES = ("AUDIO",)
+    RETURN_NAMES = ("sound",)
+    FUNCTION = "run"
+    CATEGORY = "DINKIssTyle/VoxCPM2"
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("nan")
+
+    def run(self, voxcpm_model_path, text, cfg=2.0, inference_steps=10,
+            reference_audio=None, reference_transcript=None):
+        final_text = _validated_text(text)
         model = _load_vox(voxcpm_model_path)
         kwargs = {
             "text": final_text,
-            "cfg_value": 2.0,
-            "inference_timesteps": 10,
+            "cfg_value": float(cfg),
+            "inference_timesteps": int(inference_steps),
         }
-        path = _reference_wav(reference_audio)
-        try:
-            transcript = reference_transcript.strip()
-            if transcript:
-                kwargs["prompt_wav_path"] = path
-                kwargs["prompt_text"] = transcript
-            else:
-                kwargs["reference_wav_path"] = path
+        if reference_audio is None:
             wav = model.generate(**kwargs)
-        finally:
-            os.unlink(path)
+        else:
+            path = _reference_wav(reference_audio)
+            try:
+                transcript = (reference_transcript or "").strip()
+                if transcript:
+                    kwargs["prompt_wav_path"] = path
+                    kwargs["prompt_text"] = transcript
+                else:
+                    kwargs["reference_wav_path"] = path
+                wav = model.generate(**kwargs)
+            finally:
+                os.unlink(path)
         return (_as_comfy_audio(wav, model.tts_model.sample_rate),)

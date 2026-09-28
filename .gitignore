@@ -4,3 +4,5 @@ __pycache__/
 ComfyUI-DINKIssTyle/csv/Cinema_Prompt.csv
 ComfyUI-DINKIssTyle_VoxCPM2/model/*
 !ComfyUI-DINKIssTyle_VoxCPM2/model/.gitkeep
+ComfyUI-DINKIssTyle_VoxCPM2/voice/*
+!ComfyUI-DINKIssTyle_VoxCPM2/voice/.gitkeep

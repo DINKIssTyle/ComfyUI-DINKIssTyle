@@ -1,7 +1,7 @@
 # DKST VoxCPM2 ComfyUI Nodes
 
-Three nodes: **DKST VoxCPM2 (Downloader)**, **DKST VoxCPM2 (TTS)**, and
-**DKST VoxCPM2 (Cloning)**.
+Three nodes: **DKST VoxCPM2 (Downloader)**,
+**DKST VoxCPM2 (Reference Audio)**, and **DKST VoxCPM2 (TTS & Cloning)**.
 
 ## Installation
 
@@ -21,23 +21,26 @@ only when you click a download button.
 
 ## Workflow
 
-1. Add **DKST VoxCPM2 (Downloader)**. Select `VoxCPM2` and a Whisper checkpoint, then use the two
-   download buttons. Checkpoints are stored in this package's `model/` folder.
-2. Connect both model path outputs to **DKST VoxCPM2 (TTS)** or **DKST VoxCPM2 (Cloning)**. Whisper is
-   only used for reference transcription; ordinary synthesis does not load it.
-3. For cloning, connect a standard ComfyUI `AUDIO` source such as **Load Audio**.
-   Enter the target text and optionally the exact transcript of the reference
-   clip. If the transcript is blank, cloning uses reference-only mode. If it is
-   filled, cloning uses VoxCPM2 prompt-audio and prompt-text mode.
-4. **Transcribe Reference (Whisper)** queues a transcription-only execution of the
-   connected audio and fills the transcript widget. Run the workflow normally
-   afterward to create audio. Both synthesis nodes output standard `AUDIO`,
-   suitable for **Save Audio**.
+1. Add **DKST VoxCPM2 (Downloader)**. Select `VoxCPM2` and a Whisper checkpoint,
+   then use the two download buttons. Checkpoints are stored in `model/`.
+2. Connect its Whisper model path to **DKST VoxCPM2 (Reference Audio)**. Select a
+   file from the `voice/` dropdown, use **Upload Voice**, or copy an audio file
+   into `voice/` and select **Refresh Voices**. Supported extensions are WAV,
+   MP3, FLAC, OGG, M4A, AAC, and Opus. Uploaded files with duplicate names get
+   a numbered suffix.
+   Audio decoding uses SoundFile and PyAV, so it also works on ComfyUI versions
+   without `comfy.audio`.
+3. **Transcribe Reference (Whisper)** transcribes the selected file and saves
+   `voice/<audio stem>.txt`. Pressing the button again replaces that transcript.
+   The multiline preview shows the saved transcript. The node outputs both the
+   reference `AUDIO` and transcript `STRING`.
+4. Connect the VoxCPM2 model path to **DKST VoxCPM2 (TTS & Cloning)**. Enter the
+   target text in the multiline `text` field. Without reference audio, it performs TTS. With
+   reference audio, it clones the voice. A connected reference transcript adds
+   transcript-guided cloning. Its `sound` output connects to **Save Audio**.
 
-The speech synthesis node accepts text either in its multiline widget or from
-the optional `text_input` STRING connection. A connected STRING takes priority.
-Synthesis defaults to CFG 2.0 and 10 inference steps. Cloning uses the same
-settings internally, matching the previous GUI.
+`cfg` defaults to 2.0 and `inference_steps` to 10. Both controls are behind
+ComfyUI's Advanced toggle. The synthesis node does not require a Whisper path.
 
 VoxCPM's `torch.compile` optimization is disabled for these nodes. Its CUDA
 graph warm-up is incompatible with ComfyUI installations using the
@@ -45,4 +48,4 @@ graph warm-up is incompatible with ComfyUI installations using the
 
 Model downloads are explicit. The downloader's path outputs are constructed from
 the current selection; missing checkpoint files are reported when a model is
-used. Large checkpoint files under `model/` are ignored by Git.
+used. Checkpoints in `model/` and audio/transcripts in `voice/` are ignored by Git.

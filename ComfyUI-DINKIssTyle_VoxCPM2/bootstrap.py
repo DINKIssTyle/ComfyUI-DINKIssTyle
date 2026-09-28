@@ -16,6 +16,7 @@ REQUIRED_MODULES = (
     "soundfile",
     "scipy",
     "torchaudio",
+    "av",
 )
 REQUIREMENTS = Path(__file__).resolve().parent / "requirements.txt"
 
