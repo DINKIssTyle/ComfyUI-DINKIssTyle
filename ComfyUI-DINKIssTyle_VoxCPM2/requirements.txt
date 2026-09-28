@@ -1,0 +1,5 @@
+voxcpm
+huggingface_hub
+openai-whisper
+soundfile
+scipy

@@ -41,6 +41,7 @@ function fixture(secure = false, copyAllowed = true) {
             this.comfyClass = 'DINKI_Text_Note';
             this.widgets = [{ name: 'text', value, options: {}, callback() {} }];
             this.properties = properties;
+            this.size = [200, 100];
             this.graph = { incrementVersion() {} };
             this.onNodeCreated();
         }
@@ -111,6 +112,22 @@ test('secure context Copy uses the Clipboard API', async () => {
     assert.equal(context.copied, 'copy me');
     assert.equal(context.commandCount, 0);
     assert.equal(copy.textContent, 'Copied!');
+});
+
+test('resized note keeps its saved size after configuration', async () => {
+    const context = fixture();
+    const node = new context.Note('resized');
+    assert.deepEqual(node.size, [360, 280]);
+    node.setSize([640, 430]);
+    const saved = {};
+    node.onSerialize(saved);
+    assert.deepEqual(Array.from(saved.size), [640, 430]);
+
+    const restored = new context.Note();
+    restored.onConfigure(saved);
+    await Promise.resolve();
+    assert.deepEqual(Array.from(restored.size), [640, 430]);
+    assert.equal(restored.root.children[1].value, '');
 });
 
 test('copy failure is shown on the button and can be retried', async () => {

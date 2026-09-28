@@ -35,6 +35,17 @@ async function copyNoteText(text) {
     copyWithSelection(text);
 }
 
+function validNodeSize(size) {
+    return size?.length === 2 && Number.isFinite(size[0]) && size[0] > 0 &&
+        Number.isFinite(size[1]) && size[1] > 0;
+}
+
+function currentNodeSize(node) {
+    // Nodes 2.0 can hold the resized geometry in its layout store.
+    try { void node.renderingSize; } catch {}
+    return validNodeSize(node.size) ? [node.size[0], node.size[1]] : null;
+}
+
 app.registerExtension({
     name: "DINKI.TextNote",
     beforeRegisterNodeDef(nodeType, nodeData) {
@@ -149,12 +160,34 @@ app.registerExtension({
             });
 
             const configured = this.onConfigure;
-            this.onConfigure = function() {
+            this.onConfigure = function(info) {
                 const configuredResult = configured?.apply(this, arguments);
-                queueMicrotask(() => this.dkstSyncTextNote?.());
+                const savedSize = validNodeSize(info?.size) ? [info.size[0], info.size[1]] : null;
+                if (savedSize) this.setSize?.(savedSize);
+                queueMicrotask(() => {
+                    if (savedSize) {
+                        const current = currentNodeSize(this);
+                        if (current?.[0] !== savedSize[0] || current?.[1] !== savedSize[1]) {
+                            this.setSize?.(savedSize);
+                        }
+                    }
+                    this.dkstSyncTextNote?.();
+                });
                 return configuredResult;
             };
-            this.setSize?.([360, 280]);
+            const serialized = this.onSerialize;
+            this.onSerialize = function(info) {
+                const serializedResult = serialized?.apply(this, arguments);
+                const size = currentNodeSize(this);
+                if (size) info.size = size;
+                return serializedResult;
+            };
+            // Node configuration restores its saved size after creation. A
+            // setSize() here can overwrite that value in the frontend layout.
+            if (this.size) {
+                this.size[0] = Math.max(this.size[0], 360);
+                this.size[1] = Math.max(this.size[1], 280);
+            }
             return result;
         };
     },
