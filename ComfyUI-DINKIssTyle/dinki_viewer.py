@@ -36,6 +36,113 @@ class DINKI_Video_Player:
         return {"ui": {"video": [{"filename": video_name, "type": source_type, "subfolder": ""}]}}
 
 
+class DINKI_Video_Viewer:
+    """Save and preview a native ComfyUI VIDEO while passing it through."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video": ("VIDEO",),
+                "filename_prefix": ("STRING", {"default": "DKST_Video"}),
+                "format": (["auto", "mp4", "mkv", "webm"], {"default": "auto"}),
+                "codec": (["auto", "h264", "av1"], {"default": "auto"}),
+                "always_save": ("BOOLEAN", {"default": False}),
+            },
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+        }
+
+    RETURN_TYPES = ("VIDEO",)
+    RETURN_NAMES = ("video",)
+    FUNCTION = "preview_video"
+    OUTPUT_NODE = True
+    CATEGORY = "DINKIssTyle/Video"
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, format, codec):
+        if format == "webm" and codec == "h264":
+            return "WebM does not support H.264 in ComfyUI Save Video. Choose auto or av1."
+        return True
+
+    def preview_video(
+        self, video, filename_prefix="DKST_Video", format="auto", codec="auto",
+        always_save=False, prompt=None, extra_pnginfo=None,
+    ):
+        from comfy_api.latest import Types
+        from comfy.cli_args import args
+
+        validation = self.VALIDATE_INPUTS(format, codec)
+        if validation is not True:
+            raise ValueError(validation)
+
+        resolved_format = "webm" if format == "auto" and codec == "av1" else (
+            "mp4" if format == "auto" else format
+        )
+        width, height = video.get_dimensions()
+        target_dir = (folder_paths.get_output_directory() if always_save
+                      else folder_paths.get_temp_directory())
+        output_folder, base, counter, subfolder, _ = folder_paths.get_save_image_path(
+            filename_prefix, target_dir, width, height
+        )
+        filename = f"{base}_{counter:05}_.{Types.VideoContainer.get_extension(resolved_format)}"
+        descriptor = {
+            "filename": filename, "subfolder": subfolder,
+            "type": "output" if always_save else "temp",
+        }
+        metadata = None
+        if not args.disable_metadata:
+            metadata = dict(extra_pnginfo or {})
+            if prompt is not None:
+                metadata["prompt"] = prompt
+            metadata = metadata or None
+        output_path = os.path.join(output_folder, filename)
+        video.save_to(
+            output_path,
+            format=Types.VideoContainer(resolved_format),
+            codec=Types.VideoCodec(codec),
+            metadata=metadata,
+        )
+
+        preview = descriptor
+        # HTML video support for MKV and AV1 varies by browser. Keep the saved
+        # file intact and use a temporary H.264 MP4 only for on-node playback.
+        needs_preview = resolved_format != "mp4" or codec == "av1"
+        if not needs_preview and codec == "auto":
+            try:
+                import av
+                with av.open(output_path, mode="r") as container:
+                    needs_preview = not container.streams.video or (
+                        container.streams.video[0].codec.name != "h264"
+                    )
+            except Exception:
+                needs_preview = True
+        if needs_preview:
+            preview_folder, preview_base, preview_counter, preview_subfolder, _ = (
+                folder_paths.get_save_image_path(
+                    f"preview_{filename_prefix}", folder_paths.get_temp_directory(),
+                    width, height
+                )
+            )
+            preview_name = f"{preview_base}_{preview_counter:05}_.mp4"
+            video.save_to(
+                os.path.join(preview_folder, preview_name),
+                format=Types.VideoContainer.MP4,
+                codec=Types.VideoCodec.H264,
+                preset="ultrafast",
+            )
+            preview = {
+                "filename": preview_name, "subfolder": preview_subfolder,
+                "type": "temp",
+            }
+
+        return {
+            "ui": {
+                "dkst_video": [descriptor],
+                "dkst_video_preview": [preview],
+                "resolution": [f"{width} × {height}"],
+            },
+            "result": (video,),
+        }
 
 
 

@@ -256,6 +256,136 @@ test('custom labels update both widget renderers without changing group modes', 
     assert.equal(f.changes(), changes);
 });
 
+function sizedFixture() {
+    const f = fixture();
+    const node = f.node;
+    node.properties = {};
+    node.size = [310, 145];
+    node.showAdvanced = false;
+    node.computeSize = () => [300, node.showAdvanced ? 260 : 100];
+    node.setSize = function(size) {
+        this.size = [...size];
+        this.onResize?.(this.size);
+    };
+    node.toggleAdvanced = function() {
+        this.showAdvanced = !this.showAdvanced;
+        const minimum = this.computeSize();
+        this.setSize([Math.max(this.size[0], minimum[0]), Math.max(this.size[1], minimum[1])]);
+    };
+    f.extension.nodeCreated(node);
+    return f;
+}
+
+test('advanced inputs restore the manually sized compact node on every toggle', () => {
+    const { node } = sizedFixture();
+    node.toggleAdvanced();
+    assert.deepEqual(node.size, [310, 260]);
+    node.toggleAdvanced();
+    assert.deepEqual(node.size, [310, 145]);
+    node.setSize([340, 170]);
+    node.toggleAdvanced();
+    node.toggleAdvanced();
+    assert.deepEqual(node.size, [340, 170]);
+    assert.deepEqual(Array.from(node.properties.dkstNodeChangeCompactSize), [340, 170]);
+});
+
+test('Nodes 2.0 typed-array sizes keep a manual height below the hidden-widget minimum', () => {
+    const f = fixture();
+    const node = f.node;
+    node.properties = {};
+    node.size = new Float32Array([225, 110]);
+    node.showAdvanced = false;
+    node.computeSize = () => new Float32Array([210, 178]);
+    node.setSize = function(size) {
+        this.size = new Float32Array(size);
+        this.onResize?.(this.size);
+    };
+    node.toggleAdvanced = function() {
+        this.showAdvanced = !this.showAdvanced;
+        if (this.showAdvanced) this.setSize([225, 260]);
+    };
+    f.extension.nodeCreated(node);
+    f.extension.setup();
+    f.tick();
+    assert.deepEqual(Array.from(node.computeSize()), [210, 90]);
+    assert.deepEqual(Array.from(node.properties.dkstNodeChangeCompactSize), [225, 110]);
+    node.toggleAdvanced();
+    node.toggleAdvanced();
+    assert.deepEqual(Array.from(node.size), [225, 110]);
+    const info = { properties: {}, size: new Float32Array(node.size) };
+    node.onSerialize(info);
+    assert.deepEqual(Array.from(info.size), [225, 110]);
+
+    node.size = new Float32Array([225, 178]); // Frontend expanded on redraw.
+    node.onConfigure({ size: new Float32Array([225, 110]),
+        properties: { dkstNodeChangeCompactSize: [225, 178] } });
+    assert.deepEqual(Array.from(node.size), [225, 110]);
+});
+
+test('direct advanced-state redraw and workflow serialization preserve compact size', () => {
+    const f = sizedFixture();
+    f.extension.setup();
+    f.node.showAdvanced = true;
+    f.node.setSize([310, 260]);
+    f.tick();
+    const info = { properties: {}, size: [...f.node.size] };
+    f.node.onSerialize(info);
+    assert.deepEqual(Array.from(info.properties.dkstNodeChangeCompactSize), [310, 145]);
+    f.node.showAdvanced = false;
+    f.tick();
+    assert.deepEqual(f.node.size, [310, 145]);
+
+    const restored = sizedFixture().node;
+    restored.showAdvanced = true;
+    restored.size = [310, 260];
+    restored.properties = info.properties;
+    restored.onConfigure({ properties: info.properties });
+    assert.deepEqual(restored.size, [310, 260]);
+    restored.toggleAdvanced();
+    assert.deepEqual(restored.size, [310, 145]);
+
+    restored.size = [310, 145];
+    restored.showAdvanced = false;
+    restored.onConfigure({ properties: info.properties });
+    assert.deepEqual(restored.size, [310, 145]);
+});
+
+test('Nodes 2.0 drag geometry wins over an older expanded-size property on redraw', () => {
+    const f = sizedFixture();
+    const { node } = f;
+    f.extension.setup();
+    node.properties.dkstNodeChangeCompactSize = [310, 260];
+    node.size = [310, 260]; // Stale LiteGraph projection before a layout-store read.
+    Object.defineProperty(node, 'renderingSize', {
+        get() {
+            this.size = [310, 145];
+            return this.size;
+        },
+    });
+    f.tick();
+    assert.deepEqual(Array.from(node.properties.dkstNodeChangeCompactSize), [310, 145]);
+    node.onConfigure({ properties: { dkstNodeChangeCompactSize: [310, 260] },
+        size: [310, 145], showAdvanced: false });
+    assert.deepEqual(node.size, [310, 145]);
+    assert.deepEqual(Array.from(node.properties.dkstNodeChangeCompactSize), [310, 145]);
+
+    node.size = [310, 260]; // Another stale projection immediately before saving.
+    const info = { properties: {}, size: [310, 260] };
+    node.onSerialize(info);
+    assert.deepEqual(Array.from(info.size), [310, 145]);
+    assert.deepEqual(Array.from(info.properties.dkstNodeChangeCompactSize), [310, 145]);
+});
+
+test('legacy workflow without compact metadata keeps its saved custom size', () => {
+    const { node } = sizedFixture();
+    node.size = [420, 190];
+    node.onConfigure({ properties: {}, size: [420, 190], showAdvanced: false });
+    assert.deepEqual(node.size, [420, 190]);
+    node.toggleAdvanced();
+    node.toggleAdvanced();
+    assert.deepEqual(node.size, [420, 190]);
+});
+
 test('old nodes without new widgets retain Bypass and default labels', () => {
     const f = fixture();
     f.node.widgets.splice(3);

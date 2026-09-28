@@ -54,7 +54,7 @@ To maintain the **original quality and resolution** of your input images:
 
 The generated MP4 plays inside DKST Video (Image Compare); GIF and WebP results are displayed there too. Right-click the preview for a two-item menu: `Open Video` and `Save Video`. The actions use the latest generated file, including files created in preview mode.
 
-#### 📺 Input Parameters (DKST Viewer (Video Player))
+#### 📺 Input Parameters (DKST Video (Sequence Player))
 
 | Parameter | Description |
 | :--- | :--- |
@@ -62,6 +62,12 @@ The generated MP4 plays inside DKST Video (Image Compare); GIF and WebP results 
 
 The player accepts a saved path from either video generator. It detects whether the file came from ComfyUI's temporary or output folder and renders the supported video or image format in the node.
 Right-click the player for `Open Video` or `Save Video`. Both actions use the current file, including GIF or WebP output from the video generators.
+
+#### DKST Video (Video Player)
+
+Connect a native ComfyUI `VIDEO` input. This output node also passes the same `VIDEO` value onward, so it can be selected with **Execute to selected output nodes**. `filename_prefix` defaults to `DKST_Video`. `format` offers `auto`, `mp4`, `mkv`, and `webm`; `codec` offers `auto`, `h264`, and `av1`. Auto format produces WebM with AV1 and MP4 otherwise. WebM cannot be paired with H.264. `always_save` is off by default, writing to ComfyUI's temporary folder; turning it on writes to the output folder.
+
+The on-node player shows video resolution and keeps the node at the user's chosen size. **Fit** contains the full frame while preserving its aspect ratio. **100%** shows one video pixel per screen pixel inside a scrollable viewport. Right-click for `Open Video` or `Save Video`, which use the saved file in the selected format. For formats browsers may not play directly, the node creates a temporary H.264 MP4 solely for playback.
 
 ## DKST Video (Depth Parallax)
 

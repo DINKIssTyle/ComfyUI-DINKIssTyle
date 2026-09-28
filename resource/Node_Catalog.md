@@ -62,7 +62,8 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Util` | DKST Util (Workflow Lock) | `DINKI_Workflow_Lock` |
 | `DINKIssTyle/Video` | DKST Video (Depth Parallax) | `DINKI_DepthParallax_MOV` |
 | `DINKIssTyle/Video` | DKST Video (Image Compare) | `DINKI_Image_Comparer_MOV` |
-| `DINKIssTyle/Viewer` | DKST Viewer (Video Player) | `DINKI_Video_Player` |
+| `DINKIssTyle/Video` | DKST Video (Video Player) | `DINKI_Video_Viewer` |
+| `DINKIssTyle/Viewer` | DKST Video (Sequence Player) | `DINKI_Video_Player` |
 
-UNet Loader supports safetensors and GGUF (with ComfyUI-GGUF installed). Video Player displays MP4, WEBM, MOV, GIF, WebP, PNG, and JPG files supplied by its filename input.
+UNet Loader supports safetensors and GGUF (with ComfyUI-GGUF installed). Sequence Player displays MP4, WEBM, MOV, GIF, WebP, PNG, and JPG files supplied by its filename input. Video Player accepts and passes through ComfyUI's native VIDEO type.
 Mask Mix blends masks using weights. Latent Source selects an empty or image-based latent.

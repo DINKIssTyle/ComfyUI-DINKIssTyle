@@ -640,6 +640,131 @@ function applyNodeChange(node, changedName, changedValue, values = {}) {
     }
 }
 
+// LiteGraph's advanced toggle expands to fit visible widgets, but does not
+// shrink again when they are hidden. Keep Node Change's compact size separately
+// so its five advanced controls cannot leave a permanent empty area.
+function keepNodeChangeCompactSize(node) {
+    const property = "dkstNodeChangeCompactSize";
+    // Nodes 2.0 exposes sizes as typed array-like views, not plain Arrays.
+    const validSize = size => size?.length === 2 &&
+        Number.isFinite(size[0]) && size[0] > 0 &&
+        Number.isFinite(size[1]) && size[1] > 0;
+    const computeSize = node.computeSize;
+    if (computeSize) {
+        node.computeSize = function () {
+            const size = computeSize.apply(this, arguments);
+            // Nodes 2.0's minimum includes the five hidden advanced widgets
+            // even when this control is collapsed. The visible row and footer
+            // need only 90 graph units (plus the frontend's title height).
+            if (!this.showAdvanced && validSize(size)) return [size[0], Math.min(size[1], 90)];
+            return size;
+        };
+    }
+    const currentSize = () => {
+        // Nodes 2.0 can resize the layout store without calling onResize.
+        // Reading renderingSize refreshes LiteGraph's cached size view first.
+        try { void node.renderingSize; } catch {}
+        return validSize(node.size) ? [...node.size] : null;
+    };
+    let compactSize = validSize(node.properties?.[property])
+        ? [...node.properties[property]] : (!node.showAdvanced ? currentSize() : null);
+    let wasAdvanced = !!node.showAdvanced;
+    let restoring = false;
+
+    const remember = () => {
+        const size = currentSize();
+        if (node.showAdvanced || !size) return;
+        compactSize = size;
+        node.properties ??= {};
+        node.properties[property] = [...compactSize];
+    };
+    const restore = () => {
+        const minimum = node.computeSize?.();
+        const target = compactSize ?? (validSize(minimum) ? minimum : null);
+        if (!target) return;
+        // computeSize() includes hidden advanced widgets in current ComfyUI.
+        // An explicit compact size may therefore be smaller than that value.
+        const size = [target[0], target[1]];
+        const current = currentSize();
+        if (current?.[0] !== size[0] || current?.[1] !== size[1]) {
+            restoring = true;
+            try {
+                if (node.setSize) node.setSize(size);
+                else node.size = size;
+            } finally {
+                restoring = false;
+            }
+            node.setDirtyCanvas?.(true, true);
+        }
+        remember();
+    };
+    const sync = () => {
+        const advanced = !!node.showAdvanced;
+        if (advanced === wasAdvanced) {
+            const size = currentSize();
+            const stored = node.properties?.[property];
+            if (!advanced && size &&
+                (size[0] !== compactSize?.[0] || size[1] !== compactSize?.[1] ||
+                    size[0] !== stored?.[0] || size[1] !== stored?.[1])) remember();
+            return;
+        }
+        wasAdvanced = advanced;
+        if (!advanced) restore();
+    };
+
+    const onResize = node.onResize;
+    node.onResize = function () {
+        const result = onResize?.apply(this, arguments);
+        if (!restoring) {
+            if (wasAdvanced && !this.showAdvanced) sync();
+            else if (!this.showAdvanced) remember();
+        }
+        return result;
+    };
+    const toggleAdvanced = node.toggleAdvanced;
+    if (toggleAdvanced) {
+        node.toggleAdvanced = function () {
+            if (!this.showAdvanced) remember();
+            const result = toggleAdvanced.apply(this, arguments);
+            sync();
+            return result;
+        };
+    }
+    return {
+        sync,
+        configure(info) {
+            // Properties created before configure() are not evidence that the
+            // saved workflow contained them: LiteGraph merges properties.
+            const stored = info?.properties?.[property];
+            wasAdvanced = !!node.showAdvanced;
+            if (wasAdvanced) {
+                compactSize = validSize(stored) ? [...stored] : null;
+                if (!compactSize && node.properties) delete node.properties[property];
+            } else {
+                // Workflow size is the user's saved geometry. Reapply it after
+                // configuration if the frontend expanded hidden widgets first.
+                const savedSize = info?.size;
+                if (validSize(savedSize)) {
+                    compactSize = [savedSize[0], savedSize[1]];
+                    restore();
+                } else {
+                    remember();
+                }
+            }
+        },
+        serialize(info) {
+            sync();
+            if (!node.showAdvanced) remember();
+            if (compactSize) {
+                info.properties ??= {};
+                info.properties[property] = [...compactSize];
+            }
+            const size = currentSize();
+            if (!node.showAdvanced && size) info.size = size;
+        }
+    };
+}
+
 // Read promoted input values through their real links rather than display labels
 // (which users can rename). New frontends keep these values only on the host.
 function nodeModePromotedValues(host, inherited, onSource) {
@@ -688,6 +813,7 @@ function nodeModePromotedValues(host, inherited, onSource) {
 // Both controls need the same classic/Nodes 2.0 and workflow lifecycle hooks.
 function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
     const previous = new WeakMap();
+    const nodeChangeSizes = new WeakMap();
     const watchedHosts = new WeakSet();
     const watchedWidgets = new WeakSet();
     let monitor;
@@ -733,6 +859,7 @@ function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
                 // including controls on the root graph. Labels are UI-only:
                 // refreshing them must not toggle any target node modes.
                 if (nodeClass === "DINKI_Node_Change" && node.comfyClass === nodeClass) {
+                    nodeChangeSizes.get(node)?.sync();
                     syncNodeChangeLabels(node, undefined, undefined, values);
                 }
                 if (nested && node.comfyClass === nodeClass) {
@@ -783,6 +910,16 @@ app.registerExtension({
             scheduleSync();
         }
         if (node.comfyClass !== nodeClass) return;
+        if (nodeClass === "DINKI_Node_Change") {
+            const sizing = keepNodeChangeCompactSize(node);
+            nodeChangeSizes.set(node, sizing);
+            const onSerialize = node.onSerialize;
+            node.onSerialize = function (info) {
+                const result = onSerialize?.apply(this, arguments);
+                sizing.serialize(info);
+                return result;
+            };
+        }
 
         // Nodes 2.0 and programmatic widget updates use the node notification.
         const onWidgetChanged = node.onWidgetChanged;
@@ -811,6 +948,7 @@ app.registerExtension({
             const original = node[hook];
             node[hook] = function () {
                 const result = original?.apply(this, arguments);
+                if (hook === "onConfigure") nodeChangeSizes.get(this)?.configure(arguments[0]);
                 queueMicrotask(() => apply(this));
                 return result;
             };
@@ -1344,6 +1482,217 @@ app.registerExtension({
         if (node.comfyClass === "DINKI_Video_Player") {
             node.dkstShowVideo?.(node.properties?.dkstVideo || app.nodeOutputs?.[node.id]?.video?.[0], false);
         }
+    },
+});
+
+// Native VIDEO input/output viewer. The saved file and the browser-friendly
+// playback file can differ; the context menu always targets the saved file.
+app.registerExtension({
+    name: "DINKI.VideoViewer",
+    beforeRegisterNodeDef(nodeType, nodeData) {
+        if (nodeData.name !== "DINKI_Video_Viewer") return;
+
+        const created = nodeType.prototype.onNodeCreated;
+        nodeType.prototype.onNodeCreated = function() {
+            const result = created?.apply(this, arguments);
+            const formatWidget = getWidget(this, "format");
+            const codecWidget = getWidget(this, "codec");
+            let syncCodecs;
+            if (formatWidget && codecWidget) {
+                syncCodecs = format => {
+                    const allowed = format === "webm" ? ["auto", "av1"] : ["auto", "h264", "av1"];
+                    const options = codecWidget.options ?? {};
+                    options.values = allowed;
+                    let owner = codecWidget;
+                    while (owner && !Object.getOwnPropertyDescriptor(owner, "options")) owner = Object.getPrototypeOf(owner);
+                    const descriptor = owner && Object.getOwnPropertyDescriptor(owner, "options");
+                    if (descriptor?.set) codecWidget.options = { ...options };
+                    else if (!codecWidget.options && (!descriptor || descriptor.writable)) codecWidget.options = options;
+                    if (!allowed.includes(codecWidget.value)) codecWidget.value = "auto";
+                    this.graph?.incrementVersion?.();
+                    this.setDirtyCanvas?.(true, true);
+                };
+                const formatCallback = formatWidget.callback;
+                formatWidget.callback = function(value) {
+                    const callbackResult = formatCallback?.apply(this, arguments);
+                    syncCodecs(value);
+                    return callbackResult;
+                };
+                const widgetChanged = this.onWidgetChanged;
+                this.onWidgetChanged = function(name, value) {
+                    const changedResult = widgetChanged?.apply(this, arguments);
+                    if (name === "format") syncCodecs(value);
+                    return changedResult;
+                };
+                syncCodecs(formatWidget.value);
+            }
+            const container = document.createElement("div");
+            Object.assign(container.style, {
+                width: "100%", height: "100%", minWidth: "0", minHeight: "0",
+                display: "flex", flexDirection: "column", overflow: "hidden",
+                background: "#181818", borderRadius: "6px", contain: "size layout paint",
+            });
+            const toolbar = document.createElement("div");
+            Object.assign(toolbar.style, {
+                flex: "0 0 30px", display: "flex", alignItems: "center",
+                gap: "4px", padding: "0 6px", color: "#eee",
+            });
+            const fitButton = document.createElement("button");
+            fitButton.textContent = "Fit";
+            const actualButton = document.createElement("button");
+            actualButton.textContent = "100%";
+            for (const button of [fitButton, actualButton]) {
+                Object.assign(button.style, {
+                    flex: "0 0 auto", height: "24px", padding: "0 8px",
+                    border: "1px solid #555", borderRadius: "4px",
+                    background: "#2b2b2b", color: "#eee", cursor: "pointer",
+                });
+            }
+            const resolution = document.createElement("span");
+            Object.assign(resolution.style, {
+                marginLeft: "auto", minWidth: "0", overflow: "hidden",
+                textOverflow: "ellipsis", whiteSpace: "nowrap",
+            });
+            toolbar.append(fitButton, actualButton, resolution);
+            const viewport = document.createElement("div");
+            Object.assign(viewport.style, {
+                flex: "1 1 0", minHeight: "0", minWidth: "0", overflow: "hidden",
+                background: "#000", display: "flex", alignItems: "center",
+                justifyContent: "center",
+            });
+            const video = document.createElement("video");
+            Object.assign(video, { controls: true, autoplay: true, loop: true, muted: true });
+            video.playsInline = true;
+            viewport.appendChild(video);
+            container.append(toolbar, viewport);
+            const widget = this.addDOMWidget("dkst_video_viewer", "DKST_VIDEO_VIEWER", container, {
+                hideOnZoom: false, getMinHeight: () => 140,
+                getMaxHeight: () => 10000, getHeight: () => 240,
+            });
+            widget.serialize = false;
+            widget.options.serialize = false;
+
+            let naturalWidth = 0;
+            let naturalHeight = 0;
+            let reportedResolution = "";
+            let viewMode = "fit";
+            const applyViewMode = () => {
+                const actual = viewMode === "actual";
+                Object.assign(viewport.style, {
+                    overflow: actual ? "auto" : "hidden",
+                    display: actual ? "block" : "flex",
+                });
+                Object.assign(video.style, {
+                    width: actual && naturalWidth ? `${naturalWidth}px` : "100%",
+                    height: actual && naturalHeight ? `${naturalHeight}px` : "100%",
+                    maxWidth: actual ? "none" : "100%",
+                    maxHeight: actual ? "none" : "100%",
+                    objectFit: actual ? "fill" : "contain",
+                    display: "block", margin: actual ? "auto" : "0",
+                });
+                fitButton.disabled = !this.dkstSavedVideo || !actual;
+                actualButton.disabled = !this.dkstSavedVideo || actual;
+            };
+            const setViewMode = mode => {
+                viewMode = mode;
+                if (this.properties?.dkstVideoViewer) {
+                    this.properties.dkstVideoViewer.viewMode = mode;
+                }
+                applyViewMode();
+            };
+            fitButton.onclick = () => setViewMode("fit");
+            actualButton.onclick = () => setViewMode("actual");
+            video.onloadedmetadata = () => {
+                naturalWidth = video.videoWidth || naturalWidth;
+                naturalHeight = video.videoHeight || naturalHeight;
+                if (!reportedResolution && naturalWidth && naturalHeight) {
+                    resolution.textContent = `${naturalWidth} × ${naturalHeight}`;
+                }
+                applyViewMode();
+            };
+            for (const element of [container, viewport, video]) {
+                for (const eventName of ["pointerdown", "mousedown"]) {
+                    element.addEventListener(eventName, event => {
+                        if (event.button === 2) event.stopPropagation();
+                    });
+                }
+            }
+            container.addEventListener("contextmenu", event =>
+                showMediaContextMenu(event, this.dkstSavedVideo, videoFileActions(this.dkstSavedVideo)));
+            const extraMenu = this.getExtraMenuOptions;
+            this.getExtraMenuOptions = function(canvas, options) {
+                const result = extraMenu?.apply(this, arguments);
+                options.push(...videoFileActions(this.dkstSavedVideo));
+                return result;
+            };
+
+            this.dkstUpdateVideoViewer = (message, persist = true) => {
+                const saved = message?.dkst_video?.[0];
+                if (!saved?.filename) return;
+                const preview = message?.dkst_video_preview?.[0] || saved;
+                const sameFile = this.dkstSavedVideo?.filename === saved.filename &&
+                    this.dkstSavedVideo?.subfolder === saved.subfolder &&
+                    this.dkstSavedVideo?.type === saved.type &&
+                    this.dkstPlaybackVideo?.filename === preview.filename &&
+                    this.dkstPlaybackVideo?.subfolder === preview.subfolder &&
+                    this.dkstPlaybackVideo?.type === preview.type;
+                this.dkstSavedVideo = saved;
+                this.dkstPlaybackVideo = preview;
+                if (persist) {
+                    this.properties ??= {};
+                    this.properties.dkstVideoViewer = {
+                        dkst_video: [saved], dkst_video_preview: [preview],
+                        resolution: message?.resolution || [], viewMode,
+                    };
+                } else if (message?.viewMode === "actual" || message?.viewMode === "fit") {
+                    viewMode = message.viewMode;
+                }
+                const dimensions = /^(\d+)\s*[×x]\s*(\d+)$/.exec(message?.resolution?.[0] || "");
+                naturalWidth = dimensions ? Number(dimensions[1]) : 0;
+                naturalHeight = dimensions ? Number(dimensions[2]) : 0;
+                reportedResolution = naturalWidth && naturalHeight
+                    ? `${naturalWidth} × ${naturalHeight}` : "";
+                resolution.textContent = reportedResolution;
+                applyViewMode();
+                if (!sameFile || persist) {
+                    video.pause();
+                    video.src = api.apiURL(`/view?${new URLSearchParams({
+                        ...preview, format: "video", t: String(Date.now()),
+                    })}`);
+                    video.load?.();
+                }
+                this.setDirtyCanvas?.(true, true);
+            };
+            this.dkstRestoreVideoViewer = () => {
+                const stored = this.properties?.dkstVideoViewer;
+                const output = app.nodeOutputs?.[this.id];
+                this.dkstUpdateVideoViewer?.(stored?.dkst_video?.length ? stored : output, false);
+            };
+            const configured = this.onConfigure;
+            this.onConfigure = function() {
+                const configuredResult = configured?.apply(this, arguments);
+                syncCodecs?.(formatWidget?.value);
+                queueMicrotask(() => this.dkstRestoreVideoViewer?.());
+                return configuredResult;
+            };
+            const removed = this.onRemoved;
+            this.onRemoved = function() {
+                video.pause();
+                video.removeAttribute("src");
+                video.load?.();
+                return removed?.apply(this, arguments);
+            };
+            applyViewMode();
+            return result;
+        };
+        const executed = nodeType.prototype.onExecuted;
+        nodeType.prototype.onExecuted = function(message) {
+            executed?.apply(this, arguments);
+            this.dkstUpdateVideoViewer?.(message);
+        };
+    },
+    loadedGraphNode(node) {
+        if (node.comfyClass === "DINKI_Video_Viewer") node.dkstRestoreVideoViewer?.();
     },
 });
 
@@ -1930,10 +2279,29 @@ app.registerExtension({
 // ============================================================
 // 14. DKST Image (Load)
 // ============================================================
+const imageLoadClasses = new Set(["DINKI_Image_Load", "DINKI_Image_Load_Crop"]);
+let activeImageLoadGraph;
+let imageLoadGraphMonitor;
+const refreshActiveImageLoaders = () => {
+    if (app.configuringGraph) return;
+    const root = app.canvas?.graph ?? app.rootGraph ?? app.graph;
+    if (!root || root === activeImageLoadGraph) return;
+    activeImageLoadGraph = root;
+    const visited = new Set();
+    const visit = graph => {
+        if (!graph || visited.has(graph)) return;
+        visited.add(graph);
+        for (const node of graph.nodes ?? graph._nodes ?? []) {
+            if (imageLoadClasses.has(node.comfyClass)) node.dkstScheduleImageLoaderRestore?.();
+            visit(node.subgraph);
+        }
+    };
+    visit(root);
+};
 app.registerExtension({
     name: "DINKI.ImageLoad",
     async beforeRegisterNodeDef(nodeType, nodeData) {
-        if (!["DINKI_Image_Load", "DINKI_Image_Load_Crop"].includes(nodeData.name)) return;
+        if (!imageLoadClasses.has(nodeData.name)) return;
         const combinedCrop = nodeData.name === "DINKI_Image_Load_Crop";
 
         const onNodeCreated = nodeType.prototype.onNodeCreated;
@@ -2005,8 +2373,18 @@ app.registerExtension({
             }
 
             const setValues = (widget, values) => {
-                widget.options ??= {};
-                widget.options.values = values.length ? values : [""];
+                const options = widget.options ?? {};
+                options.values = values.length ? values : [""];
+                // Nodes 2.0 observes its options setter, while classic widgets
+                // may retain the original object used by their menu renderer.
+                let owner = widget;
+                while (owner && !Object.getOwnPropertyDescriptor(owner, "options")) {
+                    owner = Object.getPrototypeOf(owner);
+                }
+                const descriptor = owner && Object.getOwnPropertyDescriptor(owner, "options");
+                if (descriptor?.set) widget.options = { ...options };
+                else if (!widget.options && (!descriptor || descriptor.writable)) widget.options = options;
+                node.graph?.incrementVersion?.();
             };
 
             let previewGeneration = 0;
@@ -2076,7 +2454,17 @@ app.registerExtension({
                 if (!response.ok) throw new Error(`Unable to load image list (${response.status})`);
                 const data = await response.json();
                 if (generation !== refreshGeneration) return;
-                const temporary = sourceType === "temp" && preferredFilename?.startsWith("DKST_Paste_");
+                let temporary = sourceType === "temp" && preferredFilename?.startsWith("DKST_Paste_");
+                if (temporary) {
+                    // Temp paste files are cleared when ComfyUI restarts. A
+                    // saved filename must not hide the selected folder's files.
+                    const check = await api.fetchApi(`/view?${new URLSearchParams({
+                        filename: preferredFilename, type: "temp",
+                    })}`, { method: "HEAD" });
+                    if (generation !== refreshGeneration) return;
+                    if (check.status === 404) temporary = false;
+                    else if (!check.ok) throw new Error(`Unable to check pasted image (${check.status})`);
+                }
                 const files = temporary
                     ? [preferredFilename, ...(data.files || []).filter(name => name !== preferredFilename)]
                     : (data.files || []);
@@ -2089,12 +2477,19 @@ app.registerExtension({
             };
 
             const refreshCategories = async(preferredCategory = null, preferredFilename = null,
-                sourceType = "input") => {
+                sourceType = "input", followCurrentSelection = false) => {
                 const generation = ++refreshGeneration;
                 const response = await api.fetchApi("/dinki/image-load/categories");
                 if (!response.ok) throw new Error(`Unable to load image categories (${response.status})`);
                 const data = await response.json();
                 if (generation !== refreshGeneration) return;
+                if (followCurrentSelection) {
+                    const saved = node.properties?.dkstImageLoad;
+                    const temporary = saved?.source_type === "temp";
+                    preferredCategory = temporary ? saved.category : categoryWidget.value;
+                    preferredFilename = temporary ? saved.filename : filenameWidget.value;
+                    sourceType = temporary ? "temp" : sourceTypeWidget.value;
+                }
                 const categories = data.categories || [""];
                 setValues(categoryWidget, categories);
                 categoryWidget.value = categories.includes(preferredCategory)
@@ -2122,14 +2517,15 @@ app.registerExtension({
             };
 
             node.dkstRefreshImageLoader = refreshCategories;
-            node.dkstRestoreImageLoader = () => {
-                const saved = node.properties?.dkstImageLoad;
-                const temporary = saved?.source_type === "temp";
-                return refreshCategories(
-                    temporary ? saved.category : categoryWidget.value,
-                    temporary ? saved.filename : filenameWidget.value,
-                    temporary ? "temp" : sourceTypeWidget.value,
-                );
+            node.dkstRestoreImageLoader = () => refreshCategories(null, null, "input", true);
+            let restoreScheduled = false;
+            node.dkstScheduleImageLoaderRestore = () => {
+                if (restoreScheduled) return;
+                restoreScheduled = true;
+                ensureLater(() => {
+                    restoreScheduled = false;
+                    node.dkstRestoreImageLoader?.().catch(console.error);
+                });
             };
             // The native mask editor reads/writes a widget named `image`.
             // Keep this bridge out of the visible controls and prompt inputs.
@@ -2364,18 +2760,14 @@ app.registerExtension({
                 return true;
             };
 
-            ensureLater(() => {
-                node.dkstRestoreImageLoader?.().catch(console.error);
-            });
+            node.dkstScheduleImageLoaderRestore();
             return result;
         };
 
         const onConfigure = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function() {
             const result = onConfigure?.apply(this, arguments);
-            ensureLater(() => {
-                this.dkstRestoreImageLoader?.().catch(console.error);
-            });
+            this.dkstScheduleImageLoaderRestore?.();
             return result;
         };
 
@@ -2398,13 +2790,26 @@ app.registerExtension({
         };
     },
 
+    loadedGraphNode(node) {
+        if (imageLoadClasses.has(node.comfyClass)) node.dkstScheduleImageLoaderRestore?.();
+    },
+
+    afterConfigureGraph() {
+        activeImageLoadGraph = null;
+        refreshActiveImageLoaders();
+    },
+
     setup() {
+        if (imageLoadGraphMonitor === undefined) {
+            imageLoadGraphMonitor = setInterval(refreshActiveImageLoaders, 250);
+            refreshActiveImageLoaders();
+        }
         window.addEventListener("paste", async(event) => {
             const activeElement = document.activeElement;
             if (activeElement?.matches?.("input, textarea, [contenteditable='true']")) return;
 
             const selected = Object.values(app.canvas?.selected_nodes || {}).find(
-                (node) => ["DINKI_Image_Load", "DINKI_Image_Load_Crop"].includes(node.comfyClass),
+                (node) => imageLoadClasses.has(node.comfyClass),
             );
             if (!selected?.dkstUploadClipboardImage) return;
 

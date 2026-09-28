@@ -68,6 +68,7 @@ from .dinki_image import (
 # 5. 뷰어 관련 노드
 from .dinki_viewer import (
     DINKI_Video_Player,
+    DINKI_Video_Viewer,
 )
 
 # 6. 스위치 관련
@@ -148,6 +149,7 @@ NODE_CLASS_MAPPINGS = {
 
     # Viewer
     "DINKI_Video_Player": DINKI_Video_Player,
+    "DINKI_Video_Viewer": DINKI_Video_Viewer,
 
     # Switch
     "DINKI_Node_Switch": DINKI_Node_Switch,
@@ -222,7 +224,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Multi_LoRA_Loader": "DKST PS (Multi LoRA Loader)",
 
     # Viewer
-    "DINKI_Video_Player": "DKST Viewer (Video Player)",
+    "DINKI_Video_Player": "DKST Video (Sequence Player)",
+    "DINKI_Video_Viewer": "DKST Video (Video Player)",
 
     # Switch
     "DINKI_Node_Switch": "DKST Util (Node Switch)",
