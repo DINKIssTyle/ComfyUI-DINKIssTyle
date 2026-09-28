@@ -20,7 +20,11 @@ function fixture(className = "DINKI_Image_Crop") {
         set src(value) { this.uri = value; this.onload?.(); }
     }
     const drawImages = [];
-    const context = new Proxy({ drawImage(image) { drawImages.push(image.uri); } }, { get(target, key) {
+    const drawTexts = [];
+    const context = new Proxy({
+        drawImage(image) { drawImages.push(image.uri); },
+        fillText(value) { drawTexts.push(value); },
+    }, { get(target, key) {
         if (!target[key]) target[key] = () => {};
         return target[key];
     } });
@@ -82,7 +86,7 @@ function fixture(className = "DINKI_Image_Crop") {
     const output = (width, height, rect, uri = "data:preview") => ({
         source_size: [[width, height]], crop_rect: [rect], source_preview: [uri],
     });
-    return { app, extension, Node, node, get, output, listeners, observers, drawImages };
+    return { app, extension, Node, node, get, output, listeners, observers, drawImages, drawTexts };
 }
 
 test("preset ratio centers a maximum crop and custom fields form a ratio pair", () => {
@@ -224,6 +228,21 @@ test("Load & Crop keeps resolution controls below the canvas in one flexible wid
     get("resolution_multiple").value = "16";
     preview.render();
     assert.equal(resolutionRow.children[1].value, "16");
+});
+
+test("Load & Crop shows the selected generation size before execution", () => {
+    const { node, get, drawTexts } = fixture("DINKI_Image_Load_Crop");
+    get("aspect_ratio").value = "1:1";
+    node.dkstCropSourcePreview({ width: 400, height: 300, uri: "file:first" }, "input::first.png");
+    const preview = get("__dkst_crop_preview");
+    const megapixels = preview.element.children[2].children[1].children[1];
+    assert.deepEqual(megapixels.children.map(option => option.value),
+        ["0.25MP", "0.56MP", "1MP", "1.68MP", "2MP", "3MP", "4MP"]);
+    megapixels.value = "1.68MP";
+    megapixels.listeners.change();
+    assert.equal(get("megapixels").value, "1.68MP");
+    assert.ok(drawTexts.includes("Source crop 300 × 300 px"));
+    assert.equal(drawTexts.at(-1), "Output 1328 × 1328 px");
 });
 
 test("Custom controls appear only for Custom and restore without an input image", () => {

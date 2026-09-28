@@ -153,6 +153,16 @@ class LoadCropTests(unittest.TestCase):
         self.assertEqual(result["ui"]["source_preview"], ["preview:300x400"])
         self.assertEqual(result["ui"]["resolution"], [f"{width} × {height}"])
 
+    def test_fractional_megapixels_resize_all_outputs_together(self):
+        self.assertIn("0.56MP", LoadCrop.INPUT_TYPES()["required"]["megapixels"][0])
+        result = LoadCrop().load_and_crop("", "source.png", aspect_ratio="1:1",
+                                          megapixels="0.56MP")
+        image, mask, alpha = result["result"]
+        self.assertEqual(image.shape, (2, 768, 768, 3))
+        self.assertEqual(mask.shape, (2, 768, 768))
+        self.assertEqual(alpha.shape, (2, 768, 768))
+        self.assertEqual(result["ui"]["resolution"], ["768 × 768"])
+
     def test_validation_keeps_loader_file_rules(self):
         self.assertTrue(LoadCrop.VALIDATE_INPUTS("", "valid.png"))
         self.assertFalse(LoadCrop.VALIDATE_INPUTS("", "invalid.txt"))

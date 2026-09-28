@@ -11,7 +11,7 @@ app.registerExtension({
         const onConfigure = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function() {
             const values = arguments[0]?.widgets_values;
-            if (Array.isArray(values) && /^[1-4]MP$/.test(values[0])) {
+            if (Array.isArray(values) && /^(?:0\.25|0\.56|1(?:\.68)?|[2-4])MP$/.test(values[0])) {
                 values.unshift("Custom", "8");
             }
             const result = onConfigure?.apply(this, arguments);

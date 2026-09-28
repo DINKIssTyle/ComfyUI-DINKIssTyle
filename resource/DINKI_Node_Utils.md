@@ -9,12 +9,16 @@
 
 
 ## 📍 DKST Util (Anchor)
-![Preview](DINKI_Anchor.gif)  
+
+<div align="center"><img src="DINKI_Anchor.gif" alt="" width="650"><br><br></div>
+
 This node lets you quickly jump to any desired location using a hotkey, and also allows a single shortcut to cycle through multiple zoom-in and zoom-out levels sequentially.
 
 ---
 
 ## DKST Util (Arrange)
+
+<div align="center"><img src="DINKI_Util_Arrange.gif" alt="" width="650"><br><br></div>
 
 Multi-select workflow nodes, then click a button on this node. The buttons preserve the selection and act immediately, without running the workflow. Arrange nodes, pinned nodes, groups, and reroutes are excluded. Only nodes in the currently displayed graph or subgraph are arranged. Changes support ComfyUI Undo/Redo.
 
@@ -27,7 +31,9 @@ The status line shows the number of eligible selected nodes. Buttons are disable
 ---
 
 ## 🧭 DKST Util (Auto Focus)
-![Preview](DINKI_Auto_Focus.gif)  
+
+<div align="center"><img src="DINKI_Auto_Focus.gif" alt="" width="650"><br><br></div>
+
 Automatically moves to the selected node and applies a custom zoom level. It follows selection in both classic ComfyUI and Nodes 2.0, including the currently displayed subgraph. The shortcut key toggles Auto Focus on or off.
 
 Turn on **fit** to center the selected node and fit its full width and height inside the visible canvas with a 5% margin. Fit calculates zoom from the node's current size and the canvas viewport, up to the canvas maximum zoom (or 3× when no maximum is available). With fit off, **zoom_level** controls the zoom as before. **smoothness** applies to both modes.
@@ -37,6 +43,8 @@ Turn on **restore_on_deselect** to restore only the zoom from before the first a
 ---
 
 ## 🔒 DKST Util (Workflow Lock)
+
+<div align="center"><img src="DINKI_Util_Workflow Lock.gif" alt="" width="650"><br><br></div>
 
 Use the **Lock / Unlock** switch to Pin every node in the workflow, including nodes inside subgraphs. Lock records each node's previous Pin state; Unlock restores it, so nodes that were already pinned stay pinned. The snapshot is saved with the workflow, allowing Unlock after reopening a locked workflow. New nodes added while locked are pinned and included in the snapshot. Multiple Workflow Lock nodes in the same workflow share one lock state.
 
@@ -48,7 +56,9 @@ Pinned nodes display a customizable Pin icon on their title bar. You can customi
 
 
 ## 🎚️ DKST Util (Node Switch)
-![Preview](DINKI_Node_Switch.gif)  
+
+<div align="center"><img src="DINKI_Node_Switch.gif" alt="" width="650"><br><br></div>
+
 A logic utility node that acts as a **remote control** for your workflow. It allows you to **toggle the Bypass status** of multiple target nodes simultaneously using a simple switch.
 
 Perfect for creating "Control Panels" in complex workflows, allowing you to turn entire sections (like Upscaling, Face Detailer, or LoRA stacks) on or off without hunting for individual nodes.
@@ -81,7 +91,8 @@ Perfect for creating "Control Panels" in complex workflows, allowing you to turn
 
 ## 🔀 DKST Util (Node Change)
 
-![](DINKI_Node_Change.gif)
+
+<div align="center"><img src="DINKI_Node_Change.gif" alt="" width="650"><br><br></div>
 
 Switch between two groups of nodes using comma-separated IDs in `node_ids_1`
 and `node_ids_2` (for example, `5, 12, 44`).
@@ -111,7 +122,10 @@ For predictable results, avoid targeting the same node with conflicting controls
 ---
 
 ## 🕵️ DKST Util (Node Check)
-![Preview](DINKI_Node_Check.gif)  
+
+
+<div align="center"><img src="DINKI_Node_Check.gif" alt="" width="650"><br><br></div>
+
 This node for quickly checking the ID of any selected node—even when the global “Show Node ID” option is turned off.
 
 

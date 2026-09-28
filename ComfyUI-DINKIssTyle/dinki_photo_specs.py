@@ -10,7 +10,7 @@ class DINKI_photo_specifications:
             "required": {
                 "resolution": (["Image", "Custom"], {"default": "Custom"}),
                 "resolution_multiple": (["4", "8", "16", "32"], {"default": "8"}),
-                "megapixels": (["1MP", "2MP", "3MP", "4MP"], {"default": "1MP"}),
+                "megapixels": (["0.25MP", "0.56MP", "1MP", "1.68MP", "2MP", "3MP", "4MP"], {"default": "1MP"}),
                 "aspect_ratio": (
                     [
                         # --- Basic ---
@@ -62,7 +62,7 @@ class DINKI_photo_specifications:
 
     def calculate_resolution(self, megapixels, aspect_ratio, orientation, resolution="Custom", resolution_multiple=8, image=None):
         # 1. 목표 픽셀 수 설정 (Base: 1024x1024 = 1,048,576 pixel for 1MP)
-        mp_multiplier = int(megapixels.replace("MP", ""))
+        mp_multiplier = float(megapixels.replace("MP", ""))
         target_area = 1024 * 1024 * mp_multiplier
 
         # Image uses the source image's aspect ratio and direction. Custom keeps

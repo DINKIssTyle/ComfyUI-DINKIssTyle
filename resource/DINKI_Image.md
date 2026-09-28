@@ -20,9 +20,11 @@ Select an image from the ComfyUI input folder, upload a file, or paste an image 
 
 ## ✂️ DKST Image (Load & Crop)
 
+<div align="center"><img src="DINKI_Image_Load_Crop.gif" alt="" width="650"><br><br></div>
+
 Select a `category` and `filename` as in **DKST Image (Load)**. The source image appears in the crop canvas as soon as it loads; a workflow run is not required to position the crop box. Choose `Original`, a preset `aspect_ratio`, or `Custom` with two ratio numbers. Drag inside the box to move it or drag a corner to resize it while preserving the selected ratio.
 
-The `image`, `mask`, and `alpha` outputs contain the same cropped region, resized to the dimensions selected by `resolution_multiple` (4, 8, 16, or 32) and `megapixels` (1MP to 4MP). The crop canvas shows the region's size in source pixels; the output image uses the selected target size. Here, 1MP targets 1024 × 1024 pixels for a square crop (about 1.05 million pixels), with each dimension rounded to the selected multiple. Resizing uses antialiased interpolation for images and alpha, and `mask` remains the inverse of alpha.
+The `image`, `mask`, and `alpha` outputs contain the same cropped region, resized to the dimensions selected by `resolution_multiple` (4, 8, 16, or 32) and `megapixels` (0.25, 0.56, 1, 1.68, 2, 3, or 4MP). The crop canvas shows both the source crop size and the calculated output size before running the workflow. Here, 1MP targets 1024 × 1024 pixels for a square crop (about 1.05 million pixels), with each dimension rounded to the selected multiple. Resizing uses antialiased interpolation for images and alpha, and `mask` remains the inverse of alpha.
 
 Upload, paste, drag and drop, and the mask editor remain available through the node menu. The crop preview refreshes when another file is selected and on each queued run.
 
@@ -60,7 +62,8 @@ The node crops pixels without resizing. The same crop is applied to every image 
 
 
 ## 🖼️ DKST Image (Overlay)
-![Preview](DINKI_Overlay.png?v=2)
+
+<div align="center"><img src="DINKI_Overlay.png?v=2" alt="" width="650"><br><br></div>
 
 A powerful and versatile ComfyUI node designed to add **watermarks, copyright text, subtitles, and logo overlays** to your generated images with professional precision.
 
@@ -104,7 +107,8 @@ To properly overlay a logo with a transparent background:
 
 
 ## 📸 DKST Image (Photo Specs)
-![Preview](DINKI_photo_specifications.png)
+
+<div align="center"><img src="DINKI_photo_specifications.png" alt="" width="650"><br><br></div>
 
 A utility node that calculates a target resolution from an input image or a selected aspect ratio and megapixel budget.
 
@@ -114,7 +118,7 @@ Use the resulting width and height as generation settings. The selected `resolut
 
 * **Image or Custom:** Choose a mode from the `resolution` dropdown; `Custom` is selected by default. `Image` reads the connected image's width, height, aspect ratio, and direction. Its calculation uses `resolution_multiple` and `megapixels` while bypassing the visible `aspect_ratio` and `orientation` settings. `Custom` uses those settings. An image is required only in `Image` mode.
 * **Resolution Multiple:** Round both dimensions to a multiple of **4, 8, 16, or 32**. The default of 8 preserves the previous node behavior. This setting is a rounding unit, not a magnification factor or image batch size.
-* **Megapixel Targeting:** Select from **1MP to 4MP** as an approximate pixel-area budget (base: 1MP = 1024x1024 pixels). Rounding can make the final area differ slightly from the target.
+* **Megapixel Targeting:** Select **0.25, 0.56, 1, 1.68, 2, 3, or 4MP** as an approximate pixel-area budget (base: 1MP = 1024x1024 pixels). For a square image with multiple 8, these include 512×512, 768×768, 1024×1024, 1328×1328, and 2048×2048. The 2MP and 3MP choices offer intermediate sizes. Rounding can make the final area differ slightly from the target.
 * **Custom Formats:** Choose photography and cinema ratios, then toggle **Portrait** or **Landscape**. These two controls are ignored in `Image` mode, which preserves the input image's ratio and direction.
 
 #### 💡 Workflow Tip
@@ -172,7 +176,8 @@ Connect the output to **DKST LLM (LM Studio)** to attach multiple reference imag
 
 
 ## ▦ DKST Image (Grid)
-![Preview](DINKI_Grid.gif)
+
+<div align="center"><img src="DINKI_Grid.gif" alt="" width="650"><br><br></div>
 
 An essential ComfyUI node for compiling up to **10 images** into a customizable grid layout. Perfect for creating comparison sheets, storyboards, or organized image galleries.
 
@@ -219,7 +224,7 @@ If you set the grid to **2 Columns × 3 Rows** (Total 6 cells) but connect only 
 
 A robust preview node that handles empty signals gracefully. If no image is provided (e.g., a skipped step due to a switch), it automatically generates a **custom placeholder image** containing text instead of crashing or showing an error.
 
-![Preview](DINKI_Image_Preview.png)
+<div align="center"><img src="DINKI_Image_Preview.png" alt="" width="650"><br><br></div>
 
 #### 🎛️ Parameters Guide
 
@@ -234,7 +239,9 @@ A robust preview node that handles empty signals gracefully. If no image is prov
 ---
 
 # 📦 DINKI Base64 Image Embedding Suite
-![Preview](DINKI_Base64.png)  
+
+<div align="center"><img src="DINKI_Base64.png" alt="" width="650"><br><br></div>
+
 [Download DINKI_Base64_to_Image.json](../sample_workflows/DINKI_Base64_to_Image.json)
 
 A set of nodes designed to make your ComfyUI workflows **fully self-contained and portable**. By converting images into Base64 strings, you can embed essential reference images, masks, or logos directly inside the workflow `.json` file. 

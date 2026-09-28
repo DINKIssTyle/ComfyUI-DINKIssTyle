@@ -20,7 +20,19 @@ class PhotoSpecsTests(unittest.TestCase):
         )
         self.assertEqual(inputs["required"]["resolution"][1]["default"], "Custom")
         self.assertEqual(inputs["required"]["resolution_multiple"][1]["default"], "8")
+        self.assertEqual(inputs["required"]["megapixels"][0],
+                         ["0.25MP", "0.56MP", "1MP", "1.68MP", "2MP", "3MP", "4MP"])
+        self.assertEqual(inputs["required"]["megapixels"][1]["default"], "1MP")
         self.assertEqual(inputs["optional"]["image"], ("IMAGE",))
+
+    def test_ai_generation_megapixel_presets(self):
+        for preset, side in (("0.25MP", 512), ("0.56MP", 768),
+                             ("1MP", 1024), ("1.68MP", 1328), ("4MP", 2048)):
+            with self.subTest(preset=preset):
+                width, height, info = self.node.calculate_resolution(
+                    preset, "Basic 1:1", False)
+                self.assertEqual((width, height), (side, side))
+                self.assertIn(preset, info)
 
     def test_existing_custom_result_and_old_call_signature(self):
         self.assertEqual(

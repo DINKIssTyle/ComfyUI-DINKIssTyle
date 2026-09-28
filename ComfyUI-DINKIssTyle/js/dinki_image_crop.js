@@ -4,7 +4,26 @@ import { api } from "../../scripts/api.js";
 const NODE_CLASSES = new Set(["DINKI_Image_Crop", "DINKI_Image_Load_Crop"]);
 const STORED = ["aspect_ratio", "custom_width", "custom_height", "crop_x", "crop_y", "crop_width", "crop_height"];
 const SIZE_CONTROLS = ["resolution_multiple", "megapixels"];
+const MEGAPIXEL_CHOICES = ["0.25MP", "0.56MP", "1MP", "1.68MP", "2MP", "3MP", "4MP"];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function targetSize(width, height, node) {
+    const megapixels = Number(String(node.widgets.find(widget => widget.name === "megapixels")?.value).replace(/MP$/, ""));
+    const multiple = Number(node.widgets.find(widget => widget.name === "resolution_multiple")?.value);
+    if (!width || !height || !Number.isFinite(megapixels) || megapixels <= 0 ||
+        ![4, 8, 16, 32].includes(multiple)) return null;
+    const area = megapixels * 1024 * 1024;
+    const ratio = width / height;
+    const roundToMultiple = value => {
+        const scaled = value / multiple;
+        const floor = Math.floor(scaled);
+        const fraction = scaled - floor;
+        const rounded = fraction < 0.5 ? floor : fraction > 0.5 ? floor + 1 : floor + floor % 2;
+        return Math.max(multiple, rounded * multiple);
+    };
+    const targetHeight = Math.sqrt(area / ratio);
+    return [roundToMultiple(targetHeight * ratio), roundToMultiple(targetHeight)];
+}
 
 function removeUnusedSourceTypeSocket(node) {
     const index = node.inputs?.findIndex(input =>
@@ -149,7 +168,7 @@ function cropPreviewWidget(node, state, widgets) {
     if (node.comfyClass === "DINKI_Image_Load_Crop") {
         for (const [name, title, choices] of [
             ["resolution_multiple", "Multiple", ["4", "8", "16", "32"]],
-            ["megapixels", "Megapixels", ["1MP", "2MP", "3MP", "4MP"]],
+            ["megapixels", "Megapixels", MEGAPIXEL_CHOICES],
         ]) {
             const source = node.widgets.find(widget => widget.name === name);
             if (!source) continue;
@@ -169,7 +188,10 @@ function cropPreviewWidget(node, state, widgets) {
                 select.append(option);
             }
             select.value = String(source.value);
-            select.addEventListener("change", () => setWidget(node, source, select.value));
+            select.addEventListener("change", () => {
+                setWidget(node, source, select.value);
+                node.dkstCropRender?.();
+            });
             row.append(label, select);
             footer.append(row);
             sizeSelectors.push([source, select]);
@@ -230,7 +252,8 @@ function cropPreviewWidget(node, state, widgets) {
         }
         const inset = 8;
         const availableWidth = Math.max(1, width - inset * 2);
-        const availableHeight = Math.max(1, height - 18 - inset * 2);
+        const loadCrop = node.comfyClass === "DINKI_Image_Load_Crop";
+        const availableHeight = Math.max(1, height - (loadCrop ? 32 : 18) - inset * 2);
         const scale = Math.min(availableWidth / state.image.width, availableHeight / state.image.height);
         const iw = state.image.width * scale;
         const ih = state.image.height * scale;
@@ -261,9 +284,13 @@ function cropPreviewWidget(node, state, widgets) {
         ctx.fillStyle = "#bfc3cb";
         ctx.font = "11px sans-serif";
         ctx.textAlign = "right";
-        const sizeLabel = node.comfyClass === "DINKI_Image_Load_Crop" ?
+        const sizeLabel = loadCrop ?
             `Source crop ${outW} × ${outH} px` : `${outW} × ${outH} px`;
-        ctx.fillText(sizeLabel, width - 4, height - 4);
+        ctx.fillText(sizeLabel, width - 4, height - (loadCrop ? 18 : 4));
+        if (loadCrop) {
+            const output = targetSize(outW, outH, node);
+            if (output) ctx.fillText(`Output ${output[0]} × ${output[1]} px`, width - 4, height - 4);
+        }
     }
 
     function point(event) {
@@ -507,8 +534,7 @@ app.registerExtension({
             } else if (Array.isArray(info?.widgets_values)) {
                 const list = info.widgets_values.filter(value => value !== null);
                 const offset = nodeData.name === "DINKI_Image_Load_Crop" ? 2 : 0;
-                const megapixelsIndex = list.findIndex(value =>
-                    typeof value === "string" && /^[1-4]MP$/.test(value));
+                const megapixelsIndex = list.findIndex(value => MEGAPIXEL_CHOICES.includes(value));
                 STORED.forEach((name, index) => {
                     const position = offset + index +
                         (offset && index >= 3 && megapixelsIndex === 6 ? 2 : 0);
@@ -520,8 +546,7 @@ app.registerExtension({
             if (nodeData.name === "DINKI_Image_Load_Crop") {
                 removeUnusedSourceTypeSocket(this);
                 const list = info?.widgets_values?.filter(value => value !== null) || [];
-                const megapixelsIndex = list.findIndex(value =>
-                    typeof value === "string" && /^[1-4]MP$/.test(value));
+                const megapixelsIndex = list.findIndex(value => MEGAPIXEL_CHOICES.includes(value));
                 const namedValues = info?.widgets_values_named;
                 const sizeValues = {
                     resolution_multiple: named?.resolution_multiple ??
@@ -532,7 +557,7 @@ app.registerExtension({
                 for (const name of SIZE_CONTROLS) {
                     const widget = this.widgets?.find(item => item.name === name);
                     const choices = name === "megapixels" ?
-                        ["1MP", "2MP", "3MP", "4MP"] : ["4", "8", "16", "32"];
+                        MEGAPIXEL_CHOICES : ["4", "8", "16", "32"];
                     if (widget && choices.includes(sizeValues[name])) {
                         widget.value = sizeValues[name];
                     }

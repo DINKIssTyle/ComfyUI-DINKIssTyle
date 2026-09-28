@@ -9,7 +9,7 @@
 
 ## 🎲 DKST Prompt (Random)
 
-![Random Prompt](DINKI_Random_Prompt.gif)
+<div align="center"><img src="DINKI_Random_Prompt.gif" alt="" width="650"><br><br></div>
 
 A versatile prompt generator that builds complex prompts using a custom CSV file. It allows you to organize tags by category and offers granular control over each section—choose a specific tag, randomize it, or skip it entirely.
 
@@ -38,7 +38,7 @@ A versatile prompt generator that builds complex prompts using a custom CSV file
 
 ## 🔀 DKST Util (String Switch)
 
-![String Switch RT](DINKI_String_Switch_RT.gif)
+<div align="center"><img src="DINKI_String_Switch_RT.gif" alt="" width="650"><br><br></div>
 
 A real-time text utility that converts multi-line text input into a dynamic dropdown menu. It allows you to switch between different text segments (such as prompt variations, styles, or parameters) instantly without disconnecting wires.
 
@@ -92,6 +92,8 @@ Uses the same `csv/DINKI_Prompt_List.csv` file and exposes only `title`. It look
 ---
 
 ## DKST Text (Note)
+
+<div align="center"><img src="DINKI_Text_Note.gif" alt="" width="650"><br><br></div>
 
 Write a multiline note directly in the workflow. Use **Lock** above the note to prevent edits while keeping the text selectable; click it again to unlock. **Copy** copies the entire note and briefly shows `Copied!` on success. The text and lock state are saved with the workflow. On ordinary HTTP connections, Copy uses the browser's legacy copy command when the secure Clipboard API is unavailable; the browser may still restrict clipboard access. This node has no output.
 

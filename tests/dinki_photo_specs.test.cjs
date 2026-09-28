@@ -47,3 +47,10 @@ test('Image mode keeps the native selector and custom controls visible', () => {
     assert.equal(node.widgets[4].value, true);
     assert.equal(node.widgets[4].hidden, undefined);
 });
+
+test('legacy Photo Specs layout restores a fractional megapixel preset', () => {
+    const node = loadNode(['0.56MP', 'Basic 1:1', 'Portrait']);
+    assert.equal(node.widgets[0].value, 'Custom');
+    assert.equal(node.widgets[1].value, '8');
+    assert.equal(node.widgets[2].value, '0.56MP');
+});
