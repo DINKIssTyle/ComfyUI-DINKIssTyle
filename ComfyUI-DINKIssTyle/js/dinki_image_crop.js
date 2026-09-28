@@ -405,11 +405,11 @@ app.registerExtension({
             const preview = cropPreviewWidget(node, state, widgets);
             node.dkstCropRender = () => preview.render();
             node.widgets.splice(node.widgets.indexOf(preview), 1);
-            node.widgets.splice(node.widgets.indexOf(widgets.custom_width), 0, preview);
+            node.widgets.push(preview);
             const hiddenControls = ["custom_width", "custom_height", "crop_x", "crop_y",
                 "crop_width", "crop_height"];
             if (nodeData.name === "DINKI_Image_Load_Crop") {
-                hiddenControls.push(...SIZE_CONTROLS);
+                hiddenControls.push(...SIZE_CONTROLS, "source_type");
             }
             for (const name of hiddenControls) {
                 const control = node.widgets.find(widget => widget.name === name);
@@ -518,8 +518,12 @@ app.registerExtension({
                 delete node.dkstCropSourcePreview;
                 return originalRemoved?.apply(this, removedArgs);
             };
+            // The graph restores its own serialized size after node creation.
+            // Only establish a useful size for a newly added node here.
             node.size[0] = Math.max(node.size[0], 370);
-            node.expandToFitContent?.();
+            node.size[1] = Math.max(node.size[1],
+                (nodeData.name === "DINKI_Image_Load_Crop" ? 104 : 64) +
+                preview.options.getHeight());
             return result;
         };
         const originalConfigure = nodeType.prototype.onConfigure;
@@ -578,6 +582,7 @@ app.registerExtension({
                     [...STORED, ...SIZE_CONTROLS] : STORED;
                 info.properties.dkstCropSettings = Object.fromEntries(names.map(name =>
                     [name, this.widgets.find(widget => widget.name === name)?.value]));
+                delete info.properties.dkstCropSize;
             }
             return result;
         };

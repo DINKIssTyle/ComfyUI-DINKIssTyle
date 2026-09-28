@@ -54,6 +54,9 @@ function fixture(className = "DINKI_Image_Crop") {
         { app, api, Image: FakeImage, document, ResizeObserver: FakeResizeObserver,
             queueMicrotask });
     const Node = function () {};
+    Node.prototype.onConfigure = function (info) {
+        if (Array.isArray(info?.size)) this.size = [...info.size];
+    };
     extension.beforeRegisterNodeDef(Node, { name: className });
     const node = {
         id: 8, comfyClass: className, pos: [100, 200], size: [300, 250],
@@ -76,7 +79,11 @@ function fixture(className = "DINKI_Image_Crop") {
         graph: { incrementVersion() {} }, setDirtyCanvas() {}, expandToFitContent() {},
         addCustomWidget(widget) { this.widgets.push(widget); return widget; },
         addDOMWidget(name, type, element, options) {
-            const widget = { name, type, element, options };
+            const widget = { name, type, element, options,
+                computeLayoutSize() { return {
+                    minHeight: options.getMinHeight(), maxHeight: options.getMaxHeight(), minWidth: 0,
+                }; },
+            };
             this.widgets.push(widget);
             return widget;
         },
@@ -220,6 +227,13 @@ test("Load & Crop keeps resolution controls below the canvas in one flexible wid
     assert.equal(preview.element.style.minHeight, "308px");
     assert.equal(node.widgets.filter(widget => !widget.hidden).at(-1).name,
         "__dkst_crop_preview");
+    assert.equal(node.widgets.at(-1).name, "__dkst_crop_preview");
+    assert.equal(preview.computeSize, undefined);
+    const layout = preview.computeLayoutSize();
+    assert.equal(layout.minHeight, 308);
+    assert.equal(layout.maxHeight, 10000);
+    assert.equal(node.size[0], 370);
+    assert.equal(node.size[1], 472);
     assert.equal(get("resolution_multiple").hidden, true);
     assert.equal(get("megapixels").hidden, true);
     megapixelsRow.children[1].value = "3MP";
@@ -339,4 +353,34 @@ test("serialized named settings survive UI widgets and saved preview does not re
     extension.loadedGraphNode(node);
     await Promise.resolve();
     assert.equal(get("crop_x").value, 0.2);
+});
+
+test("reloading or refreshing workflow preserves user resized node dimensions", () => {
+    const { node, Node, extension } = fixture("DINKI_Image_Load_Crop");
+    assert.equal(node.size[0], 370);
+    assert.equal(node.size[1], 472);
+    // ComfyUI saves the user's size in the standard node size field.
+    node.size = [550, 750];
+    const info = { size: [...node.size], widgets_values: [],
+        properties: { dkstCropSize: [370, 472] } };
+    Node.prototype.onSerialize.call(node, info);
+    assert.deepEqual(info.size, [550, 750]);
+    assert.equal(info.properties.dkstCropSize, undefined);
+
+    // Reopen workflow on a new node instance
+    const reopened = fixture("DINKI_Image_Load_Crop");
+    assert.equal(reopened.node.size[0], 370);
+    assert.equal(reopened.node.size[1], 472);
+
+    // A stale size property from an older workflow must not override the native size.
+    info.properties.dkstCropSize = [370, 472];
+    reopened.Node.prototype.onConfigure.call(reopened.node, info);
+    assert.equal(reopened.node.size[0], 550);
+    assert.equal(reopened.node.size[1], 750);
+    assert.equal(reopened.get("__dkst_crop_preview").computeLayoutSize().minHeight, 308);
+
+    // Graph finished loading event
+    extension.loadedGraphNode(reopened.node);
+    assert.equal(reopened.node.size[0], 550);
+    assert.equal(reopened.node.size[1], 750);
 });
