@@ -35,6 +35,7 @@ from .dinki_prompt import (
     prompt_loader,
     DINKI_Sampler_Preset,
 )
+from .dinki_prompt_csv_library import DINKI_PromptCsvLibrary
 
 # 2. Color & Correction 관련 노드 (dinki_color.py)
 from .dinki_color import (
@@ -126,6 +127,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_PromptSelector": DINKI_PromptSelector,
     "DINKI_PromptSelectorLive": DINKI_PromptSelectorLive,
     "DINKI_random_prompt": DINKI_random_prompt,
+    "DINKI_PromptCsvLibrary": DINKI_PromptCsvLibrary,
     "DINKI_Sampler_Preset": DINKI_Sampler_Preset,
 
     # Color & Correction
@@ -202,6 +204,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_PromptSelector": "DKST Prompt (CSV Selector)",
     "DINKI_PromptSelectorLive": "DKST Prompt (CSV Selector Live)",
     "DINKI_random_prompt": "DKST Prompt (Random)",
+    "DINKI_PromptCsvLibrary": "DKST Prompt (CSV Library)",
     "DINKI_Sampler_Preset": "DKST Util (Sampler Preset)",
 
     # Color & Correction
