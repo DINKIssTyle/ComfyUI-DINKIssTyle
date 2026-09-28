@@ -72,8 +72,8 @@ function fixture(className = "DINKI_Image_Crop") {
             { name: "crop_width", value: 1 },
             { name: "crop_height", value: 1 },
             ...(className === "DINKI_Image_Load_Crop" ? [
-                { name: "resolution_multiple", value: "8" },
-                { name: "megapixels", value: "1MP" },
+                { name: "resolution_multiple", value: 8, type: "number" },
+                { name: "megapixels", value: 1, type: "number" },
             ] : []),
         ],
         graph: { incrementVersion() {} }, setDirtyCanvas() {}, expandToFitContent() {},
@@ -208,55 +208,50 @@ test("Load & Crop previews a newly selected file before a workflow run", () => {
     assert.equal(get("crop_height").value, 0.75);
 });
 
-test("Load & Crop keeps resolution controls below the canvas in one flexible widget", () => {
+test("Load & Crop uses native numeric controls after its flexible crop preview", () => {
     const { node, get } = fixture("DINKI_Image_Load_Crop");
     const position = name => node.widgets.indexOf(get(name));
     assert.ok(position("aspect_ratio") < position("__dkst_crop_preview"));
     assert.equal(node.widgets.filter(widget => widget.element).length, 1);
     const preview = get("__dkst_crop_preview");
-    const [custom, canvas, footer] = preview.element.children;
-    const [resolutionRow, megapixelsRow] = footer.children;
+    const [custom, canvas] = preview.element.children;
     assert.equal(custom.style.display, "none");
     assert.equal(canvas.tag, "canvas");
-    assert.equal(resolutionRow.children[0].textContent, "Multiple");
-    assert.equal(megapixelsRow.children[0].textContent, "Megapixels");
+    assert.equal(preview.element.children.length, 2);
     assert.equal(preview.element.style.height, "100%");
     assert.equal(preview.element.style.contain, "size layout paint");
     assert.equal(canvas.style.height, "0");
-    assert.equal(preview.options.getMinHeight(), 308);
-    assert.equal(preview.element.style.minHeight, "308px");
-    assert.equal(node.widgets.filter(widget => !widget.hidden).at(-1).name,
-        "__dkst_crop_preview");
-    assert.equal(node.widgets.at(-1).name, "__dkst_crop_preview");
+    assert.equal(preview.options.getMinHeight(), 240);
+    assert.equal(preview.element.style.minHeight, "240px");
+    assert.deepEqual(node.widgets.slice(-3).map(widget => widget.name),
+        ["__dkst_crop_preview", "resolution_multiple", "megapixels"]);
+    assert.equal(get("resolution_multiple").type, "number");
+    assert.equal(get("megapixels").type, "number");
     assert.equal(preview.computeSize, undefined);
     const layout = preview.computeLayoutSize();
-    assert.equal(layout.minHeight, 308);
+    assert.equal(layout.minHeight, 240);
     assert.equal(layout.maxHeight, 10000);
     assert.equal(node.size[0], 370);
-    assert.equal(node.size[1], 472);
-    assert.equal(get("resolution_multiple").hidden, true);
-    assert.equal(get("megapixels").hidden, true);
-    megapixelsRow.children[1].value = "3MP";
-    megapixelsRow.children[1].listeners.change();
-    assert.equal(get("megapixels").value, "3MP");
-    get("resolution_multiple").value = "16";
-    preview.render();
-    assert.equal(resolutionRow.children[1].value, "16");
+    assert.equal(node.size[1], 464);
+    assert.equal(get("resolution_multiple").hidden, undefined);
+    assert.equal(get("megapixels").hidden, undefined);
 });
 
 test("Load & Crop shows the selected generation size before execution", () => {
     const { node, get, drawTexts } = fixture("DINKI_Image_Load_Crop");
     get("aspect_ratio").value = "1:1";
     node.dkstCropSourcePreview({ width: 400, height: 300, uri: "file:first" }, "input::first.png");
-    const preview = get("__dkst_crop_preview");
-    const megapixels = preview.element.children[2].children[1].children[1];
-    assert.deepEqual(megapixels.children.map(option => option.value),
-        ["0.25MP", "0.56MP", "1MP", "1.68MP", "2MP", "3MP", "4MP"]);
-    megapixels.value = "1.68MP";
-    megapixels.listeners.change();
-    assert.equal(get("megapixels").value, "1.68MP");
+    const megapixels = get("megapixels");
+    megapixels.value = 1.68;
+    megapixels.callback(1.68);
+    assert.equal(megapixels.value, 1.68);
     assert.ok(drawTexts.includes("Source crop 300 × 300 px"));
     assert.equal(drawTexts.at(-1), "Output 1328 × 1328 px");
+    get("resolution_multiple").value = 12;
+    get("resolution_multiple").callback(12);
+    megapixels.value = 0.98;
+    megapixels.callback(0.98);
+    assert.equal(drawTexts.at(-1), "Output 1008 × 1008 px");
 });
 
 test("Custom controls appear only for Custom and restore without an input image", () => {
@@ -266,8 +261,8 @@ test("Custom controls appear only for Custom and restore without an input image"
     get("aspect_ratio").value = "Custom";
     get("aspect_ratio").callback("Custom");
     assert.equal(row.style.display, "flex");
-    assert.equal(preview.options.getMinHeight(), 344);
-    assert.equal(preview.element.style.minHeight, "344px");
+    assert.equal(preview.options.getMinHeight(), 276);
+    assert.equal(preview.element.style.minHeight, "276px");
     Node.prototype.onConfigure.call(node, { properties: { dkstCropSettings: {
         aspect_ratio: "Custom", custom_width: 16, custom_height: 9,
     } } });
@@ -277,7 +272,7 @@ test("Custom controls appear only for Custom and restore without an input image"
     get("aspect_ratio").value = "16:9";
     get("aspect_ratio").callback("16:9");
     assert.equal(row.style.display, "none");
-    assert.equal(preview.options.getMinHeight(), 308);
+    assert.equal(preview.options.getMinHeight(), 240);
     assert.equal(get("custom_width").value, 16);
 });
 
@@ -301,8 +296,8 @@ test("Load & Crop restores positional crop values after file selectors", () => {
     assert.equal(get("aspect_ratio").value, "4:5");
     assert.equal(get("crop_x").value, 0.1);
     assert.equal(get("crop_height").value, 0.8);
-    assert.equal(get("resolution_multiple").value, "16");
-    assert.equal(get("megapixels").value, "2MP");
+    assert.equal(get("resolution_multiple").value, 16);
+    assert.equal(get("megapixels").value, 2);
 });
 
 test("Load & Crop preserves size settings when saving the reordered widgets", () => {
@@ -323,8 +318,8 @@ test("Load & Crop preserves size settings when saving the reordered widgets", ()
     Node.prototype.onConfigure.call(node, info);
     assert.equal(get("crop_x").value, 0.1);
     assert.equal(get("crop_height").value, 0.8);
-    assert.equal(get("resolution_multiple").value, "32");
-    assert.equal(get("megapixels").value, "4MP");
+    assert.equal(get("resolution_multiple").value, 32);
+    assert.equal(get("megapixels").value, 4);
 });
 
 test("Load & Crop restores the reordered positional values without named settings", () => {
@@ -334,8 +329,8 @@ test("Load & Crop restores the reordered positional values without named setting
     ] });
     assert.equal(get("crop_x").value, 0.1);
     assert.equal(get("crop_height").value, 0.8);
-    assert.equal(get("resolution_multiple").value, "32");
-    assert.equal(get("megapixels").value, "4MP");
+    assert.equal(get("resolution_multiple").value, 32);
+    assert.equal(get("megapixels").value, 4);
 });
 
 test("serialized named settings survive UI widgets and saved preview does not reset crop", async () => {
@@ -358,7 +353,7 @@ test("serialized named settings survive UI widgets and saved preview does not re
 test("reloading or refreshing workflow preserves user resized node dimensions", () => {
     const { node, Node, extension } = fixture("DINKI_Image_Load_Crop");
     assert.equal(node.size[0], 370);
-    assert.equal(node.size[1], 472);
+    assert.equal(node.size[1], 464);
     // ComfyUI saves the user's size in the standard node size field.
     node.size = [550, 750];
     const info = { size: [...node.size], widgets_values: [],
@@ -370,14 +365,14 @@ test("reloading or refreshing workflow preserves user resized node dimensions", 
     // Reopen workflow on a new node instance
     const reopened = fixture("DINKI_Image_Load_Crop");
     assert.equal(reopened.node.size[0], 370);
-    assert.equal(reopened.node.size[1], 472);
+    assert.equal(reopened.node.size[1], 464);
 
     // A stale size property from an older workflow must not override the native size.
     info.properties.dkstCropSize = [370, 472];
     reopened.Node.prototype.onConfigure.call(reopened.node, info);
     assert.equal(reopened.node.size[0], 550);
     assert.equal(reopened.node.size[1], 750);
-    assert.equal(reopened.get("__dkst_crop_preview").computeLayoutSize().minHeight, 308);
+    assert.equal(reopened.get("__dkst_crop_preview").computeLayoutSize().minHeight, 240);
 
     // Graph finished loading event
     extension.loadedGraphNode(reopened.node);

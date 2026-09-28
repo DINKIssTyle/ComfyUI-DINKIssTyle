@@ -100,7 +100,7 @@ test('pasted Image Load preview retains its temp source after tab reconstruction
 
 test('both Image Load nodes repopulate the selected category after async load and tab return', async () => {
     for (const nodeClass of ['DINKI_Image_Load', 'DINKI_Image_Load_Crop']) {
-        let extension, tick, releaseFirstCategories;
+        let extension, tick, releaseFirstCategories, releaseStaleCategory;
         const scheduled = [];
         const requests = [];
         let files = ['forest.png'];
@@ -124,7 +124,7 @@ test('both Image Load nodes repopulate the selected category after async load an
                     }
                     return { ok: true, json: async() => ({ categories: ['', 'folder'] }) };
                 }
-                return { ok: true, json: async() => ({ files: url.includes('category=folder') ? files : [] }) };
+                return { ok: true, json: async() => ({ files: url.includes('category=folder') ? files : ['root.png'] }) };
             },
         };
         vm.runInNewContext(source.replace(/^import .*;\r?\n/gm, ''), {
@@ -142,6 +142,11 @@ test('both Image Load nodes repopulate the selected category after async load an
         });
         const combo = (name, value) => {
             const widget = { name, value, notifications: 0, _options: { values: [] } };
+            if (name === 'filename') {
+                widget.options = { values: ['root.png'] };
+                widget._state = { options: { values: ['root.png'] } };
+                return widget;
+            }
             Object.defineProperty(widget, 'options', {
                 get() { return this._options; },
                 set(options) { this._options = options; this.notifications++; },
@@ -174,16 +179,32 @@ test('both Image Load nodes repopulate the selected category after async load an
         };
 
         await drain(); // Initial category request is still waiting.
+        // ComfyUI may invoke the initial root combo callback while restoring
+        // widget values. Its async cleanup must not install root options later.
+        node.dkstDeleteTemporaryImage = () => new Promise(resolve => {
+            releaseStaleCategory = resolve;
+        });
+        const staleCallback = node.widgets[0].callback('');
         node.widgets[0].value = 'folder';
         node.widgets[1].value = 'forest.png';
+        const initialFilenameOptions = node.widgets[1].options;
         node.onConfigure({});
         extension.loadedGraphNode(node);
         await drain();
         assert.equal(node.widgets[0].value, 'folder');
         assert.equal(node.widgets[1].value, 'forest.png');
         assert.deepEqual(Array.from(node.widgets[1].options.values), ['forest.png']);
-        assert.ok(node.widgets[1].notifications > 0,
-            `${nodeClass} must notify the Nodes 2.0 combo renderer`);
+        assert.deepEqual(Array.from(node.widgets[1]._state.options.values), ['forest.png'],
+            'Nodes 2.0 reads the registered widget state for its dropdown');
+        assert.notEqual(node.widgets[1].options, initialFilenameOptions,
+            `${nodeClass} must replace writable combo options for the Nodes 2.0 popup`);
+        assert.ok(node.widgets[0].notifications > 0,
+            `${nodeClass} must notify accessor-backed combo renderers`);
+        releaseStaleCategory();
+        await staleCallback;
+        await drain();
+        assert.deepEqual(Array.from(node.widgets[1].options.values), ['forest.png'],
+            'a delayed root-category callback must not replace the folder menu');
         releaseFirstCategories();
         await drain();
         assert.equal(node.widgets[0].value, 'folder', 'late initial response must not reset category');
@@ -197,6 +218,7 @@ test('both Image Load nodes repopulate the selected category after async load an
         tick();
         await drain();
         assert.deepEqual(Array.from(node.widgets[1].options.values), ['forest.png', 'lake.png']);
+        assert.deepEqual(Array.from(node.widgets[1]._state.options.values), ['forest.png', 'lake.png']);
         assert.equal(node.widgets[1].value, 'forest.png');
         files = ['forest.png', 'lake.png', 'river.png'];
         extension.afterConfigureGraph();

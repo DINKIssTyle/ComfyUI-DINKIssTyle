@@ -11,10 +11,20 @@ app.registerExtension({
         const onConfigure = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function() {
             const values = arguments[0]?.widgets_values;
-            if (Array.isArray(values) && /^(?:0\.25|0\.56|1(?:\.68)?|[2-4])MP$/.test(values[0])) {
-                values.unshift("Custom", "8");
+            if (Array.isArray(values) && /^\d+(?:\.\d+)?MP$/.test(values[0])) {
+                values.unshift("Custom", 8);
             }
             const result = onConfigure?.apply(this, arguments);
+            const megapixelsWidget = getWidget(this, "megapixels");
+            const megapixels = Number(String(megapixelsWidget?.value).replace(/MP$/, ""));
+            if (megapixelsWidget && Number.isFinite(megapixels) && megapixels >= 0.1 && megapixels <= 64) {
+                megapixelsWidget.value = megapixels;
+            }
+            const multipleWidget = getWidget(this, "resolution_multiple");
+            const multiple = Number(multipleWidget?.value);
+            if (multipleWidget && Number.isInteger(multiple) && multiple >= 4 && multiple <= 128 && multiple % 4 === 0) {
+                multipleWidget.value = multiple;
+            }
             const widget = getWidget(this, "orientation");
             if (widget?.value === "Portrait" || widget?.value === "Landscape") {
                 widget.value = widget.value === "Landscape";
@@ -2373,17 +2383,20 @@ app.registerExtension({
             }
 
             const setValues = (widget, values) => {
-                const options = widget.options ?? {};
-                options.values = values.length ? values : [""];
-                // Nodes 2.0 observes its options setter, while classic widgets
-                // may retain the original object used by their menu renderer.
                 let owner = widget;
-                while (owner && !Object.getOwnPropertyDescriptor(owner, "options")) {
-                    owner = Object.getPrototypeOf(owner);
-                }
+                while (owner && !Object.getOwnPropertyDescriptor(owner, "options")) owner = Object.getPrototypeOf(owner);
                 const descriptor = owner && Object.getOwnPropertyDescriptor(owner, "options");
-                if (descriptor?.set) widget.options = { ...options };
-                else if (!widget.options && (!descriptor || descriptor.writable)) widget.options = options;
+                const list = values.length ? values : [""];
+                const options = { ...(widget.options ?? {}), values: list };
+                // ComfyUI keeps a second options object in its reactive widget
+                // state. Nodes 2.0 reads that snapshot for its dropdown.
+                // Updating only widget.options leaves the root-folder list in
+                // the popup after a workflow tab is restored.
+                if (!descriptor || descriptor.writable || descriptor.set) widget.options = options;
+                else widget.options.values = list;
+                if (widget._state?.options) {
+                    widget._state.options = { ...widget._state.options, values: list };
+                }
                 node.graph?.incrementVersion?.();
             };
 
@@ -2448,12 +2461,17 @@ app.registerExtension({
             };
 
             const refreshFiles = async(category, preferredFilename = null, sourceType = "input",
-                generation = ++refreshGeneration) => {
+                generation = null) => {
+                // A configure-time combo callback can resume after the saved
+                // category has already replaced its old (usually root) value.
+                // Never let that request invalidate the selected folder's load.
+                if ((category || "") !== (categoryWidget.value || "")) return;
+                generation ??= ++refreshGeneration;
                 const params = new URLSearchParams({ category: category || "" });
                 const response = await api.fetchApi(`/dinki/image-load/files?${params.toString()}`);
                 if (!response.ok) throw new Error(`Unable to load image list (${response.status})`);
                 const data = await response.json();
-                if (generation !== refreshGeneration) return;
+                if (generation !== refreshGeneration || category !== categoryWidget.value) return;
                 let temporary = sourceType === "temp" && preferredFilename?.startsWith("DKST_Paste_");
                 if (temporary) {
                     // Temp paste files are cleared when ComfyUI restarts. A
@@ -2461,7 +2479,7 @@ app.registerExtension({
                     const check = await api.fetchApi(`/view?${new URLSearchParams({
                         filename: preferredFilename, type: "temp",
                     })}`, { method: "HEAD" });
-                    if (generation !== refreshGeneration) return;
+                    if (generation !== refreshGeneration || category !== categoryWidget.value) return;
                     if (check.status === 404) temporary = false;
                     else if (!check.ok) throw new Error(`Unable to check pasted image (${check.status})`);
                 }
@@ -2502,7 +2520,8 @@ app.registerExtension({
             categoryWidget.callback = async function(value) {
                 originalCategoryCallback?.apply(this, arguments);
                 await node.dkstDeleteTemporaryImage?.();
-                refreshFiles(value).catch(console.error);
+                if (value !== categoryWidget.value) return;
+                refreshFiles(value, filenameWidget.value).catch(console.error);
             };
 
             const originalFilenameCallback = filenameWidget.callback;

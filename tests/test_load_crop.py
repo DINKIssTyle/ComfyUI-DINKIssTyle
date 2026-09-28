@@ -154,9 +154,9 @@ class LoadCropTests(unittest.TestCase):
         self.assertEqual(result["ui"]["resolution"], [f"{width} × {height}"])
 
     def test_fractional_megapixels_resize_all_outputs_together(self):
-        self.assertIn("0.56MP", LoadCrop.INPUT_TYPES()["required"]["megapixels"][0])
+        self.assertEqual(LoadCrop.INPUT_TYPES()["required"]["megapixels"][0], "FLOAT")
         result = LoadCrop().load_and_crop("", "source.png", aspect_ratio="1:1",
-                                          megapixels="0.56MP")
+                                          megapixels=0.56)
         image, mask, alpha = result["result"]
         self.assertEqual(image.shape, (2, 768, 768, 3))
         self.assertEqual(mask.shape, (2, 768, 768))

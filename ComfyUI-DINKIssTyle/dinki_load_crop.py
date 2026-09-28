@@ -42,8 +42,8 @@ class DINKI_Image_Load_Crop(DINKI_Image_Load):
 
     def load_and_crop(self, category, filename, aspect_ratio="Original",
                       custom_width=1, custom_height=1, crop_x=0.0, crop_y=0.0,
-                      crop_width=1.0, crop_height=1.0, resolution_multiple="8",
-                      megapixels="1MP", source_type="input"):
+                      crop_width=1.0, crop_height=1.0, resolution_multiple=8,
+                      megapixels=1.0, source_type="input"):
         loaded = self.load_image(category, filename, source_type)["result"]
         images, masks, alphas = loaded
         source_height, source_width = images.shape[1:3]

@@ -9,8 +9,8 @@ class DINKI_photo_specifications:
         return {
             "required": {
                 "resolution": (["Image", "Custom"], {"default": "Custom"}),
-                "resolution_multiple": (["4", "8", "16", "32"], {"default": "8"}),
-                "megapixels": (["0.25MP", "0.56MP", "1MP", "1.68MP", "2MP", "3MP", "4MP"], {"default": "1MP"}),
+                "resolution_multiple": ("INT", {"default": 8, "min": 4, "max": 128, "step": 4}),
+                "megapixels": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 64.0, "step": 0.01, "round": 0.01}),
                 "aspect_ratio": (
                     [
                         # --- Basic ---
@@ -62,7 +62,8 @@ class DINKI_photo_specifications:
 
     def calculate_resolution(self, megapixels, aspect_ratio, orientation, resolution="Custom", resolution_multiple=8, image=None):
         # 1. 목표 픽셀 수 설정 (Base: 1024x1024 = 1,048,576 pixel for 1MP)
-        mp_multiplier = float(megapixels.replace("MP", ""))
+        mp_multiplier = float(str(megapixels).removesuffix("MP"))
+        megapixels_label = f"{mp_multiplier:g}MP"
         target_area = 1024 * 1024 * mp_multiplier
 
         # Image uses the source image's aspect ratio and direction. Custom keeps
@@ -87,8 +88,8 @@ class DINKI_photo_specifications:
 
         # 4. 선택한 배수로 보정 (반올림)
         multiple = int(resolution_multiple)
-        if multiple not in (4, 8, 16, 32):
-            raise ValueError("Photo Specs: resolution_multiple must be 4, 8, 16, or 32.")
+        if multiple < 4 or multiple > 128 or multiple % 4:
+            raise ValueError("Photo Specs: resolution_multiple must be a multiple of 4 from 4 to 128.")
         width = max(multiple, round(width_val / multiple) * multiple)
         height = max(multiple, round(height_val / multiple) * multiple)
 
@@ -104,12 +105,12 @@ class DINKI_photo_specifications:
             divisor = math.gcd(source_width, source_height)
             ratio_label = f"{source_width // divisor}:{source_height // divisor}"
             info_string = (f"{width}x{height} (Image {source_width}x{source_height}, "
-                           f"{ratio_label}, {megapixels}, multiple {multiple})")
+                           f"{ratio_label}, {megapixels_label}, multiple {multiple})")
         elif multiple == 8:
             # Preserve the text supplied by existing workflows at the default.
-            info_string = f"{width}x{height} ({aspect_ratio}, {megapixels})"
+            info_string = f"{width}x{height} ({aspect_ratio}, {megapixels_label})"
         else:
-            info_string = f"{width}x{height} ({aspect_ratio}, {megapixels}, multiple {multiple})"
+            info_string = f"{width}x{height} ({aspect_ratio}, {megapixels_label}, multiple {multiple})"
 
         return (width, height, info_string)
 

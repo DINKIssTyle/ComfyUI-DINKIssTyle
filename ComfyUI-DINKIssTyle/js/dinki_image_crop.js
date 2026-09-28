@@ -4,14 +4,15 @@ import { api } from "../../scripts/api.js";
 const NODE_CLASSES = new Set(["DINKI_Image_Crop", "DINKI_Image_Load_Crop"]);
 const STORED = ["aspect_ratio", "custom_width", "custom_height", "crop_x", "crop_y", "crop_width", "crop_height"];
 const SIZE_CONTROLS = ["resolution_multiple", "megapixels"];
-const MEGAPIXEL_CHOICES = ["0.25MP", "0.56MP", "1MP", "1.68MP", "2MP", "3MP", "4MP"];
+const isLegacyMegapixels = value => typeof value === "string" && /^\d+(?:\.\d+)?MP$/.test(value);
+const megapixelsNumber = value => Number(String(value).replace(/MP$/, ""));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 function targetSize(width, height, node) {
-    const megapixels = Number(String(node.widgets.find(widget => widget.name === "megapixels")?.value).replace(/MP$/, ""));
+    const megapixels = megapixelsNumber(node.widgets.find(widget => widget.name === "megapixels")?.value);
     const multiple = Number(node.widgets.find(widget => widget.name === "resolution_multiple")?.value);
     if (!width || !height || !Number.isFinite(megapixels) || megapixels <= 0 ||
-        ![4, 8, 16, 32].includes(multiple)) return null;
+        !Number.isInteger(multiple) || multiple < 4 || multiple > 128 || multiple % 4) return null;
     const area = megapixels * 1024 * 1024;
     const ratio = width / height;
     const roundToMultiple = value => {
@@ -162,44 +163,7 @@ function cropPreviewWidget(node, state, widgets) {
         flex: "1 1 0", display: "block", borderRadius: "6px",
         touchAction: "none", cursor: "default" });
     root.append(custom.row, canvas);
-    const sizeSelectors = [];
-    const footer = document.createElement("div");
-    footer.style.cssText = "display:flex;flex-direction:column;gap:4px;flex:0 0 60px";
-    if (node.comfyClass === "DINKI_Image_Load_Crop") {
-        for (const [name, title, choices] of [
-            ["resolution_multiple", "Multiple", ["4", "8", "16", "32"]],
-            ["megapixels", "Megapixels", MEGAPIXEL_CHOICES],
-        ]) {
-            const source = node.widgets.find(widget => widget.name === name);
-            if (!source) continue;
-            const row = document.createElement("div");
-            row.style.cssText = "display:flex;align-items:center;gap:8px;height:28px;box-sizing:border-box";
-            const label = document.createElement("label");
-            label.textContent = title;
-            label.title = name === "resolution_multiple" ? "Round output dimensions to a multiple of this many pixels" : "Target output size in megapixels";
-            label.style.cssText = "flex:0 0 84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px";
-            const select = document.createElement("select");
-            select.setAttribute("aria-label", name);
-            select.style.cssText = "flex:1;min-width:0;height:28px;background:var(--comfy-input-bg,#32343a);color:var(--input-text,#eee);border:0;border-radius:5px;padding:0 8px;font:inherit";
-            for (const choice of choices) {
-                const option = document.createElement("option");
-                option.value = choice;
-                option.textContent = name === "resolution_multiple" ? `${choice} px` : choice.replace("MP", " MP");
-                select.append(option);
-            }
-            select.value = String(source.value);
-            select.addEventListener("change", () => {
-                setWidget(node, source, select.value);
-                node.dkstCropRender?.();
-            });
-            row.append(label, select);
-            footer.append(row);
-            sizeSelectors.push([source, select]);
-        }
-    }
-    if (sizeSelectors.length) root.append(footer);
-    const controlsHeight = () => (custom.row.style.display === "none" ? 0 : 36) +
-        (sizeSelectors.length ? 68 : 0);
+    const controlsHeight = () => custom.row.style.display === "none" ? 0 : 36;
     const sync = () => {
         custom.sync();
         // WidgetDOM in Vue nodes does not apply the legacy height callbacks.
@@ -220,9 +184,6 @@ function cropPreviewWidget(node, state, widgets) {
 
     function render() {
         sync();
-        for (const [source, select] of sizeSelectors) {
-            if (select.value !== String(source.value)) select.value = String(source.value);
-        }
         const width = canvas.clientWidth;
         const height = canvas.clientHeight;
         if (!width || !height) return;
@@ -406,10 +367,23 @@ app.registerExtension({
             node.dkstCropRender = () => preview.render();
             node.widgets.splice(node.widgets.indexOf(preview), 1);
             node.widgets.push(preview);
+            if (nodeData.name === "DINKI_Image_Load_Crop") {
+                for (const name of SIZE_CONTROLS) {
+                    const control = node.widgets.find(widget => widget.name === name);
+                    if (!control) continue;
+                    node.widgets.splice(node.widgets.indexOf(control), 1);
+                    node.widgets.push(control);
+                    const originalCallback = control.callback;
+                    control.callback = function(value, ...callbackArgs) {
+                        originalCallback?.call(this, value, ...callbackArgs);
+                        preview.render();
+                    };
+                }
+            }
             const hiddenControls = ["custom_width", "custom_height", "crop_x", "crop_y",
                 "crop_width", "crop_height"];
             if (nodeData.name === "DINKI_Image_Load_Crop") {
-                hiddenControls.push(...SIZE_CONTROLS, "source_type");
+                hiddenControls.push("source_type");
             }
             for (const name of hiddenControls) {
                 const control = node.widgets.find(widget => widget.name === name);
@@ -522,7 +496,7 @@ app.registerExtension({
             // Only establish a useful size for a newly added node here.
             node.size[0] = Math.max(node.size[0], 370);
             node.size[1] = Math.max(node.size[1],
-                (nodeData.name === "DINKI_Image_Load_Crop" ? 104 : 64) +
+                (nodeData.name === "DINKI_Image_Load_Crop" ? 164 : 64) +
                 preview.options.getHeight());
             return result;
         };
@@ -538,7 +512,7 @@ app.registerExtension({
             } else if (Array.isArray(info?.widgets_values)) {
                 const list = info.widgets_values.filter(value => value !== null);
                 const offset = nodeData.name === "DINKI_Image_Load_Crop" ? 2 : 0;
-                const megapixelsIndex = list.findIndex(value => MEGAPIXEL_CHOICES.includes(value));
+                const megapixelsIndex = list.findIndex(isLegacyMegapixels);
                 STORED.forEach((name, index) => {
                     const position = offset + index +
                         (offset && index >= 3 && megapixelsIndex === 6 ? 2 : 0);
@@ -550,7 +524,7 @@ app.registerExtension({
             if (nodeData.name === "DINKI_Image_Load_Crop") {
                 removeUnusedSourceTypeSocket(this);
                 const list = info?.widgets_values?.filter(value => value !== null) || [];
-                const megapixelsIndex = list.findIndex(value => MEGAPIXEL_CHOICES.includes(value));
+                const megapixelsIndex = list.findIndex(isLegacyMegapixels);
                 const namedValues = info?.widgets_values_named;
                 const sizeValues = {
                     resolution_multiple: named?.resolution_multiple ??
@@ -560,11 +534,13 @@ app.registerExtension({
                 };
                 for (const name of SIZE_CONTROLS) {
                     const widget = this.widgets?.find(item => item.name === name);
-                    const choices = name === "megapixels" ?
-                        MEGAPIXEL_CHOICES : ["4", "8", "16", "32"];
-                    if (widget && choices.includes(sizeValues[name])) {
-                        widget.value = sizeValues[name];
-                    }
+                    if (!widget) continue;
+                    const candidate = sizeValues[name] ?? widget.value;
+                    const numeric = name === "megapixels" ? megapixelsNumber(candidate) : Number(candidate);
+                    const valid = name === "megapixels"
+                        ? Number.isFinite(numeric) && numeric >= 0.1 && numeric <= 64
+                        : Number.isInteger(numeric) && numeric >= 4 && numeric <= 128 && numeric % 4 === 0;
+                    if (valid) widget.value = numeric;
                 }
             }
             this.dkstCropRestore?.();

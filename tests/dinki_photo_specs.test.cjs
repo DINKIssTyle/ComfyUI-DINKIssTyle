@@ -32,7 +32,7 @@ function loadNode(values) {
 test('old Photo Specs workflow gets Custom and multiple 8 without shifting settings', () => {
     const node = loadNode(['2MP', 'Photo 4:6', 'Portrait']);
     assert.deepEqual(Object.fromEntries(node.widgets.map(widget => [widget.name, widget.value])), {
-        resolution: 'Custom', resolution_multiple: '8', megapixels: '2MP',
+        resolution: 'Custom', resolution_multiple: 8, megapixels: 2,
         aspect_ratio: 'Photo 4:6', orientation: false,
     });
 });
@@ -51,6 +51,6 @@ test('Image mode keeps the native selector and custom controls visible', () => {
 test('legacy Photo Specs layout restores a fractional megapixel preset', () => {
     const node = loadNode(['0.56MP', 'Basic 1:1', 'Portrait']);
     assert.equal(node.widgets[0].value, 'Custom');
-    assert.equal(node.widgets[1].value, '8');
-    assert.equal(node.widgets[2].value, '0.56MP');
+    assert.equal(node.widgets[1].value, 8);
+    assert.equal(node.widgets[2].value, 0.56);
 });

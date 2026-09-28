@@ -19,10 +19,11 @@ class PhotoSpecsTests(unittest.TestCase):
             ["resolution", "resolution_multiple", "megapixels", "aspect_ratio", "orientation"],
         )
         self.assertEqual(inputs["required"]["resolution"][1]["default"], "Custom")
-        self.assertEqual(inputs["required"]["resolution_multiple"][1]["default"], "8")
-        self.assertEqual(inputs["required"]["megapixels"][0],
-                         ["0.25MP", "0.56MP", "1MP", "1.68MP", "2MP", "3MP", "4MP"])
-        self.assertEqual(inputs["required"]["megapixels"][1]["default"], "1MP")
+        self.assertEqual(inputs["required"]["resolution_multiple"],
+                         ("INT", {"default": 8, "min": 4, "max": 128, "step": 4}))
+        self.assertEqual(inputs["required"]["megapixels"],
+                         ("FLOAT", {"default": 1.0, "min": 0.1, "max": 64.0,
+                                    "step": 0.01, "round": 0.01}))
         self.assertEqual(inputs["optional"]["image"], ("IMAGE",))
 
     def test_ai_generation_megapixel_presets(self):
@@ -33,6 +34,18 @@ class PhotoSpecsTests(unittest.TestCase):
                     preset, "Basic 1:1", False)
                 self.assertEqual((width, height), (side, side))
                 self.assertIn(preset, info)
+
+    def test_numeric_megapixels_support_hundredths_and_multiple_of_four(self):
+        for megapixels in (0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.98):
+            with self.subTest(megapixels=megapixels):
+                width, height, _ = self.node.calculate_resolution(
+                    megapixels, "Basic 1:1", False)
+                self.assertGreater(width, 0)
+                self.assertEqual(width, height)
+        width, height, info = self.node.calculate_resolution(
+            0.98, "Basic 1:1", False, resolution_multiple=12)
+        self.assertEqual((width, height), (1008, 1008))
+        self.assertIn("0.98MP, multiple 12", info)
 
     def test_existing_custom_result_and_old_call_signature(self):
         self.assertEqual(
@@ -54,7 +67,7 @@ class PhotoSpecsTests(unittest.TestCase):
         self.assertIn("Image 1600x900, 16:9, 1MP, multiple 32", info)
 
     def test_selected_multiple_applies_to_both_dimensions(self):
-        for multiple in (4, 8, 16, 32):
+        for multiple in (4, 8, 12, 16, 32, 128):
             with self.subTest(multiple=multiple):
                 width, height, _ = self.node.calculate_resolution(
                     "2MP", "Photo 3:4", False,
