@@ -46,7 +46,7 @@ Uses the same XMP controls. After the node has run with an image, its frontend p
 
 ## DKST Color (LUT)
 
-Select a 3D `.cube` file in ComfyUI `input/luts` with `lut_name`; `strength` blends the LUT result with the input. The folder is created when the extension loads. `-- None --` passes the image through.
+Select a 3D `.cube` file in ComfyUI `input/luts` with `lut_name`; `strength` blends the LUT result with the input. RGB and RGBA inputs are supported; only RGB is color graded, and alpha is preserved. The folder is created when the extension loads. `-- None --` passes the image through.
 
 ## DKST Color (LUT Preview)
 
@@ -58,4 +58,4 @@ Uses the same `lut_name` and `strength` controls as LUT. Run the node once to su
 
 ## DKST Color (Deband)
 
-Reduces visible banding with a guided filter and optional grain. `enabled` bypasses the node when off. `threshold` controls the smoothing tolerance, `radius` the filter neighborhood, `iterations` the number of passes, and `grain` the amount of noise added afterward. Larger radii and iteration counts take more processing time.
+Reduces visible banding with a guided filter and optional grain. RGB and RGBA inputs are supported; alpha is preserved. `enabled` bypasses the node when off. `threshold` controls the smoothing tolerance, `radius` the filter neighborhood, `iterations` the number of passes, and `grain` the amount of noise added afterward. Larger radii and iteration counts take more processing time.

@@ -91,6 +91,9 @@ This workflow prevents **pixel shifting artifacts** and distortion in models lik
 #### 🎛️ Parameters Guide
 
 **DKST PS (Resize & Pad)**
+
+RGBA inputs retain their alpha through resizing, padding, and the matching Remove Padding node. The added black padding is opaque.
+
 | Parameter | Description |
 | :--- | :--- |
 | **target_size** | The target resolution for the square canvas (e.g., 1024). The longest side of the image will fit this size. |

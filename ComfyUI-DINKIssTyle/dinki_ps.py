@@ -152,7 +152,10 @@ class DINKI_Resize_And_Pad:
             new_width, new_height = int(orig_width * ratio), int(orig_height * ratio)
 
             resized_image = pil_image.resize((new_width, new_height), resample=resampling_filter)
-            padded_image = Image.new("RGB", (target_size, target_size), pad_color)
+            padded_image = Image.new(
+                pil_image.mode, (target_size, target_size),
+                pad_color + (255,) if pil_image.mode == "RGBA" else pad_color,
+            )
 
             pad_left = (target_size - new_width) // 2
             pad_top = (target_size - new_height) // 2

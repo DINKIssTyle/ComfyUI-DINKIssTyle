@@ -14,7 +14,7 @@
 
 Select an image from the ComfyUI input folder, upload a file, or paste an image into the selected node. Pasted images are kept in ComfyUI's temporary directory; their preview and selection are restored when switching workflow tabs during the same server session. Temporary pasted files are cleared when ComfyUI restarts, so save images you want to keep in the input folder.
 
-`category` selects an input subfolder and `filename` selects its image; `source_type` also permits a temporary pasted image. Outputs are `IMAGE` (RGB), `MASK` (inverse alpha), and `ALPHA` (alpha). Animated files produce an image batch from same-size frames. The node shows the image resolution.
+`category` selects an input subfolder and `filename` selects its image; `source_type` also permits a temporary pasted image. `IMAGE` is RGBA when any loaded frame contains transparency and RGB otherwise. `MASK` remains inverse alpha, and `ALPHA` remains alpha. Animated files produce an image batch from same-size frames. The node shows the image resolution.
 
 ---
 
@@ -24,7 +24,7 @@ Select an image from the ComfyUI input folder, upload a file, or paste an image 
 
 Select a `category` and `filename` as in **DKST Image (Load)**. The source image appears in the crop canvas as soon as it loads; a workflow run is not required to position the crop box. Choose `Original`, a preset `aspect_ratio`, or `Custom` with two ratio numbers. Drag inside the box to move it or drag a corner to resize it while preserving the selected ratio.
 
-The `image`, `mask`, and `alpha` outputs contain the same cropped region, resized to the dimensions selected by `resolution_multiple` (4, 8, 16, or 32) and `megapixels` (0.25, 0.56, 1, 1.68, 2, 3, or 4MP). The crop canvas shows both the source crop size and the calculated output size before running the workflow. Here, 1MP targets 1024 × 1024 pixels for a square crop (about 1.05 million pixels), with each dimension rounded to the selected multiple. Resizing uses antialiased interpolation for images and alpha, and `mask` remains the inverse of alpha.
+The `image`, `mask`, and `alpha` outputs contain the same cropped region, resized to the dimensions selected by `resolution_multiple` (4, 8, 16, or 32) and `megapixels` (0.25, 0.56, 1, 1.68, 2, 3, or 4MP). The crop canvas shows both the source crop size and the calculated output size before running the workflow. Here, 1MP targets 1024 × 1024 pixels for a square crop (about 1.05 million pixels), with each dimension rounded to the selected multiple. Transparent images remain RGBA. Resizing uses antialiased, premultiplied-alpha interpolation for RGBA images, and `mask` remains the inverse of alpha.
 
 Upload, paste, drag and drop, and the mask editor remain available through the node menu. The crop preview refreshes when another file is selected and on each queued run.
 
@@ -77,7 +77,7 @@ A powerful and versatile ComfyUI node designed to add **watermarks, copyright te
 * **Multiline Support:** Wrap text with `text_wrap_percent`, align it with `text_align`, and adjust spacing with `line_spacing_multiplier`.
 * **Precise Positioning:** Choose from **7 preset positions** (e.g., Top-Left, Bottom-Center, Center) and fine-tune with percentage-based **margins**.
 * **Adaptive Sizing:** Scale text and logos relative to the source image size (%) for consistent results across different resolutions (SDXL, Flux, etc.).
-* **Transparency Control:** Full support for **Alpha/Masks** (transparent PNGs) and adjustable opacity (0-100%) for both text and images.
+* **Transparency Control:** RGBA base images retain their alpha channel. Transparent PNG overlays support **Alpha/Masks**, with adjustable opacity (0-100%) for both text and images.
 
 #### 📂 How to Add Custom Fonts
 1.  Open the `fonts` folder beside `dinki_overlay.py` in the installed node folder.
@@ -86,8 +86,8 @@ A powerful and versatile ComfyUI node designed to add **watermarks, copyright te
 
 #### 💡 Usage Tip for Transparent PNGs (Logos)
 To properly overlay a logo with a transparent background:
-1.  Connect the `IMAGE` output of your **Load Image** node to `overlay_image`.
-2.  Connect the `MASK` output to `overlay_mask`.
+1.  Connect the RGBA `IMAGE` output of **DKST Image (Load)** to `overlay_image`; its transparency is used automatically.
+2.  If another loader returns only RGB with a separate `MASK`, connect that mask to `overlay_mask`. This input follows ComfyUI's mask convention: 1 means transparent and 0 means opaque. A matching mask from an older **DKST Image (Load)** workflow is detected and is not applied twice.
 3.  *(Optional)* Use the `overlay_opacity` slider to blend the logo with the background.
 
 #### 🎛️ Input Parameters
@@ -100,7 +100,7 @@ To properly overlay a logo with a transparent background:
 | **text_opacity** | Adjust text transparency (0-100). |
 | **enable_stroke** | Toggle text outline. Set color and width. |
 | **enable_shadow** | Toggle drop shadow. Adjust offset (X/Y), spread (blur), and opacity. |
-| **overlay_mask** | (Optional) Connect a mask here to support transparent PNG logos. |
+| **overlay_mask** | (Optional) Add transparency when `overlay_image` lacks alpha, or apply an additional mask. |
 
 
 ---
@@ -158,6 +158,7 @@ Unlike standard batch nodes that error out when image dimensions differ, this no
 
 * **Mass Input:** Connect up to **10 different images** at once.
 * **Auto-Resizing:** Automatically scales all images to match the dimensions (Width/Height) of the **first input image**. No more "Shape Mismatch" errors!
+* **Transparency:** RGBA inputs retain alpha. When RGB and RGBA inputs are combined, RGB images are treated as opaque.
 * **Mode Switching:** Easily toggle between creating a batch or just passing through the first image for testing.
 
 #### 💡 Workflow Tip
@@ -194,6 +195,7 @@ An essential ComfyUI node for compiling up to **10 images** into a customizable 
     * **Background:** Customize the background color (Hex code) for frames and empty cells.
 * **Output Optimization:**
     * **Size Limiter:** Toggle `limit_output` to prevent generating massive files. Automatically downscales the final grid to fit within `max_width` / `max_height` while maintaining aspect ratio.
+* **Transparency:** If any connected image is RGBA, the grid output is RGBA and retains each image's alpha. Frames and empty cells use the selected background color at full opacity.
 
 #### 💡 Layout Logic Example
 If you set the grid to **2 Columns × 3 Rows** (Total 6 cells) but connect only **5 images**:

@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import os
-from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps, ImageFilter
 
 class DINKI_Overlay:
     def __init__(self):
@@ -71,7 +71,7 @@ class DINKI_Overlay:
             },
             "optional": {
                 "overlay_image": ("IMAGE",),
-                "overlay_mask": ("MASK",),
+                "overlay_mask": ("MASK", {"tooltip": "Optional for RGBA overlays. ComfyUI mask: 1 is transparent, 0 is opaque. Use when the overlay image lacks alpha or needs an additional mask."}),
             }
         }
 
@@ -257,7 +257,16 @@ class DINKI_Overlay:
                     mask_pil = Image.fromarray(mask_np, mode='L')
                     if mask_pil.size != ov_pil.size:
                         mask_pil = mask_pil.resize(ov_pil.size, Image.LANCZOS)
-                    ov_pil.putalpha(mask_pil)
+                    original_alpha = ov_pil.getchannel('A')
+                    mask_alpha = ImageOps.invert(mask_pil)
+                    # Older workflows connect both outputs of Load Image. When
+                    # they describe the same alpha, do not apply it twice.
+                    duplicate = np.all(np.abs(
+                        np.asarray(original_alpha, dtype=np.int16)
+                        - np.asarray(mask_alpha, dtype=np.int16)
+                    ) <= 1)
+                    if not duplicate:
+                        ov_pil.putalpha(ImageChops.multiply(original_alpha, mask_alpha))
 
                 target_ov_w = int(base_w * (overlay_size_percent / 100))
                 if target_ov_w > 0:
@@ -272,10 +281,12 @@ class DINKI_Overlay:
                         ov_pil.putalpha(alpha)
 
                     ox, oy = calculate_xy(base_w, base_h, target_ov_w, target_ov_h, overlay_position, overlay_margin_percent)
-                    txt_layer.paste(ov_pil, (ox, oy), ov_pil)
+                    txt_layer.alpha_composite(ov_pil, (ox, oy))
 
             out_pil = Image.alpha_composite(img_pil, txt_layer)
-            out_tensor = torch.from_numpy(np.array(out_pil.convert('RGB')).astype(np.float32) / 255.0).unsqueeze(0)
+            if img_tensor.shape[-1] != 4:
+                out_pil = out_pil.convert('RGB')
+            out_tensor = torch.from_numpy(np.array(out_pil).astype(np.float32) / 255.0).unsqueeze(0)
             result_images.append(out_tensor)
 
         if len(result_images) > 1:

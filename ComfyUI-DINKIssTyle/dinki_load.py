@@ -187,6 +187,7 @@ class DINKI_Image_Load:
         output_masks = []
         output_alphas = []
         expected_size = None
+        has_transparency = False
 
         with Image.open(path) as source:
             for frame in ImageSequence.Iterator(source):
@@ -198,7 +199,8 @@ class DINKI_Image_Load:
                     continue
 
                 pixels = np.asarray(rgba, dtype=np.float32) / 255.0
-                image = torch.from_numpy(pixels[..., :3].copy()).unsqueeze(0)
+                has_transparency = has_transparency or bool(np.any(pixels[..., 3] < 1.0))
+                image = torch.from_numpy(pixels.copy()).unsqueeze(0)
                 alpha = torch.from_numpy(pixels[..., 3].copy()).unsqueeze(0)
                 output_images.append(image)
                 output_alphas.append(alpha)
@@ -208,6 +210,8 @@ class DINKI_Image_Load:
             raise ValueError(f"No readable image frames found: {filename}")
 
         images = torch.cat(output_images, dim=0)
+        if not has_transparency:
+            images = images[..., :3]
         masks = torch.cat(output_masks, dim=0)
         alphas = torch.cat(output_alphas, dim=0)
         height, width = int(images.shape[1]), int(images.shape[2])

@@ -1,5 +1,6 @@
 """Load an image, interactively crop it, and resize the result."""
 
+import torch
 import torch.nn.functional as F
 
 from .dinki_image_crop import DINKI_Image_Crop, _crop_bounds, _source_preview
@@ -59,14 +60,31 @@ class DINKI_Image_Load_Crop(DINKI_Image_Load):
             resolution="Image", resolution_multiple=resolution_multiple,
             image=cropped_images)
         if (width, height) != (out_width, out_height):
-            cropped_images = F.interpolate(
-                cropped_images.permute(0, 3, 1, 2), size=(height, width),
-                mode="bilinear", align_corners=False, antialias=True,
-            ).permute(0, 2, 3, 1)
-            cropped_alphas = F.interpolate(
-                cropped_alphas.unsqueeze(1), size=(height, width),
-                mode="bilinear", align_corners=False, antialias=True,
-            ).squeeze(1)
+            if cropped_images.shape[-1] == 4:
+                premultiplied = torch.cat((
+                    cropped_images[..., :3] * cropped_alphas.unsqueeze(-1),
+                    cropped_alphas.unsqueeze(-1),
+                ), dim=-1)
+                resized = F.interpolate(
+                    premultiplied.permute(0, 3, 1, 2), size=(height, width),
+                    mode="bilinear", align_corners=False, antialias=True,
+                ).permute(0, 2, 3, 1)
+                cropped_alphas = resized[..., 3]
+                resized_rgb = torch.where(
+                    cropped_alphas.unsqueeze(-1) > 1e-8,
+                    resized[..., :3] / cropped_alphas.unsqueeze(-1).clamp_min(1e-8),
+                    0.0,
+                )
+                cropped_images = torch.cat((resized_rgb, cropped_alphas.unsqueeze(-1)), dim=-1)
+            else:
+                cropped_images = F.interpolate(
+                    cropped_images.permute(0, 3, 1, 2), size=(height, width),
+                    mode="bilinear", align_corners=False, antialias=True,
+                ).permute(0, 2, 3, 1)
+                cropped_alphas = F.interpolate(
+                    cropped_alphas.unsqueeze(1), size=(height, width),
+                    mode="bilinear", align_corners=False, antialias=True,
+                ).squeeze(1)
             cropped_masks = 1.0 - cropped_alphas
         return {
             "ui": {

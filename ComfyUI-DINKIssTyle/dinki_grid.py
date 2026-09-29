@@ -85,7 +85,12 @@ class DINKI_Grid:
         # 3. 전체 캔버스 생성
         grid_w = cell_w * cols
         grid_h = cell_h * rows
-        canvas = Image.new("RGB", (grid_w, grid_h), bg_color)
+        has_alpha = any(img.mode == "RGBA" for img in images)
+        canvas = Image.new(
+            "RGBA" if has_alpha else "RGB",
+            (grid_w, grid_h),
+            bg_color + (255,) if has_alpha else bg_color,
+        )
 
         # 4. 이미지 배치
         for idx in range(cols * rows):

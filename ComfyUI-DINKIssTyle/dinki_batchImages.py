@@ -44,9 +44,10 @@ class DINKI_BatchImages:
             target_h = target_img.shape[1]
             target_w = target_img.shape[2]
             
-            processed_images = [target_img] # 첫 번째 이미지는 그대로 넣음
+            needs_alpha = any(img.shape[-1] == 4 for img in valid_images)
+            processed_images = []
 
-            for img in valid_images[1:]:
+            for img in valid_images:
                 # 크기가 다르면 리사이징 수행
                 if img.shape[1] != target_h or img.shape[2] != target_w:
                     # PyTorch interpolate를 쓰기 위해 (B, H, W, C) -> (B, C, H, W)로 변경
@@ -58,9 +59,10 @@ class DINKI_BatchImages:
                     # 다시 원래대로 (B, C, H, W) -> (B, H, W, C)로 변경
                     img = img.movedim(1, -1)
                 
+                if needs_alpha and img.shape[-1] == 3:
+                    img = torch.cat((img, torch.ones_like(img[..., :1])), dim=-1)
                 processed_images.append(img)
 
             # 병합 (Batch Concatenation)
             batch = torch.cat(processed_images, dim=0)
             return (batch,)
-

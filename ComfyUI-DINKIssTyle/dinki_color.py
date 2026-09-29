@@ -866,11 +866,15 @@ class DINKI_Color_Lut:
         device = image.device
         if lut_tensor.device != device: lut_tensor = lut_tensor.to(device)
 
-        grid = image.unsqueeze(1) * 2.0 - 1.0
+        rgb = image[..., :3]
+        alpha = image[..., 3:4] if image.shape[-1] == 4 else None
+        grid = rgb.unsqueeze(1) * 2.0 - 1.0
         processed = F.grid_sample(lut_tensor, grid, mode='bilinear', padding_mode='border', align_corners=True)
         processed = processed.permute(0, 2, 3, 4, 1).squeeze(1)
 
-        result = torch.lerp(image, processed, float(strength)) if strength < 1.0 else processed
+        result = torch.lerp(rgb, processed, float(strength)) if strength < 1.0 else processed
+        if alpha is not None:
+            result = torch.cat((result, alpha), dim=-1)
         return (result,)
 
 
@@ -983,14 +987,16 @@ class DINKI_Deband:
 
     def apply_deband(self, image, enabled, threshold, radius, grain, iterations):
         if not enabled: return (image,)
-        x = image.permute(0, 3, 1, 2)
+        alpha = image[..., 3:4] if image.shape[-1] == 4 else None
+        x = image[..., :3].permute(0, 3, 1, 2)
         eps = (threshold / 255.0) ** 2
         out = x
         for _ in range(iterations): out = self._guided_filter(out, radius, eps)
         if grain > 0:
             noise = (torch.rand_like(out) - 0.5) * 2.0 * (grain / 255.0)
             out = out + noise
-        return (torch.clamp(out, 0.0, 1.0).permute(0, 2, 3, 1),)
+        result = torch.clamp(out, 0.0, 1.0).permute(0, 2, 3, 1)
+        return (torch.cat((result, alpha), dim=-1) if alpha is not None else result,)
 
 
 # ============================================================================
