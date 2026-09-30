@@ -50,6 +50,8 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Util` | DKST Util (Base64 Input) | `DINKI_Base64Input` |
 | `DINKIssTyle/Util` | DKST Util (Base64 Viewer) | `DINKI_Base64Viewer` |
 | `DINKIssTyle/Util` | DKST Util (Cross Switch) | `DINKI_CrossOutputSwitch` |
+| `DINKIssTyle/Util` | DKST Util (If/Else Branch) | `DINKI_IfElseBranch` |
+| `DINKIssTyle/Util` | DKST Util (If/Else Image Switch) | `DINKI_IfElseImageSwitch` |
 | `DINKIssTyle/Util` | DKST Util (If/Else Switch) | `DINKI_IfElseSwitch` |
 | `DINKIssTyle/Util` | DKST Util (Image Selector) | `DINKI_ImageSelector` |
 | `DINKIssTyle/Util` | DKST Util (Image Signal) | `DINKI_ImagePreview` |
@@ -68,3 +70,11 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 
 UNet Loader supports safetensors and GGUF (with ComfyUI-GGUF installed). Sequence Player displays MP4, WEBM, MOV, GIF, WebP, PNG, and JPG files supplied by its filename input. Video Player accepts and passes through ComfyUI's native VIDEO type.
 Mask Mix blends masks using weights. Latent Source selects an empty or image-based latent.
+
+If/Else Switch and If/Else Branch mute downstream nodes when a selected input is unconnected. For an optional downstream input that should remain usable without a value, set the advanced `empty_as_none` field to its output number (for example, `2` for `output_2`; use `2, 4` for multiple outputs). In a Qwen Image 2.1 workflow where `output_2` feeds `image_1`, set `empty_as_none` to `2` on the Switch so text encoding can run without a reference image when that branch is empty.
+
+If/Else Switch has a `switch` socket for connections and a `default_switch` widget for manual use when that socket is unconnected. Connect a subgraph boundary input to the socket; promoted Boolean widgets can be exported as a fixed value instead of a link.
+
+If/Else Branch also returns its incoming Boolean as the fifth `switch` output. Connect it to another If/Else Switch or Branch `switch` input to carry the same state through a chain; the four data outputs remain in their original positions.
+
+If/Else Image Switch has the same ten input pairs, ten data outputs, and `switch` status output. Its `image` input selects true when an upstream image value arrives and false when it is unconnected, `None`, empty, or silently blocked. The image input is evaluated first; only the selected data branch is evaluated afterward. It does not treat a dummy 1x1 image as absent. Connect the same source image to `image` and the desired `on_true_N` input when the image should also pass through. If `output_2` feeds Qwen Image 2.1's optional `image_1`, set `empty_as_none` to `2`.

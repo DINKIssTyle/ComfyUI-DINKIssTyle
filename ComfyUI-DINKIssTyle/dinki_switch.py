@@ -1,4 +1,6 @@
+import re
 import sys
+from comfy_execution.graph_utils import ExecutionBlocker, is_link
 
 
 class _AnyType(str):
@@ -8,37 +10,157 @@ class _AnyType(str):
         return False
 
 
-class DINKI_IfElseSwitch:
-    """Route ten independent values through the selected lazy branch."""
+class _DINKI_IfElseBase:
+    """Route numbered values through only the selected lazy branch."""
+
+    PAIR_COUNT = 0
+    FUNCTION = "select"
+    CATEGORY = "DINKIssTyle/Util"
 
     @classmethod
     def INPUT_TYPES(cls):
         optional = {}
-        for index in range(1, 11):
+        for index in range(1, cls.PAIR_COUNT + 1):
             for branch in ("false", "true"):
                 optional[f"on_{branch}_{index}"] = (_AnyType("*"), {"lazy": True})
+        optional["empty_as_none"] = (
+            "STRING",
+            {"default": "", "multiline": False, "advanced": True,
+             "tooltip": "Comma-separated output numbers that send None when their selected input is unconnected. Other empty outputs mute downstream nodes."},
+        )
         return {
             "required": {"switch": ("BOOLEAN", {"default": False})},
             "optional": optional,
         }
-
-    RETURN_TYPES = (_AnyType("*"),) * 10
-    RETURN_NAMES = tuple(f"output_{index}" for index in range(1, 11))
-    FUNCTION = "select"
-    CATEGORY = "DINKIssTyle/Util"
 
     @classmethod
     def check_lazy_status(cls, switch, **inputs):
         branch = "true" if switch else "false"
         return [
             name
-            for index in range(1, 11)
+            for index in range(1, cls.PAIR_COUNT + 1)
             if (name := f"on_{branch}_{index}") in inputs and inputs[name] is None
         ]
 
-    def select(self, switch, **inputs):
+    def _selected_outputs(self, switch, inputs):
         branch = "true" if switch else "false"
-        return tuple(inputs.get(f"on_{branch}_{index}") for index in range(1, 11))
+        empty_as_none = {
+            int(value) for value in re.split(r"[,\s]+", (inputs.get("empty_as_none") or "").strip())
+            if value.isdigit()
+        }
+        outputs = []
+        for index in range(1, self.PAIR_COUNT + 1):
+            name = f"on_{branch}_{index}"
+            if name in inputs:
+                outputs.append(inputs[name])
+            elif index in empty_as_none:
+                outputs.append(None)
+            else:
+                outputs.append(ExecutionBlocker(None))
+        return tuple(outputs)
+
+
+class DINKI_IfElseSwitch(_DINKI_IfElseBase):
+    """Route ten values and pass the switch state to later branch nodes."""
+
+    PAIR_COUNT = 10
+    RETURN_TYPES = (_AnyType("*"),) * 10 + ("BOOLEAN",)
+    RETURN_NAMES = tuple(f"output_{index}" for index in range(1, 11)) + ("switch",)
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        inputs = super().INPUT_TYPES()["optional"]
+        empty_as_none = inputs.pop("empty_as_none")
+        inputs["switch"] = ("BOOLEAN", {"forceInput": True})
+        inputs["default_switch"] = ("BOOLEAN", {"default": False})
+        inputs["empty_as_none"] = empty_as_none
+        return {
+            "required": {},
+            "optional": inputs,
+        }
+
+    @classmethod
+    def check_lazy_status(cls, default_switch=False, switch=None, **inputs):
+        return super().check_lazy_status(default_switch if switch is None else switch, **inputs)
+
+    def select(self, default_switch=False, switch=None, **inputs):
+        active = default_switch if switch is None else switch
+        return self._selected_outputs(active, inputs) + (bool(active),)
+
+
+class DINKI_IfElseImageSwitch(_DINKI_IfElseBase):
+    """Select the true branch only when a connected IMAGE supplies a value."""
+
+    PAIR_COUNT = 10
+    RETURN_TYPES = (_AnyType("*"),) * 10 + ("BOOLEAN",)
+    RETURN_NAMES = tuple(f"output_{index}" for index in range(1, 11)) + ("switch",)
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        inputs = super().INPUT_TYPES()["optional"]
+        empty_as_none = inputs.pop("empty_as_none")
+        inputs["image"] = ("IMAGE", {"forceInput": True, "rawLink": True})
+        inputs["empty_as_none"] = empty_as_none
+        return {
+            "required": {},
+            "optional": inputs,
+            "hidden": {"execution_list": "EXECUTION_LIST", "unique_id": "UNIQUE_ID"},
+        }
+
+    @staticmethod
+    def _has_image(image, execution_list, unique_id):
+        if image is None:
+            return False
+        if is_link(image):
+            if execution_list is None or unique_id is None:
+                return False
+            cached = execution_list.get_cache(image[0], unique_id)
+            if cached is None or cached.outputs is None or image[1] >= len(cached.outputs):
+                return False
+            values = cached.outputs[image[1]]
+        else:
+            values = image
+        if not isinstance(values, (list, tuple)):
+            values = (values,)
+        for value in values:
+            if value is None or isinstance(value, ExecutionBlocker):
+                continue
+            numel = getattr(value, "numel", None)
+            if numel is None or numel() > 0:
+                return True
+        return False
+
+    @classmethod
+    def check_lazy_status(cls, image=None, execution_list=None, unique_id=None, **inputs):
+        active = cls._has_image(image, execution_list, unique_id)
+        return super().check_lazy_status(active, **inputs)
+
+    def select(self, image=None, execution_list=None, unique_id=None, **inputs):
+        active = self._has_image(image, execution_list, unique_id)
+        return self._selected_outputs(active, inputs) + (active,)
+
+
+class DINKI_IfElseBranch(_DINKI_IfElseBase):
+    """Route four values and pass the upstream switch state onward."""
+
+    PAIR_COUNT = 4
+    RETURN_TYPES = (_AnyType("*"),) * 4 + ("BOOLEAN",)
+    RETURN_NAMES = tuple(f"output_{index}" for index in range(1, 5)) + ("switch",)
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        inputs = super().INPUT_TYPES()["optional"]
+        empty_as_none = inputs.pop("empty_as_none")
+        inputs["switch"] = ("BOOLEAN", {"forceInput": True})
+        inputs["empty_as_none"] = empty_as_none
+        return {"required": {}, "optional": inputs}
+
+    @classmethod
+    def check_lazy_status(cls, switch=False, **inputs):
+        return super().check_lazy_status(switch, **inputs)
+
+    def select(self, switch=False, **inputs):
+        return self._selected_outputs(switch, inputs) + (bool(switch),)
 
 
 class DINKI_Node_Switch:

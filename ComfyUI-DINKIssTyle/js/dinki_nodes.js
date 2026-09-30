@@ -3,6 +3,35 @@
 import { app, ComfyApp } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
+// Restore the state output on saved Switch and Branch nodes.
+app.registerExtension({
+    name: "DINKI.IfElseSwitch.StateOutput",
+    beforeRegisterNodeDef(nodeType, nodeData) {
+        const isSwitch = nodeData.name === "DINKI_IfElseSwitch";
+        if (!isSwitch && nodeData.name !== "DINKI_IfElseBranch") return;
+        const onConfigure = nodeType.prototype.onConfigure;
+        nodeType.prototype.onConfigure = function(...args) {
+            const result = onConfigure?.apply(this, args);
+            if (isSwitch) {
+                const savedSwitch = args[0]?.widgets_values?.[0];
+                const defaultWidget = this.widgets?.find(widget => widget.name === "default_switch");
+                if (defaultWidget && typeof savedSwitch === "boolean") {
+                    defaultWidget.value = savedSwitch;
+                }
+                // Old converted widgets keep a `widget` marker on the input. In a
+                // subgraph that marker makes API export serialize the widget's stale
+                // value instead of the connected switch link.
+                const switchInput = this.inputs?.find(input => input.name === "switch");
+                if (switchInput?.widget) delete switchInput.widget;
+            }
+            if (!this.outputs?.some(output => output.name === "switch")) {
+                this.addOutput?.("switch", "BOOLEAN");
+            }
+            return result;
+        };
+    },
+});
+
 // Keep saved Photo Specs widgets aligned after adding resolution controls.
 app.registerExtension({
     name: "DINKI.PhotoSpecifications.Orientation",
