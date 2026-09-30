@@ -74,6 +74,7 @@ from .dinki_viewer import (
 
 # 6. 스위치 관련
 from .dinki_switch import (
+    DINKI_IfElseSwitch,
     DINKI_Node_Switch,
     DINKI_Node_Change,
     DINKI_String_Switch_RT,
@@ -154,6 +155,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Video_Viewer": DINKI_Video_Viewer,
 
     # Switch
+    "DINKI_IfElseSwitch": DINKI_IfElseSwitch,
     "DINKI_Node_Switch": DINKI_Node_Switch,
     "DINKI_Node_Change": DINKI_Node_Change,
     "DINKI_String_Switch_RT": DINKI_String_Switch_RT,
@@ -231,6 +233,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Video_Viewer": "DKST Video (Video Player)",
 
     # Switch
+    "DINKI_IfElseSwitch": "DKST Util (If/Else Switch)",
     "DINKI_Node_Switch": "DKST Util (Node Switch)",
     "DINKI_Node_Change": "DKST Util (Node Change)",
     "DINKI_String_Switch_RT": "DKST Util (String Switch)",

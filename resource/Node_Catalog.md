@@ -50,6 +50,7 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Util` | DKST Util (Base64 Input) | `DINKI_Base64Input` |
 | `DINKIssTyle/Util` | DKST Util (Base64 Viewer) | `DINKI_Base64Viewer` |
 | `DINKIssTyle/Util` | DKST Util (Cross Switch) | `DINKI_CrossOutputSwitch` |
+| `DINKIssTyle/Util` | DKST Util (If/Else Switch) | `DINKI_IfElseSwitch` |
 | `DINKIssTyle/Util` | DKST Util (Image Selector) | `DINKI_ImageSelector` |
 | `DINKIssTyle/Util` | DKST Util (Image Signal) | `DINKI_ImagePreview` |
 | `DINKIssTyle/Util` | DKST Util (Image to Base64) | `DINKI_Img2Base64` |

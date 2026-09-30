@@ -1,5 +1,46 @@
 import sys
 
+
+class _AnyType(str):
+    """Accept connections of any ComfyUI socket type."""
+
+    def __ne__(self, other):
+        return False
+
+
+class DINKI_IfElseSwitch:
+    """Route ten independent values through the selected lazy branch."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        optional = {}
+        for index in range(1, 11):
+            for branch in ("false", "true"):
+                optional[f"on_{branch}_{index}"] = (_AnyType("*"), {"lazy": True})
+        return {
+            "required": {"switch": ("BOOLEAN", {"default": False})},
+            "optional": optional,
+        }
+
+    RETURN_TYPES = (_AnyType("*"),) * 10
+    RETURN_NAMES = tuple(f"output_{index}" for index in range(1, 11))
+    FUNCTION = "select"
+    CATEGORY = "DINKIssTyle/Util"
+
+    @classmethod
+    def check_lazy_status(cls, switch, **inputs):
+        branch = "true" if switch else "false"
+        return [
+            name
+            for index in range(1, 11)
+            if (name := f"on_{branch}_{index}") in inputs and inputs[name] is None
+        ]
+
+    def select(self, switch, **inputs):
+        branch = "true" if switch else "false"
+        return tuple(inputs.get(f"on_{branch}_{index}") for index in range(1, 11))
+
+
 class DINKI_Node_Switch:
     """
     A logic node that toggles the Bypass status of other nodes based on their IDs.
