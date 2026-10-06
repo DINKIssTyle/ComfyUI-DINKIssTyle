@@ -333,6 +333,33 @@ test("Load & Crop restores the reordered positional values without named setting
     assert.equal(get("megapixels").value, 4);
 });
 
+test("Load & Crop restores numeric size controls from old and current layouts", () => {
+    for (const stored of [
+        ["", "portrait.png", "4:5", 4, 5, 12, 0.56, 0.1, 0.2, 0.7, 0.8],
+        ["", "portrait.png", "4:5", 4, 5, 0.1, 0.2, 0.7, 0.8, 12, 0.56],
+        ["", "portrait.png", "4:5", 4, 5, 0.1, 0.2, 0.7, 0.8, "input", null, 12, 0.56],
+        ["input", "portrait.png", "4:5", 4, 5, 0.1, 0.2, 0.7, 0.8, 12, 0.56, "temp"],
+    ]) {
+        const { node, Node, get } = fixture("DINKI_Image_Load_Crop");
+        Node.prototype.onConfigure.call(node, { widgets_values: stored });
+        assert.equal(get("crop_x").value, 0.1);
+        assert.equal(get("crop_height").value, 0.8);
+        assert.equal(get("resolution_multiple").value, 12);
+        assert.equal(get("megapixels").value, 0.56);
+    }
+});
+
+test("Load & Crop restores named crop and fractional size values without an array", () => {
+    const { node, Node, get } = fixture("DINKI_Image_Load_Crop");
+    Node.prototype.onConfigure.call(node, { widgets_values_named: {
+        crop_x: 0.125, crop_height: 0.75, resolution_multiple: 12, megapixels: 0.56,
+    } });
+    assert.equal(get("crop_x").value, 0.125);
+    assert.equal(get("crop_height").value, 0.75);
+    assert.equal(get("resolution_multiple").value, 12);
+    assert.equal(get("megapixels").value, 0.56);
+});
+
 test("serialized named settings survive UI widgets and saved preview does not reset crop", async () => {
     const { node, Node, extension, app, get, output } = fixture();
     node.dkstCropOutput(output(400, 300, [50, 0, 300, 300]));

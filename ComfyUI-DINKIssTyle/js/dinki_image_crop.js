@@ -4,7 +4,6 @@ import { api } from "../../scripts/api.js";
 const NODE_CLASSES = new Set(["DINKI_Image_Crop", "DINKI_Image_Load_Crop"]);
 const STORED = ["aspect_ratio", "custom_width", "custom_height", "crop_x", "crop_y", "crop_width", "crop_height"];
 const SIZE_CONTROLS = ["resolution_multiple", "megapixels"];
-const isLegacyMegapixels = value => typeof value === "string" && /^\d+(?:\.\d+)?MP$/.test(value);
 const megapixelsNumber = value => Number(String(value).replace(/MP$/, ""));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -505,32 +504,33 @@ app.registerExtension({
             const result = originalConfigure?.apply(this, arguments);
             const widgets = values(this);
             const named = info?.properties?.dkstCropSettings;
-            if (named && typeof named === "object") {
-                for (const name of STORED) {
-                    if (widgets[name] && Object.hasOwn(named, name)) widgets[name].value = named[name];
-                }
-            } else if (Array.isArray(info?.widgets_values)) {
-                const list = info.widgets_values.filter(value => value !== null);
-                const offset = nodeData.name === "DINKI_Image_Load_Crop" ? 2 : 0;
-                const megapixelsIndex = list.findIndex(isLegacyMegapixels);
-                STORED.forEach((name, index) => {
-                    const position = offset + index +
-                        (offset && index >= 3 && megapixelsIndex === 6 ? 2 : 0);
-                    if (widgets[name] && position < list.length) {
-                        widgets[name].value = list[position];
-                    }
-                });
+            const namedValues = info?.widgets_values_named;
+            const loadCrop = nodeData.name === "DINKI_Image_Load_Crop";
+            // Old layouts place size controls before crop coordinates; current
+            // layouts place them last, sometimes after the hidden source_type.
+            const list = (Array.isArray(info?.widgets_values) ? info.widgets_values : []).filter(value => value != null);
+            if (loadCrop) {
+                const sourceIndex = [9, 11].find(index => list[index] === "input" || list[index] === "temp");
+                if (sourceIndex !== undefined) list.splice(sourceIndex, 1);
+            }
+            const offset = loadCrop ? 2 : 0;
+            const earlyMultiple = Number(list[5]);
+            const sizeFirst = loadCrop && Number.isInteger(earlyMultiple) &&
+                earlyMultiple >= 4 && earlyMultiple <= 128 && earlyMultiple % 4 === 0;
+            const positional = Object.fromEntries(STORED.map((name, index) =>
+                [name, list[offset + index + (sizeFirst && index >= 3 ? 2 : 0)]]));
+            for (const name of STORED) {
+                const candidate = named?.[name] ?? namedValues?.[name] ?? positional[name];
+                if (widgets[name] && candidate !== undefined) widgets[name].value = candidate;
             }
             if (nodeData.name === "DINKI_Image_Load_Crop") {
                 removeUnusedSourceTypeSocket(this);
-                const list = info?.widgets_values?.filter(value => value !== null) || [];
-                const megapixelsIndex = list.findIndex(isLegacyMegapixels);
-                const namedValues = info?.widgets_values_named;
+                const sizeIndex = sizeFirst ? 5 : 9;
                 const sizeValues = {
                     resolution_multiple: named?.resolution_multiple ??
-                        namedValues?.resolution_multiple ?? list[megapixelsIndex - 1],
+                        namedValues?.resolution_multiple ?? list[sizeIndex],
                     megapixels: named?.megapixels ??
-                        namedValues?.megapixels ?? list[megapixelsIndex],
+                        namedValues?.megapixels ?? list[sizeIndex + 1],
                 };
                 for (const name of SIZE_CONTROLS) {
                     const widget = this.widgets?.find(item => item.name === name);

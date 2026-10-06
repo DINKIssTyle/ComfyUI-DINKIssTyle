@@ -95,7 +95,7 @@ from .dinki_tool import (
 
 from .dinki_lmstudio import DINKI_LMStudio
 from .dinki_batchImages import DINKI_BatchImages
-from .dinki_tiled_upscale import DINKI_TileSplit, DINKI_TileStitch
+from .dinki_image_size import DINKI_GetImageSize
 from .dinki_photo_specs import DINKI_photo_specifications
 from .dinki_photo_studio import DINKI_Photo_Studio
 from .dinki_multi_lora import DINKI_Multi_LoRA_Loader
@@ -179,8 +179,6 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_ImagePreview": DINKI_ImagePreview,
     "DINKI_LMStudio": DINKI_LMStudio,
     "DINKI_BatchImages": DINKI_BatchImages,
-    "DINKI_TileSplit": DINKI_TileSplit,
-    "DINKI_TileStitch": DINKI_TileStitch,
     "DINKI_photo_specifications": DINKI_photo_specifications,
     "DINKI_Overlay": DINKI_Overlay,
     "DINKI_Image_Comparer_MOV": DINKI_Image_Comparer_MOV,
@@ -190,6 +188,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Base64Viewer": DINKI_Base64Viewer,
     "DINKI_DepthParallax_MOV": DINKI_DepthParallax_MOV,
     "DINKI_Image_Resize": DINKI_Image_Resize,
+    "DINKI_GetImageSize": DINKI_GetImageSize,
 
     # Text
     "DINKI_Text_Note": DINKI_Text_Note,
@@ -259,8 +258,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_ImagePreview": "DKST Util (Image Signal)",
     "DINKI_LMStudio": "DKST LLM (LM Studio)",
     "DINKI_BatchImages": "DKST Image (Batch)",
-    "DINKI_TileSplit": "DKST PS (Tile Split)",
-    "DINKI_TileStitch": "DKST PS (Tile Stitch)",
     "DINKI_photo_specifications": "DKST Image (Photo Specs)",
     "DINKI_Overlay": "DKST Image (Overlay)",
     "DINKI_Image_Comparer_MOV": "DKST Video (Image Compare)",
@@ -270,6 +267,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Base64Viewer": "DKST Util (Base64 Viewer)",
     "DINKI_DepthParallax_MOV": "DKST Video (Depth Parallax)",
     "DINKI_Image_Resize": "DKST Image (Resize)",
+    "DINKI_GetImageSize": "DKST Image (Get Size)",
 
     # Text
     "DINKI_Text_Note": "DKST Text (Note)",

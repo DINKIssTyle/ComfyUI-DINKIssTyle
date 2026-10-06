@@ -8,6 +8,12 @@
 - [Internal Processing](DINKI_PS.md)
 
 
+## DKST Image (Get Size)
+
+Connect an optional `image` to output its integer `width`, `height`, and `batch_size`, matching ComfyUI's Get Image Size outputs. RGB and RGBA images are supported without changing their pixels. When the input is disconnected, returns `None`, is blocked upstream, or contains an empty image batch, the outputs block downstream execution rather than supplying zero dimensions. Other independent workflow branches can continue.
+
+---
+
 ## 📥 DKST Image (Load)
 
 <div align="center"><img src="DINKI_Image_Load.png" alt="" width="350"><br><br></div>
@@ -27,6 +33,8 @@ Select a `category` and `filename` as in **DKST Image (Load)**. The source image
 The `image`, `mask`, and `alpha` outputs contain the same cropped region, resized to the dimensions selected by `resolution_multiple` (4, 8, 16, or 32) and `megapixels` (0.25, 0.56, 1, 1.68, 2, 3, or 4MP). The crop canvas shows both the source crop size and the calculated output size before running the workflow. Here, 1MP targets 1024 × 1024 pixels for a square crop (about 1.05 million pixels), with each dimension rounded to the selected multiple. Transparent images remain RGBA. Resizing uses antialiased, premultiplied-alpha interpolation for RGBA images, and `mask` remains the inverse of alpha.
 
 Upload, paste, drag and drop, and the mask editor remain available through the node menu. The crop preview refreshes when another file is selected and on each queued run.
+
+Saving in the mask editor selects an edited image file whose alpha channel contains the mask. To discard that edit, select the original `category` and `filename` again. Selecting, uploading, or pasting another image also updates the native mask editor's source, so an earlier file's mask is not carried over. Transparency already present in the selected file is still used as its mask. Run the workflow again to update the outputs after changing the selection.
 
 ---
 

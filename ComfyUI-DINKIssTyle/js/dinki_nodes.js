@@ -37,13 +37,21 @@ app.registerExtension({
     name: "DINKI.PhotoSpecifications.Orientation",
     beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== "DINKI_photo_specifications") return;
+        const names = ["resolution", "resolution_multiple", "megapixels", "aspect_ratio", "orientation"];
         const onConfigure = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function() {
-            const values = arguments[0]?.widgets_values;
+            const info = arguments[0];
+            const values = info?.widgets_values;
             if (Array.isArray(values) && /^\d+(?:\.\d+)?MP$/.test(values[0])) {
                 values.unshift("Custom", 8);
             }
             const result = onConfigure?.apply(this, arguments);
+            for (const name of names) {
+                const value = info?.properties?.dkstPhotoSpecsSettings?.[name] ??
+                    info?.widgets_values_named?.[name];
+                const widget = getWidget(this, name);
+                if (widget && value !== undefined) widget.value = value;
+            }
             const megapixelsWidget = getWidget(this, "megapixels");
             const megapixels = Number(String(megapixelsWidget?.value).replace(/MP$/, ""));
             if (megapixelsWidget && Number.isFinite(megapixels) && megapixels >= 0.1 && megapixels <= 64) {
@@ -57,6 +65,16 @@ app.registerExtension({
             const widget = getWidget(this, "orientation");
             if (widget?.value === "Portrait" || widget?.value === "Landscape") {
                 widget.value = widget.value === "Landscape";
+            }
+            return result;
+        };
+        const onSerialize = nodeType.prototype.onSerialize;
+        nodeType.prototype.onSerialize = function(info) {
+            const result = onSerialize?.apply(this, arguments);
+            if (info) {
+                info.properties ??= {};
+                info.properties.dkstPhotoSpecsSettings = Object.fromEntries(names.map(name =>
+                    [name, getWidget(this, name)?.value]));
             }
             return result;
         };
@@ -2431,6 +2449,23 @@ app.registerExtension({
 
             let previewGeneration = 0;
             let refreshGeneration = 0;
+            let editorValue = "";
+            const selectedImageDescriptor = (filename = filenameWidget.value) => ({
+                filename,
+                subfolder: sourceTypeWidget.value === "temp" ? "" : (categoryWidget.value || ""),
+                type: sourceTypeWidget.value || "input",
+            });
+            const syncMaskEditorSource = (descriptor, image = null) => {
+                // The native editor can prioritize node.images or the image
+                // widget over node.imgs. Keep all three on the selected file,
+                // including when opening it through ComfyUI's own command.
+                editorValue = descriptor.filename
+                    ? `${descriptor.subfolder ? descriptor.subfolder + "/" : ""}${descriptor.filename} [${descriptor.type}]`
+                    : "";
+                node.images = image ? [descriptor] : [];
+                node.imgs = image ? [image] : [];
+                node.imageIndex = 0;
+            };
             const rememberSelection = () => {
                 node.properties ??= {};
                 if (sourceTypeWidget.value === "temp" && filenameWidget.value?.startsWith("DKST_Paste_")) {
@@ -2446,6 +2481,9 @@ app.registerExtension({
 
             const showPreview = (filename = filenameWidget.value) => {
                 const generation = ++previewGeneration;
+                const descriptor = selectedImageDescriptor(filename);
+                node.dkstLoadedImage = null;
+                syncMaskEditorSource(descriptor);
                 rememberSelection();
                 if (!filename) {
                     node.dkstLoadedImage = null;
@@ -2459,18 +2497,17 @@ app.registerExtension({
                 }
 
                 const params = new URLSearchParams({
-                    filename,
-                    subfolder: sourceTypeWidget.value === "temp" ? "" : (categoryWidget.value || ""),
-                    type: sourceTypeWidget.value || "input",
+                    ...descriptor,
                     t: String(Date.now()),
                 });
                 const image = new Image();
                 image.onload = () => {
                     if (generation !== previewGeneration) return;
                     node.dkstLoadedImage = image;
+                    syncMaskEditorSource(descriptor, image);
                     node.dkstImageResolution = `${image.naturalWidth} × ${image.naturalHeight}`;
                     node.dkstCropSourcePreview?.(image,
-                        `${sourceTypeWidget.value}:${categoryWidget.value}:${filename}`);
+                        `${descriptor.type}:${descriptor.subfolder}:${descriptor.filename}`);
                     previewElement.src = image.src;
                     resolutionElement.textContent = node.dkstImageResolution;
                     previewContainer.style.display = "flex";
@@ -2583,7 +2620,6 @@ app.registerExtension({
             editorWidget.computeSize = () => [0, -4];
             editorWidget.serialize = false;
             editorWidget.options.serialize = false;
-            let editorValue = "";
             Object.defineProperty(editorWidget, "value", {
                 configurable: true,
                 get: () => editorValue,
@@ -2644,14 +2680,9 @@ app.registerExtension({
                 if (typeof ComfyApp.open_maskeditor !== "function") {
                     throw new Error("ComfyUI mask editor is unavailable.");
                 }
-                const descriptor = {
-                    filename: filenameWidget.value,
-                    subfolder: sourceTypeWidget.value === "temp" ? "" : (categoryWidget.value || ""),
-                    type: sourceTypeWidget.value || "input",
-                };
-                editorValue = `${descriptor.subfolder ? descriptor.subfolder + "/" : ""}${descriptor.filename} [${descriptor.type}]`;
-                node.imgs = [node.dkstLoadedImage];
-                node.imageIndex = 0;
+                if (!node.dkstLoadedImage) return;
+                const descriptor = selectedImageDescriptor();
+                syncMaskEditorSource(descriptor, node.dkstLoadedImage);
                 ComfyApp.copyToClipspace(node);
                 ComfyApp.clipspace.images = [descriptor];
                 ComfyApp.clipspace_return_node = node;

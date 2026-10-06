@@ -44,6 +44,9 @@ function makeWidget() {
     });
     const node = {
         size: [340, 100],
+        graph: { version: 0, incrementVersion() { this.version++; } },
+        changes: [],
+        onWidgetChanged(...args) { this.changes.push(args); },
         addDOMWidget(name, type, element, options) {
             const widget = { name, type, element, options };
             this.widget = widget;
@@ -139,7 +142,7 @@ test('up and down move complete rows, update boundaries, and persist the new ord
         'missing.safetensors');
 });
 
-test('saved order after arrow clicks is the Python loader execution order', () => {
+test('saved order and live toggles determine Python loader execution across queues', () => {
     const { widget } = makeWidget();
     widget.value = JSON.stringify([
         { name: 'a.safetensors', enabled: true, strength_model: 0.5 },
@@ -148,6 +151,16 @@ test('saved order after arrow clicks is the Python loader execution order', () =
     ]);
     moveButton(widget.element, 3, 'up').fire('click');
     moveButton(widget.element, 2, 'up').fire('click');
+    const queuedStacks = [widget.serializeValue()];
+    const toggles = descendants(widget.element, item => item.type === 'checkbox');
+    toggles[0].checked = false;
+    toggles[0].fire('change');
+    queuedStacks.push(widget.serializeValue());
+    for (const toggle of toggles.slice(1)) {
+        toggle.checked = false;
+        toggle.fire('change');
+    }
+    queuedStacks.push(widget.serializeValue());
     const python = `import json, runpy, sys, types
 folder_paths = types.ModuleType('folder_paths')
 folder_paths.get_filename_list = lambda kind: ['a.safetensors', 'b.safetensors']
@@ -158,14 +171,15 @@ class Loader:
 nodes.LoraLoaderModelOnly = Loader
 sys.modules.update({'folder_paths': folder_paths, 'nodes': nodes})
 LoaderNode = runpy.run_path(sys.argv[1])['DINKI_Multi_LoRA_Loader']
-print(json.dumps(LoaderNode().load_loras([], sys.stdin.read())[0]))`;
+node = LoaderNode()
+print(json.dumps([node.load_loras([], stack)[0] for stack in json.load(sys.stdin)]))`;
     const result = execFileSync('python3', ['-c', python,
         join(__dirname, '../ComfyUI-DINKIssTyle/dinki_multi_lora.py')],
-    { input: widget.value, encoding: 'utf8' });
+    { input: JSON.stringify(queuedStacks), encoding: 'utf8' });
     assert.deepEqual(JSON.parse(result), [
-        ['a.safetensors', 1.5],
-        ['a.safetensors', 0.5],
-        ['b.safetensors', -0.25],
+        [['a.safetensors', 1.5], ['a.safetensors', 0.5], ['b.safetensors', -0.25]],
+        [['a.safetensors', 0.5], ['b.safetensors', -0.25]],
+        [],
     ]);
 });
 
@@ -178,6 +192,52 @@ test('restores saved rows including unavailable LoRA names', () => {
     assert.ok(select.children.some(option => option.value === 'missing.safetensors'));
 });
 
+test('checkbox changes notify the graph and serialize the live disabled state for execution', () => {
+    const { widget, node } = makeWidget();
+    const initial = JSON.stringify([
+        { name: 'a.safetensors', enabled: true, strength_model: 1 },
+        { name: 'b.safetensors', enabled: true, strength_model: 0.5 },
+    ]);
+    widget.value = initial;
+    let callbackArgs;
+    widget.callback = (...args) => { callbackArgs = args; };
+    const toggle = descendants(widget.element, item => item.type === 'checkbox')[0];
+    toggle.checked = false;
+    toggle.fire('change');
+    const disabled = JSON.stringify([
+        { name: 'a.safetensors', enabled: false, strength_model: 1 },
+        { name: 'b.safetensors', enabled: true, strength_model: 0.5 },
+    ]);
+    assert.equal(widget.serializeValue(node, 0), JSON.stringify([
+        { name: 'b.safetensors', enabled: true, strength_model: 0.5 },
+    ]));
+    assert.equal(widget.value, disabled);
+    assert.equal(node.graph.version, 1);
+    assert.equal(node.changes[0][0], 'lora_stack');
+    assert.equal(node.changes[0][1], disabled);
+    assert.equal(node.changes[0][2], initial);
+    assert.equal(node.changes[0][3], widget);
+    assert.equal(callbackArgs[0], disabled);
+    assert.equal(callbackArgs[2], node);
+    toggle.checked = true;
+    toggle.fire('change');
+    assert.equal(widget.serializeValue(node, 0), initial);
+    assert.equal(node.changes[1][2], disabled);
+    assert.equal(node.graph.version, 2);
+});
+
+test('restoring non-boolean enabled values cannot turn disabled rows on', () => {
+    const { widget } = makeWidget();
+    widget.value = JSON.stringify([false, 0, 'false', null, true].map(enabled => ({
+        name: 'a.safetensors', enabled, strength_model: 1,
+    })).concat({ name: 'b.safetensors', strength_model: 1 }));
+    assert.deepEqual(JSON.parse(widget.value).map(row => row.enabled),
+        [false, false, false, false, true, true]);
+    assert.equal(JSON.parse(widget.serializeValue()).length, 2);
+    assert.deepEqual(descendants(widget.element, item => item.type === 'checkbox')
+        .map(toggle => toggle.checked), [false, false, false, false, true, true]);
+});
+
 test('adding a row preserves user width and extra height', () => {
     const { widget, node } = makeWidget();
     node.size = [510, 480];
@@ -187,4 +247,36 @@ test('adding a row preserves user width and extra height', () => {
     descendants(widget.element, item => item.tagName === 'button').at(-1).fire('click');
     assert.equal(node.size[0], 510);
     assert.equal(node.size[1], node.computeSize()[1]);
+});
+
+test('disabled acceleration rows do not change the execution input but remain in the saved workflow', () => {
+    const { widget } = makeWidget();
+    const active = { name: 'a.safetensors', enabled: true, strength_model: 1 };
+    widget.value = JSON.stringify([active]);
+    const baseline = widget.serializeValue();
+    const stored = [
+        { name: 'turbo.safetensors', enabled: false, strength_model: 1 },
+        active,
+        { name: 'dmad.safetensors', enabled: false, strength_model: 1 },
+        { name: 'pdm.safetensors', enabled: true, strength_model: 0 },
+        { name: 'None', enabled: true, strength_model: 1 },
+    ];
+    widget.value = JSON.stringify(stored);
+    assert.equal(widget.serializeValue(), baseline);
+    assert.deepEqual(JSON.parse(widget.value), stored);
+    // Workflow persistence reads value, while API queueing reads serializeValue.
+    const restored = makeWidget().widget;
+    restored.value = widget.value;
+    assert.equal(restored.serializeValue(), baseline);
+    assert.deepEqual(JSON.parse(restored.value), stored);
+    const toggles = descendants(restored.element, item => item.type === 'checkbox');
+    assert.deepEqual(toggles.map(toggle => toggle.checked), [false, true, false, true, true]);
+    toggles[0].checked = true;
+    toggles[0].fire('change');
+    assert.notEqual(restored.serializeValue(), baseline);
+    toggles[0].checked = false;
+    toggles[0].fire('change');
+    assert.equal(restored.serializeValue(), baseline);
+    moveButton(restored.element, 3, 'up').fire('click');
+    assert.equal(restored.serializeValue(), baseline);
 });

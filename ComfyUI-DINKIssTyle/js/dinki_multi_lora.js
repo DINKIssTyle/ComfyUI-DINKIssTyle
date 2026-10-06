@@ -13,7 +13,7 @@ function decodeRows(value) {
         return parsed.filter(row => row && typeof row === "object" && !Array.isArray(row))
             .map(row => ({
                 name: typeof row.name === "string" ? row.name : "None",
-                enabled: row.enabled !== false,
+                enabled: row.enabled === undefined || row.enabled === true,
                 strength_model: Number.isFinite(Number(row.strength_model))
                     ? Number(row.strength_model) : 1,
             }));
@@ -30,6 +30,7 @@ app.registerExtension({
                 const names = inputData?.[1]?.lora_names || ["None"];
                 const options = [...new Set(["None", ...names])];
                 let rows = [{ name: "None", enabled: true, strength_model: 1 }];
+                let previousValue = JSON.stringify(rows);
                 let widget;
                 const root = element("div", {
                     boxSizing: "border-box", width: "100%", padding: "4px 8px",
@@ -54,7 +55,12 @@ app.registerExtension({
                 }
 
                 function changed(needsLayout = false) {
-                    widget?.callback?.(widget.value);
+                    const value = JSON.stringify(rows);
+                    const oldValue = previousValue;
+                    previousValue = value;
+                    widget?.callback?.(value, app.canvas, node);
+                    node.onWidgetChanged?.(inputName, value, oldValue, widget);
+                    node.graph?.incrementVersion?.();
                     node.setDirtyCanvas?.(true, true);
                     if (needsLayout) ensureFits();
                 }
@@ -180,6 +186,7 @@ app.registerExtension({
                     getValue: () => JSON.stringify(rows),
                     setValue: value => {
                         rows = decodeRows(value);
+                        previousValue = JSON.stringify(rows);
                         render();
                         ensureFits();
                     },
@@ -187,6 +194,12 @@ app.registerExtension({
                     getHeight: () => `${43 + rows.length * 77}px`,
                     margin: 4,
                 });
+                // Workflow saving reads widget.value and keeps the entire list.
+                // API queueing must omit bypassed rows: changing them otherwise
+                // invalidates the model/sampler cache even with identical active LoRAs.
+                widget.serializeValue = () => JSON.stringify(rows.filter(row =>
+                    row.enabled === true && row.name !== "" && row.name !== "None" &&
+                    row.strength_model !== 0));
                 render();
                 ensureFits();
                 return { widget };

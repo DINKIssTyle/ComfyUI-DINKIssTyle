@@ -19,13 +19,15 @@ function loadNode(values) {
         }
         onNodeCreated() {}
         onConfigure(data) {
-            this.widgets.forEach((widget, index) => { widget.value = data.widgets_values[index]; });
+            if (Array.isArray(data.widgets_values)) {
+                this.widgets.forEach((widget, index) => { widget.value = data.widgets_values[index]; });
+            }
         }
     }
     extension.beforeRegisterNodeDef(Node, { name: 'DINKI_photo_specifications' });
     const node = new Node();
     node.onNodeCreated();
-    node.onConfigure({ widgets_values: values });
+    node.onConfigure(Array.isArray(values) ? { widgets_values: values } : values);
     return node;
 }
 
@@ -53,4 +55,24 @@ test('legacy Photo Specs layout restores a fractional megapixel preset', () => {
     assert.equal(node.widgets[0].value, 'Custom');
     assert.equal(node.widgets[1].value, 8);
     assert.equal(node.widgets[2].value, 0.56);
+});
+
+test('Photo Specs restores named values over stale positional defaults', () => {
+    const node = loadNode({ widgets_values: ['Custom', 8, 1, 'Basic 1:1', false],
+        widgets_values_named: { resolution_multiple: 12, megapixels: 0.56 } });
+    assert.equal(node.widgets[1].value, 12);
+    assert.equal(node.widgets[2].value, 0.56);
+});
+
+test('Photo Specs round trip preserves numeric size settings by name', () => {
+    const node = loadNode(['Image', 12, 0.56, 'Photo 4:6', true]);
+    const saved = { widgets_values: node.widgets.map(widget => widget.value) };
+    node.onSerialize(saved);
+    const restored = loadNode({ ...JSON.parse(JSON.stringify(saved)),
+        widgets_values: ['Custom', 8, 1, 'Basic 1:1', false] });
+    assert.equal(restored.widgets[0].value, 'Image');
+    assert.equal(restored.widgets[1].value, 12);
+    assert.equal(restored.widgets[2].value, 0.56);
+    assert.equal(restored.widgets[3].value, 'Photo 4:6');
+    assert.equal(restored.widgets[4].value, true);
 });

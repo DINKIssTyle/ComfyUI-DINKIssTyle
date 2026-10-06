@@ -88,7 +88,7 @@ class DINKI_PromptCsvLibrary:
         titles = list(dict.fromkeys(title for entries in sections.values() for title in entries))
         return {
             "required": {
-                "csv_file": ([NONE, *files], {"default": default}),
+                "csv_file": ([NONE, *files], {"default": default, "advanced": True}),
                 "section": ([NONE, *sections], {"default": NONE}),
                 "title": ([NONE, *titles], {"default": NONE}),
                 "prompt": ("STRING", {"default": "", "multiline": True}),

@@ -1,10 +1,19 @@
 """Model-only LoRA stack for the DKST PS category."""
 
 import json
+import logging
 import math
 
 import folder_paths
 import nodes
+
+
+def _patch_count(model):
+    patches = getattr(model, "patches", None)
+    if not isinstance(patches, dict):
+        return None
+    # Count entries, not keys: chained LoRAs may target the same weights.
+    return sum(len(entries) for entries in patches.values())
 
 
 class DINKI_Multi_LoRA_Loader:
@@ -61,10 +70,25 @@ class DINKI_Multi_LoRA_Loader:
             if strength != 0:
                 active.append((name, strength))
 
+        if not active:
+            logging.info("[DKST Multi LoRA] No active LoRAs; passing input model through unchanged.")
         for name, strength in active:
+            logging.info("[DKST Multi LoRA] Loading %s (strength_model=%s)", name, strength)
             loader = self._loaders.get(name)
             if loader is None:
                 loader = nodes.LoraLoaderModelOnly()
                 self._loaders[name] = loader
-            model = loader.load_lora_model_only(model, name, strength)[0]
+            before = _patch_count(model)
+            loaded_model = loader.load_lora_model_only(model, name, strength)[0]
+            after = _patch_count(loaded_model)
+            if before is not None and after is not None:
+                added = after - before
+                if added <= 0:
+                    raise ValueError(
+                        f"LoRA '{name}': No model weight patches were applied. "
+                        "Its keys may not match the input model or this ComfyUI loader. "
+                        "Use a LoRA converted for this model and loader, or disable this row."
+                    )
+                logging.info("[DKST Multi LoRA] Applied %s: %s model weight patches added.", name, added)
+            model = loaded_model
         return (model,)

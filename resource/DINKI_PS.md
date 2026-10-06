@@ -7,25 +7,13 @@
 - [Node Utilities](DINKI_Node_Utils.md)
 - [Internal Processing](DINKI_PS.md)
 
-## 🧩 DKST PS (Tile Split) / DKST PS (Tile Stitch)
-#### (!! Feature in development)
+## Image upscaling and tiled processing
 
-These nodes let an image-edit workflow upscale one image in overlapping tiles. **Tile Split** sends individual `IMAGE` values as a ComfyUI list, not as one image batch. This matters for Qwen Image 2.1: its `Text Encode Qwen Image 2.1` node reads only the first image from an `IMAGE` batch connected to one reference slot.
+For image enlargement without a diffusion redraw, use ComfyUI's built-in **Load Upscale Model** and **Upscale Image (using Model)**. The model upscaler already processes overlapping tiles internally; separate split/stitch nodes are unnecessary. See the [ComfyUI implementation](https://github.com/Comfy-Org/ComfyUI/blob/master/comfy_extras/nodes_upscale_model.py).
 
-Connect the nodes as follows:
+**VAE Encode (Tiled)** and **VAE Decode (Tiled)** reduce memory use during image/latent conversion. They do not enlarge an image by themselves or tile the diffusion sampler. See the [ComfyUI VAE nodes](https://github.com/Comfy-Org/ComfyUI/blob/master/nodes.py).
 
-1. Send one image to **Tile Split**. Start with `tile_size=1024`, `overlap=128`, and `upscale_factor=2.0`. The node enlarges the complete source image once, then cuts the enlarged image into overlapping tiles.
-2. Connect `tiles` to `Text Encode Qwen Image 2.1` → `image_1` in the image-edit workflow. Connect `qwen_resolution` to its `resolution` input. If you use an **Image Edit (Qwen Image 2.1)** subgraph that exposes `width`, `height`, and `custom_size` instead, connect `qwen_resolution` to both dimensions **and turn on `custom_size`**. Use the same edit prompt for all tiles.
-3. Connect `tile_seeds` to the sampler's `seed` input. If the seed is a widget, convert it to an input. Keep the Qwen conditioning → sampler → VAE decode path between the two DKST nodes.
-4. Connect decoded `IMAGE` values to **Tile Stitch** → `processed_tiles`, and connect `tile_layout` only to **Tile Stitch**. Do not connect `tile_layout` to a Qwen reference image input. The output is one stitched image.
-
-`tile_size` measures the tile's coverage in original-image pixels. `upscale_factor` sets the actual tile input and output size, rounded to a multiple of 32; both the `tiles` images and `qwen_resolution` are already that size. Do not resize tiles again before Qwen. This lets Qwen edit each tile at the same input and output resolution. `overlap` is the minimum intended overlap in original-image pixels; evenly spaced final tiles can overlap much more when the image is only slightly larger than a tile. The optional `blend_width` controls how much of that overlap is actually feathered (default 32 original-image pixels, capped at `overlap`). The first tile uses `seed`, and following tiles use `seed + tile index`. Each tile must return one square image at `qwen_resolution` and remain in its original order. The stitch node rejects missing or wrongly sized outputs; it cannot detect a change in tile order from pixel content.
-
-The stitch node uses cosine-weighted blending near each tile seam and trims any padding added around small input images. It blends RGBA tiles in premultiplied-alpha space. When the actual overlap is much larger than requested, it places the seam near the earlier tile's far edge so one generated version covers most of the shared area. For a 1200×1500 input with 1024-pixel tiles, the actual overlaps are 848 pixels horizontally and 548 pixels vertically; `blend_width=32` limits the blended parts to 32 input pixels near each seam.
-
-Qwen Image 2.1's official edit workflow samples from an empty latent with full denoise. It can move facial features independently in each tile. Stitching cannot reconnect features that have moved to different coordinates. A prompt that explicitly preserves the original composition helps, but portraits may need a larger tile that keeps the whole face together or an image-to-image refinement workflow anchored to a pre-upscaled image.
-
-For a 1024-pixel input tile and 2048-pixel output tile, the final image is 2× the input dimensions. Larger Qwen resolutions require more VRAM, and the split tiles plus stitched output occupy system RAM. The ComfyUI list output processes tiles one at a time through ordinary nodes rather than increasing the model's batch size.
+For diffusion refinement of an enlarged image, consider [Ultimate SD Upscale](https://github.com/ssitu/ComfyUI_UltimateSDUpscale) or [Tiled Diffusion & VAE](https://github.com/comfyorg/comfyui-tiled-diffusion). These use different sampling strategies; verify compatibility with the model and conditioning in your workflow. Tiled Diffusion's documented support lists SD1.x, SD2.x, SDXL, SD3 and FLUX, but does not list Qwen Image.
 
 ### 🗂️ DKST Util (Sampler Preset)
 
@@ -153,6 +141,10 @@ GGUF loading requires the separate ComfyUI-GGUF custom node (`UnetLoaderGGUF` or
 ## DKST PS (Multi LoRA Loader)
 
 Connect a `MODEL`, then add LoRA rows with **+ Add LoRA**. Each row has a remove button, a LoRA dropdown, an On switch, **↑ / ↓** buttons for moving the row, and a `strength_model` number input accepting -100 to 100. The arrow at either end of the stack is disabled when there is no row to move to. Adding rows preserves the node's current width and any extra height. Enabled rows are applied from top to bottom in the order shown; off rows, `None`, and zero strength are bypassed. The node outputs only the modified `MODEL`. It does not change CLIP. LoRA files come from ComfyUI's `models/loras` folders; refresh the node list after adding files.
+
+This node uses ComfyUI's standard model-only LoRA loader, so each file must match the input model and a key format that loader supports. For models exposing standard weight patches, the server log reports how many patches each active LoRA adds. If an active file adds no model weight patches, execution stops with its filename and a compatibility error instead of continuing without the selected LoRA. Patch counts do not verify tensor shapes or generation quality. Disabling every row passes the input model through, including any LoRAs already applied upstream.
+
+Saved workflows retain the full list, including disabled rows. Execution requests contain only enabled, nonzero rows with a selected file, so editing or reordering bypassed rows does not change the LoRA input used for ComfyUI's execution cache. For output comparisons, keep the seed and all sampling settings fixed; queueing with a changing seed still produces a different execution request.
 
 ---
 
