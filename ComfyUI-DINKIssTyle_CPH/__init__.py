@@ -3,6 +3,7 @@
 # 이 커스텀노드는 매 ComfyUI 부트시 아래 역할을 합니다.
 # 1. macOS에서 윈도우에 올린 한글 파일명의 문제를 해결합니다.
 # 2. macOS에서 윈도우에 올린 파일로 생긴 macOS 리소스포크를 제거합니다.
+# 3. input 폴더의 clipspace- 임시 파일을 제거합니다.
 # ============================================================
 
 import os
@@ -26,6 +27,7 @@ def auto_clean_and_normalize_input():
     ComfyUI의 input 폴더를 스캔하여:
     1. macOS 리소스 포크 파일(._*) 삭제 (크기 검증 포함)
     2. 자소 분리된 한글(NFD) 파일명을 NFC(완성형)로 자동 변환
+    3. clipspace-로 시작하는 파일 삭제 (하위 폴더 포함, 크기 제한 없음)
     """
     # 1. ComfyUI input 폴더 경로 가져오기
     try:
@@ -50,6 +52,16 @@ def auto_clean_and_normalize_input():
     for root, dirs, files in os.walk(input_dir):
         for fname in files:
             full_path = os.path.join(root, fname)
+
+            # Clipspace 임시 파일은 이름 접두사로 구분하며 크기 제한 없이 삭제.
+            if fname.startswith("clipspace-"):
+                try:
+                    os.remove(full_path)
+                    print(f"   [DINKIssTyle - DELETE] {fname} - Clipspace Temporary File")
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"   [DINKIssTyle - ERROR] Failed to delete {fname}: {e}")
+                continue
             
             # --------------------------------------------------------
             # [기능 1] macOS 리소스 포크(._) 파일 삭제

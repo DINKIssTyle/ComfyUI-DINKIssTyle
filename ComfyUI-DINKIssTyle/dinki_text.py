@@ -1,5 +1,5 @@
 class DINKI_Text_Note:
-    """An editable workflow note with frontend Lock and Copy controls."""
+    """A workflow note with frontend Markdown preview, Lock and Copy controls."""
 
     @classmethod
     def INPUT_TYPES(cls):

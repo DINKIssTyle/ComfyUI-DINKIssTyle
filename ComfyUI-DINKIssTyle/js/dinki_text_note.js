@@ -1,4 +1,5 @@
 import { app } from "/scripts/app.js";
+import { renderNoteMarkdown, installNoteMarkdownStyles } from "./dinki_note_markdown.js";
 
 function copyWithSelection(text) {
     const field = document.createElement("textarea");
@@ -56,6 +57,7 @@ app.registerExtension({
             const result = created?.apply(this, arguments);
             const textWidget = this.widgets?.find(widget => widget.name === "text");
             if (!textWidget) return result;
+            installNoteMarkdownStyles();
             textWidget.hidden = true;
             if (textWidget.options) textWidget.options.hidden = true;
 
@@ -64,6 +66,7 @@ app.registerExtension({
             const lockButton = document.createElement("button");
             const copyButton = document.createElement("button");
             const textarea = document.createElement("textarea");
+            const preview = document.createElement("div");
             Object.assign(root.style, {
                 width: "100%", height: "100%", minHeight: "0", display: "flex",
                 flexDirection: "column", overflow: "hidden", boxSizing: "border-box",
@@ -71,6 +74,7 @@ app.registerExtension({
             });
             Object.assign(toolbar.style, {
                 display: "flex", flex: "0 0 auto", gap: "6px", padding: "6px",
+                flexWrap: "wrap",
                 borderBottom: "1px solid #444",
             });
             for (const button of [lockButton, copyButton]) {
@@ -90,8 +94,21 @@ app.registerExtension({
                 padding: "10px", border: "0", outline: "none", resize: "none",
                 background: "transparent", color: "#eee", font: "14px/1.5 sans-serif",
             });
+            preview.className = "dkst-note-preview";
+            preview.tabIndex = 0;
+            preview.setAttribute("role", "region");
+            preview.setAttribute("aria-label", "Note Markdown preview");
+            Object.assign(preview.style, {
+                flex: "1 1 0", minHeight: "0", width: "100%", boxSizing: "border-box",
+                padding: "10px", color: "#eee", font: "14px/1.5 sans-serif",
+            });
+            // Preserve native selection, scrolling and clipboard shortcuts inside
+            // the note without passing those gestures to the graph canvas.
+            for (const name of ["pointerdown", "mousedown", "dblclick", "wheel", "keydown"]) {
+                root.addEventListener(name, event => event.stopPropagation());
+            }
             toolbar.append(lockButton, copyButton);
-            root.append(toolbar, textarea);
+            root.append(toolbar, textarea, preview);
             const widget = this.addDOMWidget("dkst_text_note", "DKST_TEXT_NOTE", root, {
                 hideOnZoom: false,
                 getMinHeight: () => 180,
@@ -102,15 +119,52 @@ app.registerExtension({
             widget.options ??= {};
             widget.options.serialize = false;
 
+            let renderedText;
+            let renderingText;
+            let renderGeneration = 0;
             const sync = () => {
                 const text = String(textWidget.value ?? "");
                 if (textarea.value !== text) textarea.value = text;
+                // Lock is the single persisted state: locked notes render
+                // Markdown, unlocked notes show their editable source.
                 const locked = this.properties?.dkstNoteLocked === true;
+                const previewing = locked;
+                if (this.properties) delete this.properties.dkstNoteViewMode;
+                textarea.style.display = previewing ? "none" : "block";
+                preview.style.display = previewing ? "block" : "none";
+                if (!previewing && renderingText !== undefined) {
+                    renderGeneration++;
+                    renderingText = undefined;
+                }
+                if (previewing && renderedText !== text && renderingText !== text) {
+                    const generation = ++renderGeneration;
+                    renderingText = text;
+                    renderedText = undefined;
+                    const isCurrent = () => generation === renderGeneration;
+                    preview.textContent = "Loading preview…";
+                    Promise.resolve().then(() => renderNoteMarkdown(preview, text, isCurrent)).then(success => {
+                        if (!isCurrent()) return;
+                        renderingText = undefined;
+                        if (success !== false) {
+                            renderedText = text;
+                            preview.removeAttribute("title");
+                        }
+                    }).catch(error => {
+                        if (!isCurrent()) return;
+                        renderingText = undefined;
+                        // Keep the source readable if rendering fails; retry on
+                        // the next sync instead of caching a failed render.
+                        preview.textContent = text;
+                        preview.style.whiteSpace = "pre-wrap";
+                        preview.title = "Preview failed to load. Unlock and Lock to retry.";
+                        console.error("DKST note Markdown preview failed", error);
+                    });
+                }
                 textarea.readOnly = locked;
                 lockButton.textContent = locked ? "Unlock" : "Lock";
                 lockButton.setAttribute("aria-pressed", String(locked));
                 lockButton.style.background = locked ? "#526d94" : "#333";
-                lockButton.title = locked ? "Unlock note" : "Lock note";
+                lockButton.title = locked ? "Unlock and edit Markdown source" : "Lock and preview Markdown";
             };
             this.dkstSyncTextNote = sync;
             sync();
@@ -127,6 +181,7 @@ app.registerExtension({
                 textWidget.options?.setValue?.(value);
                 textWidget.callback?.call(textWidget, value, app.canvas, this);
                 this.onWidgetChanged?.("text", value, previous, textWidget);
+                sync();
                 this.graph?.incrementVersion?.();
                 this.setDirtyCanvas?.(true, true);
             });
@@ -174,6 +229,12 @@ app.registerExtension({
                     this.dkstSyncTextNote?.();
                 });
                 return configuredResult;
+            };
+            const removed = this.onRemoved;
+            this.onRemoved = function() {
+                renderGeneration++;
+                clearTimeout(copyFeedbackTimer);
+                return removed?.apply(this, arguments);
             };
             const serialized = this.onSerialize;
             this.onSerialize = function(info) {

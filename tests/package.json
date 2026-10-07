@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "scripts": {
+    "test:note": "node --experimental-vm-modules --test dinki_text_note.test.cjs dinki_note_markdown.test.cjs dinki_note_startup.test.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "29.1.1"
+  }
+}

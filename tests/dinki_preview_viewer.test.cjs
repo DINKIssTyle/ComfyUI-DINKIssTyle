@@ -17,6 +17,38 @@ function element(tag) {
     };
 }
 
+test('Viewer continues updating after an upstream execution handler throws', async () => {
+    let extension;
+    const app = { registerExtension(ext) {
+        if (ext.name === 'DINKI.PreviewImage.Resolution') extension = ext;
+    } };
+    vm.runInNewContext(source.replace(/^import .*;\r?\n/gm, ''), {
+        app, api: { apiURL: path => path }, document: { createElement: element },
+        queueMicrotask, URLSearchParams, Date: { now: () => 1000 },
+    });
+    class Viewer {
+        constructor() { this.properties = {}; this.onNodeCreated(); }
+        onExecuted() { throw new Error('native handler failed'); }
+        addDOMWidget(name, type, container) { this.container = container; return { options: {} }; }
+        setDirtyCanvas() {}
+    }
+    await extension.beforeRegisterNodeDef(Viewer, { name: 'DINKI_Preview_Image' });
+    const viewer = new Viewer();
+    const message = name => ({ dkst_images: [{ filename: name, type: 'temp' }] });
+    assert.throws(() => viewer.onExecuted(message('first.png')), /native handler failed/);
+    assert.match(viewer.container.children[0].src, /first.png/);
+    assert.throws(() => viewer.onExecuted(message('second.png')), /native handler failed/);
+    assert.match(viewer.container.children[0].src, /second.png/);
+    const image = viewer.container.children[0];
+    image.onerror();
+    assert.equal(viewer.container.children[1].textContent, 'Unable to preview image');
+    const previousURL = image.src;
+    assert.throws(() => viewer.onExecuted(message('second.png')), /native handler failed/);
+    assert.notEqual(image.src, previousURL);
+    image.naturalWidth = 800; image.naturalHeight = 600; image.onload();
+    assert.equal(viewer.container.children[1].textContent, '800 × 600');
+});
+
 test('Viewer restores its last image after a tab recreates the node', async () => {
     let extension;
     const app = { nodeOutputs: {}, registerExtension(ext) {

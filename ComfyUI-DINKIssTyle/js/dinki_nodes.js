@@ -2243,6 +2243,7 @@ app.registerExtension({
             widget.serialize = false;
             widget.options.serialize = false;
             let descriptors = [];
+            let previewGeneration = 0;
             const selected = () => descriptors[Number(selector.value) || 0];
             const extraMenu = this.getExtraMenuOptions;
             this.getExtraMenuOptions = function(canvas, options) {
@@ -2252,6 +2253,7 @@ app.registerExtension({
                 return result;
             };
             const display = () => {
+                const generation = ++previewGeneration;
                 const item = selected();
                 if (!item) {
                     image.removeAttribute("src");
@@ -2259,7 +2261,19 @@ app.registerExtension({
                     resolution.textContent = "";
                     return;
                 }
-                image.src = api.apiURL(`/view?${new URLSearchParams({ ...item, t: String(Date.now()) })}`);
+                image.onload = () => {
+                    if (generation !== previewGeneration) return;
+                    resolution.textContent = `${image.naturalWidth} × ${image.naturalHeight}`;
+                    this.setDirtyCanvas(true, true);
+                };
+                image.onerror = () => {
+                    if (generation !== previewGeneration) return;
+                    resolution.textContent = "Unable to preview image";
+                    this.setDirtyCanvas(true, true);
+                };
+                image.src = api.apiURL(`/view?${new URLSearchParams({
+                    ...item, t: `${Date.now()}-${generation}`,
+                })}`);
                 image.style.display = "block";
             };
             selector.onchange = () => {
@@ -2267,9 +2281,6 @@ app.registerExtension({
                     this.properties.dkstPreview.selectedIndex = Number(selector.value) || 0;
                 }
                 display();
-            };
-            image.onload = () => {
-                resolution.textContent = `${image.naturalWidth} × ${image.naturalHeight}`;
             };
             for (const eventName of ["pointerdown", "mousedown"]) {
                 image.addEventListener(eventName, event => {
@@ -2321,8 +2332,11 @@ app.registerExtension({
         };
         const executed = nodeType.prototype.onExecuted;
         nodeType.prototype.onExecuted = function(message) {
-            executed?.apply(this, arguments);
-            this.dkstUpdatePreview?.(message);
+            try {
+                return executed?.apply(this, arguments);
+            } finally {
+                this.dkstUpdatePreview?.(message);
+            }
         };
     },
     loadedGraphNode(node) {
@@ -2369,6 +2383,22 @@ app.registerExtension({
             const filenameWidget = getWidget(node, "filename");
             const sourceTypeWidget = getWidget(node, "source_type");
             if (!categoryWidget || !filenameWidget || !sourceTypeWidget) return result;
+
+            if (combinedCrop) {
+                // Nodes 2.0 reads this flag before adding its output media area.
+                // Keep images/imgs intact: the native mask editor needs them.
+                node.hideOutputImages = true;
+                // The canvas background callback creates/draws ComfyUI's native
+                // preview (and reserves its height). This node already renders
+                // its source through the independent interactive crop canvas.
+                node.onDrawBackground = function() {};
+                // Remove a preview installed by an earlier creation hook, too.
+                const index = node.widgets.findIndex(widget => widget.name === "$$canvas-image-preview");
+                if (index >= 0) {
+                    node.widgets[index].onRemove?.();
+                    node.widgets.splice(index, 1);
+                }
+            }
 
             sourceTypeWidget.type = "converted-widget";
             sourceTypeWidget.hidden = true;

@@ -6,7 +6,7 @@ const vm = require("node:vm");
 
 const source = readFileSync(join(__dirname, "../ComfyUI-DINKIssTyle/js/dinki_image_crop.js"), "utf8");
 
-function fixture(className = "DINKI_Image_Crop") {
+function fixture(className = "DINKI_Image_Crop", deferImages = false, executionHandler = null) {
     let extension;
     const listeners = new Map();
     const app = { registerExtension(value) { extension = value; }, nodeOutputs: {} };
@@ -14,10 +14,12 @@ function fixture(className = "DINKI_Image_Crop") {
         addEventListener(name, fn) { listeners.set(name, fn); },
         removeEventListener(name) { listeners.delete(name); },
     };
+    const images = [];
     class FakeImage {
+        constructor() { images.push(this); }
         width = 400;
         height = 300;
-        set src(value) { this.uri = value; this.onload?.(); }
+        set src(value) { this.uri = value; if (!deferImages) this.onload?.(); }
     }
     const drawImages = [];
     const drawTexts = [];
@@ -54,6 +56,7 @@ function fixture(className = "DINKI_Image_Crop") {
         { app, api, Image: FakeImage, document, ResizeObserver: FakeResizeObserver,
             queueMicrotask });
     const Node = function () {};
+    if (executionHandler) Node.prototype.onExecuted = executionHandler;
     Node.prototype.onConfigure = function (info) {
         if (Array.isArray(info?.size)) this.size = [...info.size];
     };
@@ -93,8 +96,59 @@ function fixture(className = "DINKI_Image_Crop") {
     const output = (width, height, rect, uri = "data:preview") => ({
         source_size: [[width, height]], crop_rect: [rect], source_preview: [uri],
     });
-    return { app, extension, Node, node, get, output, listeners, observers, drawImages, drawTexts };
+    return { app, extension, Node, node, get, output, listeners, observers, drawImages, drawTexts, images };
 }
+
+test("Load & Crop reloads identical execution output after a file refresh clears the canvas", () => {
+    const { node, output, drawImages } = fixture("DINKI_Image_Load_Crop");
+    const result = output(400, 300, [0, 0, 400, 300], "data:executed");
+    node.dkstCropOutput(result);
+    node.dkstCropSourcePreview(null);
+    node.dkstCropSourcePreview({ width: 400, height: 300, uri: "file:refreshed" }, "input::first.png");
+    node.dkstCropOutput(result);
+    assert.equal(drawImages.at(-1), "data:executed");
+    node.dkstCropSourcePreview(null);
+    node.dkstCropOutput(result);
+    assert.equal(drawImages.at(-1), "data:executed");
+});
+
+test("a pending crop output cannot overwrite a newly selected file", () => {
+    const { node, output, images, drawImages } = fixture("DINKI_Image_Load_Crop", true);
+    node.dkstCropOutput(output(400, 300, [0, 0, 400, 300], "data:old"));
+    node.dkstCropSourcePreview({ width: 400, height: 300, uri: "file:new" }, "input::new.png");
+    images[0].onload();
+    assert.equal(drawImages.at(-1), "file:new");
+});
+
+test("crop retries the same output after a failed image load", () => {
+    const { node, output, images, drawImages } = fixture("DINKI_Image_Crop", true);
+    const result = output(400, 300, [0, 0, 400, 300], "data:retry");
+    node.dkstCropOutput(result);
+    images[0].onerror();
+    node.dkstCropOutput(result);
+    assert.equal(images.length, 2);
+    images[1].onload();
+    assert.equal(drawImages.at(-1), "data:retry");
+});
+
+test("crop keeps the newest result when image decoding finishes out of order", () => {
+    const { node, output, images, drawImages } = fixture("DINKI_Image_Crop", true);
+    node.dkstCropOutput(output(400, 300, [0, 0, 400, 300], "data:first"));
+    node.dkstCropOutput(output(400, 300, [0, 0, 400, 300], "data:second"));
+    images[1].onload();
+    images[0].onload();
+    assert.equal(drawImages.at(-1), "data:second");
+});
+
+test("crop updates even when an upstream execution handler fails", () => {
+    const { node, Node, output, drawImages } = fixture("DINKI_Image_Load_Crop", false,
+        () => { throw new Error("native handler failed"); });
+    for (const uri of ["data:first", "data:second"]) {
+        assert.throws(() => Node.prototype.onExecuted.call(node,
+            output(400, 300, [0, 0, 400, 300], uri)), /native handler failed/);
+        assert.equal(drawImages.at(-1), uri);
+    }
+});
 
 test("preset ratio centers a maximum crop and custom fields form a ratio pair", () => {
     const { node, get, output } = fixture();

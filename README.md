@@ -23,3 +23,4 @@ Using them with other models may cause unexpected issues.
 
 1. Normalizes decomposed file names, including Korean names uploaded from macOS, to NFC. If the target name exists, it adds an `_nfc` suffix.
 2. Removes `._*` macOS resource fork files of 128 KiB or less.
+3. Deletes files whose names start with `clipspace-`, including files in subfolders, regardless of size, on every ComfyUI startup.

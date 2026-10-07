@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const source = readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_nodes.js'), 'utf8');
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
-async function createLoader(nodeClass) {
+async function createLoader(nodeClass, withNativePreview = false) {
     let extension, opened;
     const images = [];
     const files = ['original.png', 'other.png', 'edited.png', 'uploaded.png'];
@@ -60,6 +60,18 @@ async function createLoader(nodeClass) {
         }
         addDOMWidget() { return {}; }
         setDirtyCanvas() {}
+        onNodeCreated() {
+            if (withNativePreview) this.widgets.push({
+                name: '$$canvas-image-preview',
+                onRemove: () => { this.nativePreviewRemoved = true; },
+            });
+        }
+        onDrawBackground() {
+            this.nativeDrawCount = (this.nativeDrawCount || 0) + 1;
+            if (this.imgs?.length && !this.widgets.some(w => w.name === '$$canvas-image-preview')) {
+                this.widgets.push({ name: '$$canvas-image-preview' });
+            }
+        }
     }
     await extension.beforeRegisterNodeDef(Node, { name: nodeClass });
     const node = new Node(); node.onNodeCreated();
@@ -84,6 +96,45 @@ async function createLoader(nodeClass) {
     };
     return { node, widget, images, select, open };
 }
+
+test('Load & Crop hides native previews without losing the crop source or mask editor data', async () => {
+    const { node, widget, images, select, open } = await createLoader('DINKI_Image_Load_Crop', true);
+    assert.equal(node.hideOutputImages, true, 'Nodes 2.0 must not reserve an output image area');
+    assert.equal(node.nativePreviewRemoved, true);
+    let cropSource;
+    node.dkstCropSourcePreview = image => { cropSource = image; };
+    const sourceImage = await select('original.png');
+    sourceImage.load();
+    node.onDrawBackground({});
+    assert.equal(node.nativeDrawCount, undefined, 'canvas native preview creation/drawing is skipped');
+    assert.equal(node.widgets.some(w => w.name === '$$canvas-image-preview'), false);
+    assert.equal(cropSource, sourceImage);
+    assert.equal(node.imgs[0], sourceImage);
+    assert.equal(open().descriptor.filename, 'original.png');
+
+    widget('image').value = 'clipspace/edited.png [input]';
+    await settle();
+    images.at(-1).load();
+    node.onDrawBackground({});
+    assert.equal(node.widgets.some(w => w.name === '$$canvas-image-preview'), false);
+    assert.equal(cropSource, node.dkstLoadedImage);
+    assert.equal(open().widget, 'clipspace/edited.png [input]');
+    assert.equal(open().descriptor.filename, 'edited.png');
+    node.onExecuted({ resolution: ['512 × 512'] });
+    assert.equal(node.dkstImageResolution, '512 × 512');
+    node.onConfigure();
+    assert.equal(node.hideOutputImages, true);
+});
+
+test('ordinary Image Load retains native preview behavior', async () => {
+    const { node, select } = await createLoader('DINKI_Image_Load', true);
+    (await select('original.png')).load();
+    node.onDrawBackground({});
+    assert.equal(node.hideOutputImages, undefined);
+    assert.equal(node.nativePreviewRemoved, undefined);
+    assert.equal(node.nativeDrawCount, 1);
+    assert.equal(node.widgets.some(w => w.name === '$$canvas-image-preview'), true);
+});
 
 for (const nodeClass of ['DINKI_Image_Load', 'DINKI_Image_Load_Crop']) {
     test(`${nodeClass}: changing a masked image updates native editor references`, async () => {

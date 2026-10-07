@@ -406,6 +406,11 @@ app.registerExtension({
             };
             if (nodeData.name === "DINKI_Image_Load_Crop") {
                 node.dkstCropSourcePreview = (image, sourceKey = null) => {
+                    // File selection and execution output share this canvas.
+                    // A pending output must not replace a newer file selection,
+                    // and the same output URI must be loadable again afterwards.
+                    state.generation++;
+                    state.uri = null;
                     if (!image) {
                         state.image = null;
                         state.width = 0;
@@ -447,7 +452,10 @@ app.registerExtension({
                         w: crop[2] / state.width, h: crop[3] / state.height,
                     });
                 }
-                if (uri === state.uri) return;
+                if (uri === state.uri) {
+                    preview.render();
+                    return;
+                }
                 state.uri = uri;
                 state.image = null;
                 preview.render();
@@ -462,6 +470,7 @@ app.registerExtension({
                 image.onerror = () => {
                     if (generation === state.generation) {
                         state.image = null;
+                        state.uri = null;
                         preview.render();
                     }
                 };
@@ -564,9 +573,11 @@ app.registerExtension({
         };
         const originalExecuted = nodeType.prototype.onExecuted;
         nodeType.prototype.onExecuted = function (output) {
-            const result = originalExecuted?.apply(this, arguments);
-            this.dkstCropOutput?.(output);
-            return result;
+            try {
+                return originalExecuted?.apply(this, arguments);
+            } finally {
+                this.dkstCropOutput?.(output);
+            }
         };
     },
     loadedGraphNode(node) {

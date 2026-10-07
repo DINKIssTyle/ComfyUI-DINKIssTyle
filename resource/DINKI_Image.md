@@ -34,6 +34,8 @@ The `image`, `mask`, and `alpha` outputs contain the same cropped region, resize
 
 Upload, paste, drag and drop, and the mask editor remain available through the node menu. The crop preview refreshes when another file is selected and on each queued run.
 
+Load & Crop uses only the interactive crop canvas for its preview. ComfyUI's additional image/mask preview is hidden in both canvas nodes and Nodes 2.0, while mask editing and the `mask`/`alpha` outputs remain available.
+
 Saving in the mask editor selects an edited image file whose alpha channel contains the mask. To discard that edit, select the original `category` and `filename` again. Selecting, uploading, or pasting another image also updates the native mask editor's source, so an earlier file's mask is not carried over. Transparency already present in the selected file is still used as its mask. Run the workflow again to update the outputs after changing the selection.
 
 ---

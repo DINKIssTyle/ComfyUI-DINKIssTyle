@@ -95,7 +95,9 @@ Uses the same `csv/DINKI_Prompt_List.csv` file and exposes only `title`. It look
 
 <div align="center"><img src="DINKI_Text_Note.gif" alt="" width="650"><br><br></div>
 
-Write a multiline note directly in the workflow. Use **Lock** above the note to prevent edits while keeping the text selectable; click it again to unlock. **Copy** copies the entire note and briefly shows `Copied!` on success. The text and lock state are saved with the workflow. On ordinary HTTP connections, Copy uses the browser's legacy copy command when the secure Clipboard API is unavailable; the browser may still restrict clipboard access. This node has no output.
+Write a multiline Markdown note directly in the workflow. **Lock** prevents edits and displays the rendered Markdown; **Unlock** returns to the editable source. **Copy** always copies the original Markdown source and briefly shows `Copied!` on success. Text selection and scrolling remain available while locked. The text, lock state, and resized node dimensions are saved with the workflow. On ordinary HTTP connections, Copy uses the browser's legacy copy command when the secure Clipboard API is unavailable; the browser may still restrict clipboard access. This node has no output.
+
+The locked preview supports headings, emphasis, strikethrough, lists, display-only task checkboxes, quotes, links, images, code blocks, tables, and horizontal rules. Long code blocks and tables scroll horizontally; images fit inside the note. Links open in a new tab. Existing workflows use their saved lock state; an older separate Edit/Preview setting is ignored. Rendering libraries are bundled locally and loaded when locking the note. HTML is sanitized before display. If rendering fails, the locked view shows selectable source text; unlock and lock again to retry. Math, Mermaid, and code syntax highlighting are not included.
 
 ---
 

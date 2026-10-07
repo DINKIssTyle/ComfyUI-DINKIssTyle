@@ -4,6 +4,8 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const vm = require('node:vm');
 
+const settle = () => new Promise(resolve => setImmediate(resolve));
+
 const source = readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_text_note.js'), 'utf8');
 
 function fixture(secure = false, copyAllowed = true) {
@@ -25,6 +27,7 @@ function fixture(secure = false, copyAllowed = true) {
             setAttribute(name, value) { this.attributes[name] = value; },
             focus() { document.activeElement = this; },
             select() { selected = this.value; },
+            removeAttribute(name) { delete this.attributes[name]; },
             remove() { this.removed = true; },
         };
     }
@@ -32,6 +35,8 @@ function fixture(secure = false, copyAllowed = true) {
     const navigator = secure ? { clipboard: { writeText: async text => { copied = text; } } } : {};
     vm.runInNewContext(source.replace(/^import .*;\r?\n/gm, ''), {
         app, document, navigator, isSecureContext: secure, queueMicrotask,
+        installNoteMarkdownStyles() {},
+        renderNoteMarkdown(preview, text) { preview.renderedSource = text; },
         setTimeout(callback) { feedbackTimer = callback; return 1; },
         clearTimeout() { feedbackTimer = undefined; },
         alert(message) { alertMessage = message; },
@@ -140,4 +145,79 @@ test('copy failure is shown on the button and can be retried', async () => {
     assert.match(context.alertMessage, /blocked copying/);
     context.resetFeedback();
     assert.equal(copy.textContent, 'Copy');
+});
+
+test('Lock renders Markdown, Unlock restores editing, and Copy preserves source', async () => {
+    const context = fixture();
+    const node = new context.Note('# 한글\n\n**Note**');
+    const [toolbar, textarea, rendered] = node.root.children;
+    const [lock, copy] = toolbar.children;
+    assert.equal(textarea.style.display, 'block');
+    assert.equal(rendered.style.display, 'none');
+    lock.events.click();
+    await settle();
+    assert.equal(node.properties.dkstNoteViewMode, undefined);
+    assert.equal(node.properties.dkstNoteLocked, true);
+    assert.equal(textarea.style.display, 'none');
+    assert.equal(rendered.style.display, 'block');
+    assert.equal(rendered.renderedSource, node.widgets[0].value);
+    assert.equal(lock.attributes['aria-pressed'], 'true');
+    await copy.events.click();
+    assert.equal(context.copied, '# 한글\n\n**Note**');
+    lock.events.click();
+    assert.equal(node.properties.dkstNoteLocked, false);
+    assert.equal(textarea.value, '# 한글\n\n**Note**');
+    assert.equal(textarea.readOnly, false);
+    assert.equal(textarea.style.display, 'block');
+    assert.equal(rendered.style.display, 'none');
+});
+
+test('workflow load restores preview, lock, text and size; changed source refreshes preview', async () => {
+    const context = fixture();
+    const node = new context.Note();
+    node.properties = { dkstNoteViewMode: 'preview', dkstNoteLocked: true };
+    node.widgets[0].value = '## Restored';
+    node.onConfigure({ size: [620, 450] });
+    await Promise.resolve();
+    context.extension.loadedGraphNode(node);
+    await settle();
+    const [toolbar, textarea, preview] = node.root.children;
+    assert.equal(preview.style.display, 'block');
+    assert.equal(preview.renderedSource, '## Restored');
+    assert.equal(textarea.readOnly, true);
+    assert.deepEqual(Array.from(node.size), [620, 450]);
+    node.widgets[0].value = '## Changed externally';
+    node.dkstSyncTextNote();
+    await settle();
+    assert.equal(preview.renderedSource, '## Changed externally');
+    toolbar.children[0].events.click();
+    textarea.value = '**Edited**';
+    textarea.events.input();
+    toolbar.children[0].events.click();
+    await settle();
+    assert.equal(preview.renderedSource, '**Edited**');
+});
+
+test('note gestures stop graph propagation without preventing native behavior', () => {
+    const context = fixture();
+    const node = new context.Note();
+    for (const eventName of ['pointerdown', 'mousedown', 'dblclick', 'wheel', 'keydown']) {
+        let stopped = false;
+        node.root.events[eventName]({ stopPropagation() { stopped = true; } });
+        assert.equal(stopped, true);
+    }
+});
+
+test('saved Lock state determines the view even when an obsolete view mode disagrees', async () => {
+    const context = fixture();
+    const locked = new context.Note('# Saved', { dkstNoteLocked: true, dkstNoteViewMode: 'edit' });
+    const unlocked = new context.Note('# Saved', { dkstNoteLocked: false, dkstNoteViewMode: 'preview' });
+    await settle();
+    assert.equal(locked.root.children[2].style.display, 'block');
+    assert.equal(locked.root.children[2].renderedSource, '# Saved');
+    assert.equal(locked.root.children[0].children[0].textContent, 'Unlock');
+    assert.equal(unlocked.root.children[1].style.display, 'block');
+    assert.equal(unlocked.root.children[0].children[0].textContent, 'Lock');
+    assert.equal(locked.properties.dkstNoteViewMode, undefined);
+    assert.equal(unlocked.properties.dkstNoteViewMode, undefined);
 });
