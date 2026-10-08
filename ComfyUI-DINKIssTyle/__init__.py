@@ -111,6 +111,7 @@ from .dinki_image_crop import DINKI_Image_Crop
 from .dinki_load import DINKI_Image_Load
 from .dinki_load_crop import DINKI_Image_Load_Crop
 from . import dinki_monitor  # Register host telemetry endpoint.
+from .dinki_execution_report import DINKI_Execution_Report, install_execution_report_hooks
 
 
 
@@ -171,6 +172,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Node_Check": DINKI_Node_Check,
     "DINKI_Anchor": DINKI_Anchor,
     "DINKI_Auto_Focus": DINKI_Auto_Focus,
+    "DINKI_Execution_Report": DINKI_Execution_Report,
 
 
     # Others
@@ -250,6 +252,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Node_Check": "DKST Util (Node Check)",
     "DINKI_Anchor": "DKST Util (Anchor)",
     "DINKI_Auto_Focus": "DKST Util (Auto Focus)",
+    "DINKI_Execution_Report": "DKST Util (Execution Report)",
 
 
     # Others
@@ -284,5 +287,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 WEB_DIRECTORY = "./js"
+
+install_execution_report_hooks()
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY']

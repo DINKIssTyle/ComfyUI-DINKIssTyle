@@ -179,3 +179,46 @@ report and the frontend extension are needed. Older backends without execution
 contexts or node-level `progress_state` events retain their native progress display.
 The correction affects display state only; branch selection and data outputs
 use the same lazy execution behavior.
+
+## DKST Util (Execution Report)
+
+Add this node anywhere in the workflow **without connections**, leave `enabled`
+on, and run the workflow. After the entire execution finishes, the node displays
+a Markdown table with node names (including execution IDs), processing times,
+and each node's share of the processing time sum. **Copy Markdown** copies the
+complete report. `sort_by` chooses execution order or longest processing time
+first for the next run. The last report is included in execution history and can
+also be saved with the workflow.
+
+Check **Hide 0.000 s** in the report toolbar to immediately hide rows whose
+displayed processing time is `0.000 s`, including smaller times rounded to that
+value. **Copy Markdown** uses the filtered table. Totals and percentages keep
+their original values, and Cached rows remain visible. Uncheck it to restore
+the rows without running again. The checkbox state is saved with the workflow.
+
+Both **Node processing time sum** and **Workflow elapsed time** are displayed.
+Share is `node processing time / node processing time sum × 100`; it is zero
+when the sum is zero. Parallel async work can make the sum exceed elapsed time.
+The workflow elapsed time starts when the server begins execution, excluding
+time waiting in the queue. Interrupted and failed runs show a partial report.
+
+Timing is measured on the server around `get_output_data`, after lazy inputs
+have resolved. It covers the node function and its output conversion, including
+model loading and external requests made by that function. It does not include
+waiting for upstream nodes, the executor's later UI/cache bookkeeping, or graph
+expansion children in the parent's time. Async Tasks keep their native scheduling
+and are timed until completion; repeated invocations of one execution ID are
+summed. Subgraph IDs such as `105:8` and `106:8` remain separate.
+
+Only visited cache hits appear as **Cached**, with no time added. Unexecuted
+branches and cache entries the execution never visits are omitted. A cached
+downstream result can skip its entire upstream path, so that path has no rows.
+The report node itself and nodes whose calls are all silently blocked are
+excluded from the table. Timing uses elapsed server time rather than isolated
+GPU kernel time and does not force GPU synchronization.
+
+Restart ComfyUI and refresh the browser after installing. The extension observes
+the execution API at runtime without editing ComfyUI core files. Workflows with
+no enabled report node are not timed. Both modern async and older synchronous
+executors with the lazy execution API are supported; incompatible execution
+signatures leave normal generation intact and show **Unavailable** in the node.
