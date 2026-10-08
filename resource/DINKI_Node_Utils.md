@@ -163,3 +163,19 @@ A simple yet handy utility for A/B testing or routing logic. It swaps the two in
 ## DKST Util (Note)
 
 Choose a `direction` arrow and enter multiline `text` to annotate the workflow. The node also passes that text to its `text_out` STRING output.
+
+## Queue progress with lazy branches
+
+DKST If/Else Switch, If/Else Branch, and If/Else Image Switch report when they
+are waiting for their selected inputs. The frontend uses that report to exclude
+waiting branches from the queue overlay's **Current node**, allowing the actual
+Sampler or VAE Decode name and progress to appear. This also works with chained
+branches and nested subgraphs; their full execution IDs remain distinct.
+
+The correction is enabled by default. Toggle **DKST → Progress → Show
+actual processing node in queue progress** in Settings to restore native display.
+Restart ComfyUI and refresh the browser after updating, since both the backend
+report and the frontend extension are needed. Older backends without execution
+contexts or node-level `progress_state` events retain their native progress display.
+The correction affects display state only; branch selection and data outputs
+use the same lazy execution behavior.

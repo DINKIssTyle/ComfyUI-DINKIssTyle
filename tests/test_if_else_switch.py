@@ -242,5 +242,53 @@ class IfElseSwitchTests(unittest.TestCase):
         self.assertIs(ImageSwitch().select(on_false_1="fallback")[10], False)
 
 
+class BranchProgressTests(unittest.TestCase):
+    def setUp(self):
+        self.sent = []
+        self.context = types.SimpleNamespace(prompt_id="job", node_id="105:592")
+        self.utils = types.ModuleType("comfy_execution.utils")
+        self.utils.get_executing_context = lambda: self.context
+        self.server_module = types.ModuleType("server")
+        self.server = types.SimpleNamespace(client_id="client", send_sync=lambda *args: self.sent.append(args))
+        self.server_module.PromptServer = types.SimpleNamespace(instance=self.server)
+        self.modules = patch.dict(sys.modules, {"comfy_execution.utils": self.utils, "server": self.server_module})
+        self.modules.start()
+        self.addCleanup(self.modules.stop)
+
+    def test_switch_reports_wait_then_ready_with_full_execution_identity(self):
+        self.assertEqual(Switch.check_lazy_status(switch=True, on_true_1=None, on_false_1=None), ["on_true_1"])
+        self.assertEqual(Switch.check_lazy_status(switch=True, on_true_1=object(), on_false_1=None), [])
+        self.assertEqual(self.sent, [
+            ("dkst.branch_status", {"prompt_id": "job", "node_id": "105:592", "waiting": True}, "client"),
+            ("dkst.branch_status", {"prompt_id": "job", "node_id": "105:592", "waiting": False}, "client"),
+        ])
+
+    def test_branch_and_image_switch_report_their_selected_inputs_only(self):
+        self.assertEqual(Branch.check_lazy_status(switch=False, on_false_1="ready", on_true_1=None), [])
+        self.assertIs(self.sent[-1][1]["waiting"], False)
+        self.assertEqual(ImageSwitch.check_lazy_status(on_false_1=None), ["on_false_1"])
+        self.assertIs(self.sent[-1][1]["waiting"], True)
+
+    def test_headless_or_contextless_execution_does_not_send_status(self):
+        self.context = None
+        self.assertEqual(Switch.check_lazy_status(on_false_1=None), ["on_false_1"])
+        self.context = types.SimpleNamespace(prompt_id="job", node_id="105:592")
+        self.server.client_id = None
+        self.assertEqual(Switch.check_lazy_status(on_false_1=None), ["on_false_1"])
+        self.assertEqual(self.sent, [])
+
+    def test_reporting_failure_does_not_change_lazy_execution(self):
+        def fail(*args):
+            raise RuntimeError("disconnected")
+        self.server.send_sync = fail
+        self.assertEqual(Switch.check_lazy_status(on_false_1=None), ["on_false_1"])
+        self.assertEqual(Switch().select(on_false_1="decoded")[0], "decoded")
+
+    def test_older_backend_without_execution_context_still_runs(self):
+        with patch.dict(sys.modules, {"comfy_execution.utils": types.ModuleType("comfy_execution.utils")}):
+            self.assertEqual(Switch.check_lazy_status(on_false_1=None), ["on_false_1"])
+        self.assertEqual(self.sent, [])
+
+
 if __name__ == "__main__":
     unittest.main()

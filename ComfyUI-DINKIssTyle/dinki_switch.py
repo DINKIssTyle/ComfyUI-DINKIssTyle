@@ -1,6 +1,30 @@
 import re
 import sys
+import logging
 from comfy_execution.graph_utils import ExecutionBlocker, is_link
+
+
+def _report_branch_wait(waiting):
+    """Tell the frontend when a lazy branch is waiting, without changing execution."""
+    try:
+        from comfy_execution.utils import get_executing_context
+        from server import PromptServer
+    except ImportError:
+        # Older backends can still execute the switch without progress correction.
+        return
+    context = get_executing_context()
+    server = PromptServer.instance
+    if context is None or server is None or server.client_id is None:
+        return
+    try:
+        server.send_sync("dkst.branch_status", {
+            "prompt_id": context.prompt_id,
+            "node_id": context.node_id,
+            "waiting": bool(waiting),
+        }, server.client_id)
+    except Exception:
+        # Optional UI reporting must never interrupt a decode or change its outputs.
+        logging.debug("DKST branch status could not be sent", exc_info=True)
 
 
 class _AnyType(str):
@@ -36,11 +60,13 @@ class _DINKI_IfElseBase:
     @classmethod
     def check_lazy_status(cls, switch, **inputs):
         branch = "true" if switch else "false"
-        return [
+        required = [
             name
             for index in range(1, cls.PAIR_COUNT + 1)
             if (name := f"on_{branch}_{index}") in inputs and inputs[name] is None
         ]
+        _report_branch_wait(bool(required))
+        return required
 
     def _selected_outputs(self, switch, inputs):
         branch = "true" if switch else "false"
