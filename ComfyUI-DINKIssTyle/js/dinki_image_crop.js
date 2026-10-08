@@ -1,7 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
-const NODE_CLASSES = new Set(["DINKI_Image_Crop", "DINKI_Image_Load_Crop"]);
+const NODE_CLASSES = new Set(["DINKI_Image_Crop", "DINKI_Image_Load_Crop", "DINKI_Video_Load_Crop"]);
 const STORED = ["aspect_ratio", "custom_width", "custom_height", "crop_x", "crop_y", "crop_width", "crop_height"];
 const SIZE_CONTROLS = ["resolution_multiple", "megapixels"];
 const megapixelsNumber = value => Number(String(value).replace(/MP$/, ""));
@@ -162,7 +162,9 @@ function cropPreviewWidget(node, state, widgets) {
         flex: "1 1 0", display: "block", borderRadius: "6px",
         touchAction: "none", cursor: "default" });
     root.append(custom.row, canvas);
-    const controlsHeight = () => custom.row.style.display === "none" ? 0 : 36;
+    const controlsHeight = () => (custom.row.style.display === "none" ? 0 : 36) +
+        (node.dkstVideoControlsHeight || 0);
+    if (node.comfyClass === "DINKI_Video_Load_Crop") node.dkstCropRoot = root;
     const sync = () => {
         custom.sync();
         // WidgetDOM in Vue nodes does not apply the legacy height callbacks.
@@ -199,24 +201,29 @@ function cropPreviewWidget(node, state, widgets) {
         ctx.clearRect(0, 0, width, height);
         ctx.fillStyle = "#15171a";
         ctx.fillRect(0, 0, width, height);
-        if (!state.image || !state.width || !state.height) {
+        if (!state.image || !state.width || !state.height ||
+            (state.image.tagName === "VIDEO" && state.image.readyState < 2)) {
             imageRect = null;
             widget.imageRect = null;
             ctx.fillStyle = "#a0a4ac";
             ctx.font = "12px sans-serif";
             ctx.textAlign = "center";
-            const message = node.comfyClass === "DINKI_Image_Load_Crop" ?
+            const message = node.comfyClass === "DINKI_Video_Load_Crop" ?
+                "Select a video to preview and crop" : node.comfyClass === "DINKI_Image_Load_Crop" ?
                 "Select an image to preview and crop" : "Run the node to preview the input image";
             ctx.fillText(message, width / 2, height / 2);
             return;
         }
         const inset = 8;
         const availableWidth = Math.max(1, width - inset * 2);
-        const loadCrop = node.comfyClass === "DINKI_Image_Load_Crop";
+        const loadCrop = node.comfyClass === "DINKI_Image_Load_Crop" ||
+            node.comfyClass === "DINKI_Video_Load_Crop";
         const availableHeight = Math.max(1, height - (loadCrop ? 32 : 18) - inset * 2);
-        const scale = Math.min(availableWidth / state.image.width, availableHeight / state.image.height);
-        const iw = state.image.width * scale;
-        const ih = state.image.height * scale;
+        const mediaWidth = state.image.videoWidth || state.image.width;
+        const mediaHeight = state.image.videoHeight || state.image.height;
+        const scale = Math.min(availableWidth / mediaWidth, availableHeight / mediaHeight);
+        const iw = mediaWidth * scale;
+        const ih = mediaHeight * scale;
         const ix = (width - iw) / 2;
         const iy = inset + (availableHeight - ih) / 2;
         imageRect = { x: ix, y: iy, w: iw, h: ih };
@@ -404,7 +411,7 @@ app.registerExtension({
                 node.expandToFitContent?.();
                 node.setDirtyCanvas?.(true, true);
             };
-            if (nodeData.name === "DINKI_Image_Load_Crop") {
+            if (nodeData.name === "DINKI_Image_Load_Crop" || nodeData.name === "DINKI_Video_Load_Crop") {
                 node.dkstCropSourcePreview = (image, sourceKey = null) => {
                     // File selection and execution output share this canvas.
                     // A pending output must not replace a newer file selection,
@@ -413,13 +420,14 @@ app.registerExtension({
                     state.uri = null;
                     if (!image) {
                         state.image = null;
+                        if (nodeData.name === "DINKI_Video_Load_Crop") state.sourceKey = null;
                         state.width = 0;
                         state.height = 0;
                         preview.render();
                         return;
                     }
-                    const width = image.naturalWidth || image.width;
-                    const height = image.naturalHeight || image.height;
+                    const width = image.dkstSourceWidth || image.videoWidth || image.naturalWidth || image.width;
+                    const height = image.dkstSourceHeight || image.videoHeight || image.naturalHeight || image.height;
                     if (!width || !height) return;
                     const changed = state.sourceKey != null && state.sourceKey !== sourceKey;
                     const first = !state.width;
@@ -511,6 +519,10 @@ app.registerExtension({
         const originalConfigure = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function (info) {
             const result = originalConfigure?.apply(this, arguments);
+            if (nodeData.name === "DINKI_Video_Load_Crop") {
+                this.dkstCropRestore?.();
+                return result;
+            }
             const widgets = values(this);
             const named = info?.properties?.dkstCropSettings;
             const namedValues = info?.widgets_values_named;
@@ -558,7 +570,7 @@ app.registerExtension({
         const originalSerialize = nodeType.prototype.onSerialize;
         nodeType.prototype.onSerialize = function (info) {
             const result = originalSerialize?.apply(this, arguments);
-            if (info) {
+            if (info && nodeData.name !== "DINKI_Video_Load_Crop") {
                 if (Array.isArray(info.widgets_values)) {
                     info.widgets_values = info.widgets_values.filter(value => value != null);
                 }

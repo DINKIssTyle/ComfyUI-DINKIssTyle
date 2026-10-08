@@ -72,3 +72,84 @@ The on-node player shows video resolution and keeps the node at the user's chose
 ## DKST Video (Depth Parallax)
 
 Combines one `image` and one `depth_map` into a depth-based animation or side-by-side stereo image. The first frame of each input batch is used; a differently sized depth map is resized to the image. `mode` supports `horizontal`, `vertical`, `circle`, `figure8`, `sbs_parallel`, and `sbs_cross`. Set motion `amount`, `phase`, `focus_depth`, `normalize_depth`, and `frames`, then select `fps`, `format`, and `quality`. Formats are `webp`, `gif`, `mp4`, `png`, and `jpg`; still formats save one frame. `preview_mode` writes to ComfyUI's temporary folder, while the default writes to output. `filename_prefix` names the result. The `filename` output is the saved path and can feed Video Player.
+
+## DKST Video (Load & Crop)
+
+Loads videos from ComfyUI's `input` directory and its subfolders. Put a video in
+`input` or a subfolder, select `category` and `filename`, then edit directly in the
+node. You can also click **Upload Video**, or drop a video onto the node or its
+preview. Uploads are saved in the selected category (`input` itself for the root
+category), then selected and previewed automatically. Existing files are not
+overwritten; if the server assigns a new filename, that filename is selected.
+Uploading a video resets crop and trim for the new source while preserving your
+resolution and FPS mode settings. **Refresh files** updates the lists after adding files. Supported extensions
+are MP4, MOV, WebM, MKV, AVI, M4V, MPG, MPEG, and TS; decoding depends on PyAV's codec
+support. This node requires a ComfyUI installation with native `VIDEO` support and
+PyAV. It does not install packages automatically.
+
+[Download Video_Load_Crop.json](../sample_workflows/Video_Load_Crop.json)
+
+### Crop and resize
+
+The preview uses the same draggable rectangle and aspect-ratio controls as
+**DKST Image (Load & Crop)**. Drag inside the rectangle to move it, or drag a corner
+to resize it. Choose `Original`, a ratio preset, or `Custom` with width/height ratio
+fields. The same spatial crop applies to every output frame. Rotation metadata is
+applied before cropping.
+
+`megapixels` controls the cropped output's target pixel area, using the existing
+DKST convention **1 MP = 1024 × 1024 pixels**. `resolution_multiple` rounds both
+output dimensions to a multiple from 4 to 128, in steps of 4. The preview displays
+source-crop and output dimensions. Rounding can slightly change the aspect ratio.
+
+### Trim and playback
+
+- Drag the **IN** and **OUT** handles at the ends of the highlighted timeline range.
+- Click or drag elsewhere on the timeline to seek through the source video.
+- Enter **IN** and **OUT** directly in seconds, or enter **Length** to set
+  `OUT = IN + Length`. The result is clamped to the source's end.
+- Arrow keys on a focused trim handle move it by one source-frame interval;
+  Shift + arrow moves it by one second.
+- **Play** loops the selected range. **Full range** restores the complete source.
+- Editing previews are silent. Original audio, when present, is trimmed with the
+  video and retained in the `video` output.
+
+IN is inclusive and OUT is exclusive. The serialized/backend `trim_out = 0`
+means the source's end; the visible OUT field displays the actual end time.
+Changing a file resets its crop and trim. Refreshing files or reloading the
+workflow preserves the saved settings and user-selected node dimensions.
+
+Browsers that cannot decode the source use a temporary H.264 preview, capped at
+720 pixels on its longest side and 24 FPS. Creating this preview can take time for
+long videos. It is cached by the source file's modification time and size. All
+output processing uses the original source, regardless of preview quality.
+
+### FPS and outputs
+
+`fps_mode = Original` preserves the detected source rate, including fractional
+rates such as 30000/1001. Choose `Custom` and enter `output_fps` (0.01–240) to change
+the output rate. **Original FPS** restores Original mode and the source value.
+Changing FPS preserves playback speed: frames are selected or repeated according
+to their presentation timestamps. This also handles variable-frame-rate sources;
+Original mode emits a constant-rate batch at the detected average/nominal rate.
+There is no motion interpolation.
+
+| Output | Type | Meaning |
+| :--- | :--- | :--- |
+| `video` | `VIDEO` | Cropped, resized, trimmed video with synchronized audio when available. Connect to DKST Video (Video Player) or ComfyUI Save Video. |
+| `images` | `IMAGE` | The same processed RGB frames as a batch. |
+| `fps` | `FLOAT` | Actual output frame rate. |
+| `frame_count` | `INT` | Actual output batch size. |
+| `duration` | `FLOAT` | Actual output duration, `frame_count / fps`. |
+
+The output uses `ceil(selected_length × fps)` frames, apart from floating-point
+roundoff. Its duration can therefore exceed the requested interval by less than
+one output-frame period; the last frame is held and the remaining audio tail is
+silence. Output FPS changes do not time-stretch audio.
+
+Processing seeks near IN and decodes frames incrementally, cropping/resizing
+before storing them. The final `IMAGE` batch still lives in memory: the node shows
+an approximate frame count and memory size before execution. Reducing Length,
+megapixels, or FPS reduces that allocation. Outputs are 8-bit-decoded RGB converted
+to float tensors; HDR color management and transparent-video alpha are not
+implemented.

@@ -110,6 +110,7 @@ from .dinki_image_comparison import DINKI_Image_Comparison
 from .dinki_image_crop import DINKI_Image_Crop
 from .dinki_load import DINKI_Image_Load
 from .dinki_load_crop import DINKI_Image_Load_Crop
+from .dinki_video_load import DINKI_Video_Load_Crop
 from . import dinki_monitor  # Register host telemetry endpoint.
 from .dinki_execution_report import DINKI_Execution_Report, install_execution_report_hooks
 
@@ -202,6 +203,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Image_Crop": DINKI_Image_Crop,
     "DINKI_Image_Load": DINKI_Image_Load,
     "DINKI_Image_Load_Crop": DINKI_Image_Load_Crop,
+    "DINKI_Video_Load_Crop": DINKI_Video_Load_Crop,
 
 
 }
@@ -282,6 +284,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Image_Crop": "DKST Image (Crop)",
     "DINKI_Image_Load": "DKST Image (Load)",
     "DINKI_Image_Load_Crop": "DKST Image (Load & Crop)",
+    "DINKI_Video_Load_Crop": "DKST Video (Load & Crop)",
 
 
 }

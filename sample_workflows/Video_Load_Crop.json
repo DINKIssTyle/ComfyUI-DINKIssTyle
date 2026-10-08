@@ -1,0 +1,145 @@
+{
+  "last_node_id": 2,
+  "last_link_id": 1,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "DINKI_Video_Load_Crop",
+      "pos": [
+        50,
+        50
+      ],
+      "size": [
+        450,
+        700
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null,
+          "slot_index": 1
+        },
+        {
+          "name": "fps",
+          "type": "FLOAT",
+          "links": null,
+          "slot_index": 2
+        },
+        {
+          "name": "frame_count",
+          "type": "INT",
+          "links": null,
+          "slot_index": 3
+        },
+        {
+          "name": "duration",
+          "type": "FLOAT",
+          "links": null,
+          "slot_index": 4
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DINKI_Video_Load_Crop",
+        "dkstVideoLoadSettings": {
+          "category": "",
+          "filename": "",
+          "aspect_ratio": "Original",
+          "custom_width": 1,
+          "custom_height": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 1.0,
+          "crop_height": 1.0,
+          "resolution_multiple": 8,
+          "megapixels": 1.0,
+          "trim_in": 0.0,
+          "trim_out": 0.0,
+          "fps_mode": "Original",
+          "output_fps": 24.0
+        }
+      },
+      "widgets_values": [
+        "",
+        "",
+        "Original",
+        1,
+        1,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        8,
+        1.0,
+        0.0,
+        0.0,
+        "Original",
+        24.0
+      ]
+    },
+    {
+      "id": 2,
+      "type": "DINKI_Video_Viewer",
+      "pos": [
+        580,
+        50
+      ],
+      "size": [
+        440,
+        520
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DINKI_Video_Viewer"
+      },
+      "widgets_values": [
+        "DKST_Video",
+        "auto",
+        "auto",
+        false
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "VIDEO"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}
