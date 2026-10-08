@@ -198,19 +198,20 @@ class DINKI_Node_Switch:
 
 
 class DINKI_Node_Change:
-    """Activate one group and bypass or mute the other in the frontend."""
+    """Activate one group in the frontend and share its selection with lazy switches."""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {"required": {
             "node_ids_1": ("STRING", {"default": "", "multiline": False,
-                                      "tooltip": "Group 1 node IDs, separated by commas.",
+                                      "tooltip": "Group 1 = true. Connect this group's outputs to If/Else Switch on_true_N. Node IDs separated by commas.",
                                       "advanced": True}),
             "node_ids_2": ("STRING", {"default": "", "multiline": False,
-                                      "tooltip": "Group 2 node IDs, separated by commas.",
+                                      "tooltip": "Group 2 = false. Connect this group's outputs to If/Else Switch on_false_N. Node IDs separated by commas.",
                                       "advanced": True}),
             "active": ("BOOLEAN", {"default": True, "label_on": "Group 1",
-                                   "label_off": "Group 2"}),
+                                   "label_off": "Group 2",
+                                   "tooltip": "Group 1 = true (on_true_N). Group 2 = false (on_false_N). The switch output follows this selection."}),
             "disable_mode": (["Bypass", "Mute"], {"default": "Bypass", "advanced": True}),
             "group_1_label": ("STRING", {"default": "Group 1", "multiline": False,
                                          "dynamicPrompts": False, "advanced": True}),
@@ -218,14 +219,21 @@ class DINKI_Node_Change:
                                          "dynamicPrompts": False, "advanced": True}),
         }}
 
-    RETURN_TYPES = ()
+    RETURN_TYPES = ("BOOLEAN",)
+    RETURN_NAMES = ("switch",)
+    OUTPUT_TOOLTIPS = ("Group 1 = true; Group 2 = false. Connect to the switch input of If/Else Switch or If/Else Branch.",)
     FUNCTION = "do_nothing"
     CATEGORY = "DINKIssTyle/Util"
     OUTPUT_NODE = True
+    DESCRIPTION = (
+        "Group 1 = true → on_true_N. Group 2 = false → on_false_N. "
+        "Connect this node's switch output to the switch input of If/Else Switch or If/Else Branch. "
+        "Select the group before queueing, and use Mute for incompatible decoder branches."
+    )
 
     def do_nothing(self, node_ids_1, node_ids_2, active, disable_mode="Bypass",
                    group_1_label="Group 1", group_2_label="Group 2"):
-        return ()
+        return (bool(active),)
 
 
 class DINKI_String_Switch_RT:

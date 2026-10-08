@@ -24,6 +24,7 @@ with patch.dict(sys.modules, {"comfy_execution": types.ModuleType("comfy_executi
     Switch = nodes["DINKI_IfElseSwitch"]
     ImageSwitch = nodes["DINKI_IfElseImageSwitch"]
     Branch = nodes["DINKI_IfElseBranch"]
+    NodeChange = nodes["DINKI_Node_Change"]
 
 
 class FakeExecutionList:
@@ -36,6 +37,19 @@ class FakeExecutionList:
 
 
 class IfElseSwitchTests(unittest.TestCase):
+    def test_node_change_selection_requests_the_matching_decoder_only(self):
+        self.assertEqual(NodeChange.RETURN_TYPES, ("BOOLEAN",))
+        self.assertEqual(NodeChange.RETURN_NAMES, ("switch",))
+        for active, branch in [(True, "true"), (False, "false")]:
+            with self.subTest(active=active):
+                state, = NodeChange().do_nothing("minimax", "standard", active, "Mute")
+                self.assertIs(state, active)
+                self.assertEqual(Switch.check_lazy_status(switch=state,
+                    on_true_1=None, on_false_1=None), [f"on_{branch}_1"])
+                selected = object()
+                result = Switch().select(switch=state, **{f"on_{branch}_1": selected})
+                self.assertIs(result[0], selected)
+
     def test_socket_schema(self):
         schema = Switch.INPUT_TYPES()
         self.assertEqual(schema["required"], {})

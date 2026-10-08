@@ -36,6 +36,21 @@ test('Nodes 2.0 switches both groups before the toggle value is committed', () =
     assert.equal(changes(), 2);
 });
 
+test('restores the Boolean output on old workflows without duplicating saved links', () => {
+    const { node, extension } = fixture();
+    node.outputs = [];
+    node.addOutput = (name, type) => node.outputs.push({ name, type, links: [] });
+    node.onConfigure = info => { node.outputs = info.outputs; return 42; };
+    extension.nodeCreated(node);
+    assert.deepEqual(node.outputs, [{ name: 'switch', type: 'BOOLEAN', links: [] }]);
+    assert.equal(node.onConfigure({ outputs: [] }), 42);
+    assert.deepEqual(node.outputs, [{ name: 'switch', type: 'BOOLEAN', links: [] }]);
+    const saved = [{ name: 'switch', type: 'BOOLEAN', links: [123] }];
+    node.onConfigure({ outputs: saved });
+    assert.equal(node.outputs, saved);
+    assert.deepEqual(node.outputs[0].links, [123]);
+});
+
 test('classic callback preserves context, arguments and return value', () => {
     const { node, targets, extension } = fixture();
     let seen;

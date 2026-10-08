@@ -967,6 +967,12 @@ app.registerExtension({
             scheduleSync();
         }
         if (node.comfyClass !== nodeClass) return;
+        const restoreStateOutput = target => {
+            if (nodeClass === "DINKI_Node_Change" && !target.outputs?.some(output => output.name === "switch")) {
+                target.addOutput?.("switch", "BOOLEAN");
+            }
+        };
+        restoreStateOutput(node);
         if (nodeClass === "DINKI_Node_Change") {
             const sizing = keepNodeChangeCompactSize(node);
             nodeChangeSizes.set(node, sizing);
@@ -1005,7 +1011,10 @@ app.registerExtension({
             const original = node[hook];
             node[hook] = function () {
                 const result = original?.apply(this, arguments);
-                if (hook === "onConfigure") nodeChangeSizes.get(this)?.configure(arguments[0]);
+                if (hook === "onConfigure") {
+                    restoreStateOutput(this);
+                    nodeChangeSizes.get(this)?.configure(arguments[0]);
+                }
                 queueMicrotask(() => apply(this));
                 return result;
             };

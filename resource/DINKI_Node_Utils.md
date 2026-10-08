@@ -119,6 +119,21 @@ to keep just the switch visible. The advanced values remain in the workflow.
 This control changes node modes in the ComfyUI frontend, like Node Switch.
 For predictable results, avoid targeting the same node with conflicting controls.
 
+The Boolean `switch` output follows `active`: Group 1 is **true**, Group 2 is
+**false**. Connect it to the `switch` input of If/Else Switch or If/Else Branch
+to select the matching result with the same toggle.
+
+For two different VAE decoders, put the MiniMax decoder ID in `node_ids_1` and
+the standard VAE Decode ID in `node_ids_2`, and choose **Mute**. Connect the
+MiniMax IMAGE output to `on_true_1`, the standard IMAGE output to `on_false_1`,
+and `output_1` to Create Video's `images`. Bypass cannot reliably pass a
+decoder's LATENT/VAE inputs through as an IMAGE. Include any branch-specific
+Preview/Save nodes in the same group if they also consume the disabled decoder.
+
+Keep `active` as a manual widget or a promoted subgraph control for node mode
+changes. A Boolean computed during backend execution arrives after the frontend
+has exported the workflow and cannot synchronize Mute/Bypass for that queued run.
+
 ---
 
 ## 🕵️ DKST Util (Node Check)
