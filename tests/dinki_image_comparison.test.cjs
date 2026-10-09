@@ -17,6 +17,9 @@ function element(tagName = 'div') {
         remove() { this.removed = true; },
         contains() { return false; },
         click() { this.clicked = true; },
+        setPointerCapture(id) { this.capture = id; },
+        hasPointerCapture(id) { return this.capture === id; },
+        releasePointerCapture() { this.capture = null; },
         getBoundingClientRect() { return { left: 20, width: 200 }; },
     };
 }
@@ -25,6 +28,7 @@ function fixture() {
     let extension;
     let opened, fetched;
     const elements = [];
+    const observers = [];
     const createElement = tag => {
         const value = element(tag);
         elements.push(value);
@@ -39,6 +43,11 @@ function fixture() {
         fetch: async url => { fetched = url; return { ok: true, blob: async() => ({}) }; },
         URL: { createObjectURL: () => 'blob:comparison', revokeObjectURL() {} },
         URLSearchParams, queueMicrotask, setTimeout() {},
+        ResizeObserver: class {
+            constructor(callback) { this.callback = callback; observers.push(this); }
+            observe() {}
+            disconnect() { this.disconnected = true; }
+        },
     });
     class CompareNode {
         constructor(properties = {}) {
@@ -56,7 +65,7 @@ function fixture() {
         setDirtyCanvas() {}
     }
     extension.beforeRegisterNodeDef(CompareNode, { name: 'DINKI_Image_Comparison' });
-    return { app, extension, CompareNode, elements,
+    return { app, extension, CompareNode, elements, observers,
         get opened() { return opened; }, get fetched() { return fetched; } };
 }
 
@@ -67,11 +76,14 @@ const output = { dkst_comparison: [
 ] };
 
 function parts(node) {
-    const [toolbar, viewport] = node.root.children;
+    const [toolbar, viewport, minimap] = node.root.children;
     const panArea = viewport.children[0];
     const canvas = panArea.children[0];
     const [first, second, difference, divider] = canvas.children;
+    const mapCanvas = minimap.children[0];
+    const [mapFirst, mapSecond, mapDifference, mapWindow] = mapCanvas.children;
     return { toolbar, viewport, panArea, canvas, first, second, difference, divider,
+        minimap, mapCanvas, mapFirst, mapSecond, mapDifference, mapWindow,
         button: label => toolbar.children.find(item => item.textContent === label) };
 }
 
@@ -151,10 +163,11 @@ test('zoom scales the same aligned images and Difference without changing inputs
     node.onExecuted({ ...output, resolution: ['1600 × 900'] });
     const p = parts(node);
     const sources = [p.first.src, p.second.src, p.difference.src];
-    assert.deepEqual(p.toolbar.children.map(button => button.textContent), ['25%', '50%', '75%', '100%', 'Fit']);
+    assert.deepEqual(p.toolbar.children.map(button => button.textContent), ['25%', '50%', '75%', '100%', '150%', '200%', '400%', 'Fit']);
     assert.equal(p.canvas.style.width, '100%');
     assert.equal(p.first.style.objectFit, 'contain');
-    for (const [label, width, height] of [['25%', 400, 225], ['50%', 800, 450], ['75%', 1200, 675], ['100%', 1600, 900]]) {
+    for (const [label, width, height] of [['25%', 400, 225], ['50%', 800, 450], ['75%', 1200, 675], ['100%', 1600, 900],
+        ['150%', 2400, 1350], ['200%', 3200, 1800], ['400%', 6400, 3600]]) {
         p.button(label).onclick();
         assert.equal(p.canvas.style.width, `${width}px`);
         assert.equal(p.canvas.style.height, `${height}px`);
@@ -175,6 +188,129 @@ test('zoom scales the same aligned images and Difference without changing inputs
     assert.equal(p.canvas.style.width, '100%');
     assert.equal(p.canvas.style.height, '100%');
     assert.equal(p.viewport.style.overflow, 'hidden');
+});
+
+function layout(p, width = 400, height = 300, graphScale = 1) {
+    Object.assign(p.viewport, { clientWidth: width, clientHeight: height,
+        offsetWidth: width, offsetHeight: height, scrollLeft: 0, scrollTop: 0 });
+    Object.defineProperties(p.canvas, {
+        clientWidth: { get: () => p.canvas.style.width === '100%' ? p.viewport.clientWidth : parseFloat(p.canvas.style.width) },
+        clientHeight: { get: () => p.canvas.style.height === '100%' ? p.viewport.clientHeight : parseFloat(p.canvas.style.height) },
+    });
+    p.viewport.getBoundingClientRect = () => ({ left: 100, top: 100,
+        width: p.viewport.offsetWidth * graphScale, height: p.viewport.offsetHeight * graphScale });
+    p.canvas.getBoundingClientRect = () => ({
+        left: 100 + (Math.max(0, (p.viewport.clientWidth - p.canvas.clientWidth) / 2) - p.viewport.scrollLeft) * graphScale,
+        top: 100 + (Math.max(0, (p.viewport.clientHeight - p.canvas.clientHeight) / 2) - p.viewport.scrollTop) * graphScale,
+        width: p.canvas.clientWidth * graphScale, height: p.canvas.clientHeight * graphScale,
+    });
+    p.mapCanvas.getBoundingClientRect = () => ({ left: 500, top: 300,
+        width: parseFloat(p.mapCanvas.style.width) * graphScale, height: parseFloat(p.mapCanvas.style.height) * graphScale });
+}
+
+function mapEvent(p, x, y, pointerId = 1) {
+    const bounds = p.mapCanvas.getBoundingClientRect();
+    return { button: 0, pointerId, clientX: bounds.left + x * bounds.width,
+        clientY: bounds.top + y * bounds.height,
+        preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } };
+}
+
+test('minimap follows the visible region, mode, scroll and node resizing', () => {
+    const context = fixture();
+    const node = new context.CompareNode();
+    const p = parts(node);
+    layout(p);
+    node.onExecuted({ ...output, resolution: ['1600 × 900'] });
+    assert.equal(p.minimap.style.display, 'none');
+    p.button('400%').onclick();
+    assert.equal(p.minimap.style.display, 'block');
+    assert.equal(p.mapFirst.src, p.first.src);
+    assert.equal(p.mapSecond.src, p.second.src);
+    assert.equal(p.mapDifference.src, p.difference.src);
+    assert.equal(p.mapWindow.style.width, '6.25%');
+    assert.ok(Math.abs(parseFloat(p.mapWindow.style.height) - 100 * 300 / 3600) < 1e-9);
+    p.viewport.scrollLeft = 1200;
+    p.viewport.scrollTop = 900;
+    p.viewport.listeners.scroll();
+    assert.equal(p.mapWindow.style.left, '18.75%');
+    assert.equal(p.mapWindow.style.top, '25%');
+    p.viewport.listeners.pointermove({ clientX: 200 });
+    assert.equal(p.mapSecond.style.clipPath, p.second.style.clipPath);
+    node.onWidgetChanged('mode', 'Difference');
+    assert.equal(p.mapDifference.style.display, 'block');
+    assert.equal(p.mapFirst.style.display, 'none');
+    p.button('25%').onclick();
+    Object.assign(p.viewport, { clientWidth: 800, clientHeight: 600, offsetWidth: 800, offsetHeight: 600 });
+    context.observers[0].callback();
+    assert.equal(p.minimap.style.display, 'none');
+    Object.assign(p.viewport, { clientWidth: 200, clientHeight: 150, offsetWidth: 200, offsetHeight: 150 });
+    context.observers[0].callback();
+    assert.equal(p.minimap.style.display, 'block');
+    p.button('Fit').onclick();
+    assert.equal(p.minimap.style.display, 'none');
+    node.onRemoved();
+    assert.equal(context.observers[0].disconnected, true);
+    assert.equal(p.mapFirst.src, undefined);
+});
+
+test('minimap click and captured drag pan the aligned canvas at graph zoom without moving the divider', () => {
+    const { CompareNode } = fixture();
+    const node = new CompareNode();
+    const p = parts(node);
+    layout(p, 400, 300, .75);
+    node.onExecuted({ ...output, resolution: ['1600 × 900'] });
+    p.button('200%').onclick();
+    const dividerPosition = p.divider.style.left;
+    const click = mapEvent(p, .8, .8);
+    p.mapCanvas.listeners.pointerdown(click);
+    assert.equal(click.prevented, true);
+    assert.equal(click.stopped, true);
+    assert.ok(Math.abs(p.viewport.scrollLeft - 2360) < 1e-9);
+    assert.ok(Math.abs(p.viewport.scrollTop - 1290) < 1e-9);
+    assert.equal(p.mapCanvas.capture, 1);
+    p.mapCanvas.listeners.pointerup(click);
+    assert.equal(p.mapCanvas.capture, null);
+    // Grab off-center within the rectangle: no jump when the drag starts.
+    const grab = mapEvent(p, .82, .81);
+    p.mapCanvas.listeners.pointerdown(grab);
+    assert.ok(Math.abs(p.viewport.scrollLeft - 2360) < 1e-9);
+    assert.ok(Math.abs(p.viewport.scrollTop - 1290) < 1e-9);
+    p.mapCanvas.listeners.pointermove(mapEvent(p, .62, .61));
+    assert.ok(Math.abs(p.viewport.scrollLeft - 1720) < 1e-9);
+    assert.ok(Math.abs(p.viewport.scrollTop - 930) < 1e-9);
+    p.mapCanvas.listeners.pointermove(mapEvent(p, 2, 2));
+    assert.equal(p.viewport.scrollLeft, 2800);
+    assert.equal(p.viewport.scrollTop, 1500);
+    assert.equal(p.divider.style.left, dividerPosition);
+    p.mapCanvas.listeners.pointercancel(grab);
+    p.mapCanvas.listeners.pointermove(mapEvent(p, 0, 0));
+    assert.equal(p.viewport.scrollLeft, 2800);
+});
+
+test('minimap handles one-axis overflow, keyboard navigation and zoom around the inspected area', () => {
+    const { CompareNode, extension } = fixture();
+    const node = new CompareNode();
+    const p = parts(node);
+    layout(p);
+    node.onExecuted({ ...output, resolution: ['1600 × 400'] });
+    p.button('50%').onclick();
+    assert.equal(p.minimap.style.display, 'block');
+    assert.equal(p.mapWindow.style.height, '100%');
+    const click = mapEvent(p, .9, .5);
+    p.mapCanvas.listeners.pointerdown(click);
+    p.mapCanvas.listeners.pointerup(click);
+    assert.equal(p.viewport.scrollLeft, 400);
+    assert.equal(p.viewport.scrollTop, 0);
+    const key = { key: 'ArrowLeft', preventDefault() {}, stopPropagation() {} };
+    p.mapCanvas.listeners.keydown(key);
+    assert.equal(p.viewport.scrollLeft, 300);
+    p.button('200%').onclick();
+    assert.equal(p.viewport.scrollLeft, 1800); // center stays at 62.5% of the aligned image
+    assert.equal(p.viewport.scrollTop, 250);
+    const restored = new CompareNode(structuredClone(node.properties));
+    extension.loadedGraphNode(restored);
+    assert.equal(parts(restored).canvas.style.width, '3200px');
+    assert.equal(parts(restored).button('200%')['aria-pressed'], 'true');
 });
 
 test('slider uses zoomed canvas screen coordinates after scrolling and graph zoom', () => {

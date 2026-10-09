@@ -70,6 +70,7 @@ app.registerExtension({
             const result = created?.apply(this, arguments);
             const root = document.createElement("div");
             Object.assign(root.style, {
+                position: "relative",
                 width: "100%", height: "100%", minHeight: "0",
                 display: "flex", flexDirection: "column", contain: "size layout paint",
                 overflow: "hidden", background: "#181818", borderRadius: "6px",
@@ -117,7 +118,32 @@ app.registerExtension({
             canvas.append(first, second, difference, divider, hint);
             panArea.appendChild(canvas);
             viewport.appendChild(panArea);
-            root.append(toolbar, viewport);
+            const minimap = document.createElement("div");
+            Object.assign(minimap.style, {
+                position: "absolute", right: "10px", bottom: "10px", zIndex: "2",
+                padding: "5px", background: "rgba(20,20,20,.9)", border: "1px solid #777",
+                borderRadius: "5px", boxShadow: "0 2px 8px #0008", display: "none",
+            });
+            const mapCanvas = document.createElement("div");
+            mapCanvas.tabIndex = 0;
+            mapCanvas.setAttribute("role", "group");
+            mapCanvas.setAttribute("aria-label", "Comparison minimap. Click or drag to navigate; arrow keys to pan.");
+            mapCanvas.title = "Click to jump · Drag to pan · Arrow keys to pan";
+            Object.assign(mapCanvas.style, {
+                position: "relative", overflow: "hidden", background: "#000",
+                cursor: "crosshair", touchAction: "none",
+            });
+            const mapFirst = makeImage();
+            const mapSecond = makeImage();
+            const mapDifference = makeImage();
+            const mapWindow = document.createElement("div");
+            Object.assign(mapWindow.style, {
+                position: "absolute", boxSizing: "border-box", border: "2px solid #fff",
+                background: "#ffffff20", boxShadow: "0 0 2px #000", pointerEvents: "none",
+            });
+            mapCanvas.append(mapFirst, mapSecond, mapDifference, mapWindow);
+            minimap.appendChild(mapCanvas);
+            root.append(toolbar, viewport, minimap);
             const widget = this.addDOMWidget("dkst_image_comparison", "DKST_IMAGE_COMPARISON", root, {
                 hideOnZoom: false, getMinHeight: () => 180,
                 getMaxHeight: () => 700, getHeight: () => 300,
@@ -129,11 +155,104 @@ app.registerExtension({
             let position = 50;
             let naturalWidth = 0;
             let naturalHeight = 0;
-            const validZoom = value => ["fit", .25, .5, .75, 1].includes(value);
+            const validZoom = value => ["fit", .25, .5, .75, 1, 1.5, 2, 4].includes(value);
             let zoom = validZoom(this.properties?.dkstComparison?.zoom) ? this.properties.dkstComparison.zoom : "fit";
             let selectedMode = this.widgets?.find(item => item.name === "mode")?.value || "Slide";
             const imageUrl = comparisonFileUrl;
             const zoomButtons = [];
+            const clamp = (value, max = 1) => Math.max(0, Math.min(max, value));
+            let mapDrag = null;
+            const visibleArea = () => {
+                const bounds = canvas.getBoundingClientRect();
+                const view = viewport.getBoundingClientRect();
+                if (!bounds.width || !bounds.height || !viewport.offsetWidth || !viewport.offsetHeight) return null;
+                const scaleX = view.width / viewport.offsetWidth;
+                const scaleY = view.height / viewport.offsetHeight;
+                return {
+                    left: clamp((view.left - bounds.left) / bounds.width),
+                    top: clamp((view.top - bounds.top) / bounds.height),
+                    right: clamp((view.left + viewport.clientWidth * scaleX - bounds.left) / bounds.width),
+                    bottom: clamp((view.top + viewport.clientHeight * scaleY - bounds.top) / bounds.height),
+                };
+            };
+            const updateMinimap = () => {
+                const active = descriptors.length === 3 && zoom !== "fit" && naturalWidth && naturalHeight
+                    && viewport.clientWidth > 0 && viewport.clientHeight > 0
+                    && (canvas.clientWidth > viewport.clientWidth || canvas.clientHeight > viewport.clientHeight);
+                minimap.style.display = active ? "block" : "none";
+                if (!active) return;
+                const scale = Math.min(Math.min(132, viewport.clientWidth * .33) / naturalWidth,
+                    Math.min(100, viewport.clientHeight * .33) / naturalHeight);
+                mapCanvas.style.width = `${naturalWidth * scale}px`;
+                mapCanvas.style.height = `${naturalHeight * scale}px`;
+                const area = visibleArea();
+                if (!area) return;
+                Object.assign(mapWindow.style, {
+                    left: `${area.left * 100}%`, top: `${area.top * 100}%`,
+                    width: `${(area.right - area.left) * 100}%`,
+                    height: `${(area.bottom - area.top) * 100}%`,
+                });
+            };
+            const navigate = (x, y) => {
+                viewport.scrollLeft = clamp(x * canvas.clientWidth - viewport.clientWidth / 2,
+                    Math.max(0, canvas.clientWidth - viewport.clientWidth));
+                viewport.scrollTop = clamp(y * canvas.clientHeight - viewport.clientHeight / 2,
+                    Math.max(0, canvas.clientHeight - viewport.clientHeight));
+                updateMinimap();
+            };
+            const mapPoint = event => {
+                // Screen bounds account for ComfyUI's graph zoom as well.
+                const bounds = mapCanvas.getBoundingClientRect();
+                if (!bounds.width || !bounds.height) return null;
+                return { x: (event.clientX - bounds.left) / bounds.width,
+                    y: (event.clientY - bounds.top) / bounds.height };
+            };
+            mapCanvas.addEventListener("pointerdown", event => {
+                if (event.button !== 0 || minimap.style.display === "none") return;
+                const point = mapPoint(event);
+                const area = visibleArea();
+                if (!point || !area) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const inside = point.x >= area.left && point.x <= area.right
+                    && point.y >= area.top && point.y <= area.bottom;
+                mapDrag = { id: event.pointerId,
+                    x: inside ? point.x - (area.left + area.right) / 2 : 0,
+                    y: inside ? point.y - (area.top + area.bottom) / 2 : 0 };
+                mapCanvas.setPointerCapture(event.pointerId);
+                navigate(point.x - mapDrag.x, point.y - mapDrag.y);
+            });
+            mapCanvas.addEventListener("pointermove", event => {
+                event.stopPropagation();
+                if (!mapDrag || event.pointerId !== mapDrag.id) return;
+                const point = mapPoint(event);
+                if (point) navigate(point.x - mapDrag.x, point.y - mapDrag.y);
+            });
+            const endMapDrag = event => {
+                event.stopPropagation();
+                if (!mapDrag || event.pointerId !== mapDrag.id) return;
+                if (mapCanvas.hasPointerCapture(event.pointerId)) mapCanvas.releasePointerCapture(event.pointerId);
+                mapDrag = null;
+            };
+            mapCanvas.addEventListener("pointerup", endMapDrag);
+            mapCanvas.addEventListener("pointercancel", endMapDrag);
+            mapCanvas.addEventListener("lostpointercapture", () => { mapDrag = null; });
+            mapCanvas.addEventListener("keydown", event => {
+                const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+                if (!direction) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const area = visibleArea();
+                if (area) navigate((area.left + area.right) / 2 + direction[0] * (area.right - area.left) * .25,
+                    (area.top + area.bottom) / 2 + direction[1] * (area.bottom - area.top) * .25);
+            });
+            for (const eventName of ["mousedown", "click", "wheel"]) {
+                minimap.addEventListener(eventName, event => event.stopPropagation());
+            }
+            viewport.addEventListener("scroll", updateMinimap);
+            const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(updateMinimap) : null;
+            resizeObserver?.observe(viewport);
+            resizeObserver?.observe(canvas);
             const persistView = () => {
                 if (this.properties?.dkstComparison) {
                     Object.assign(this.properties.dkstComparison, { zoom, position });
@@ -150,8 +269,10 @@ app.registerExtension({
                     button.disabled = value === zoom || (value !== "fit" && (!naturalWidth || !naturalHeight));
                     button.setAttribute("aria-pressed", String(value === zoom));
                 }
+                updateMinimap();
             };
-            for (const [label, value] of [["25%", .25], ["50%", .5], ["75%", .75], ["100%", 1], ["Fit", "fit"]]) {
+            for (const [label, value] of [["25%", .25], ["50%", .5], ["75%", .75], ["100%", 1],
+                ["150%", 1.5], ["200%", 2], ["400%", 4], ["Fit", "fit"]]) {
                 const button = document.createElement("button");
                 button.type = "button";
                 button.textContent = label;
@@ -161,9 +282,11 @@ app.registerExtension({
                     borderRadius: "4px", background: "#2b2b2b", color: "#eee", cursor: "pointer",
                 });
                 button.onclick = () => {
+                    const area = visibleArea();
                     zoom = value;
                     persistView();
                     applyZoom();
+                    if (area && value !== "fit") navigate((area.left + area.right) / 2, (area.top + area.bottom) / 2);
                     this.setDirtyCanvas?.(true, true);
                 };
                 zoomButtons.push([button, value]);
@@ -191,6 +314,10 @@ app.registerExtension({
                 divider.style.display = ready && slide ? "block" : "none";
                 hint.style.display = ready ? "none" : "grid";
                 second.style.clipPath = `inset(0 ${100 - position}% 0 0)`;
+                mapFirst.style.display = first.style.display;
+                mapSecond.style.display = second.style.display;
+                mapDifference.style.display = difference.style.display;
+                mapSecond.style.clipPath = second.style.clipPath;
                 divider.style.left = `${position}%`;
                 canvas.style.cursor = slide ? "ew-resize" : "default";
             };
@@ -265,7 +392,8 @@ app.registerExtension({
                     };
                 }
                 for (const [image, item] of [[first, descriptors[0]], [second, descriptors[1]],
-                    [difference, descriptors[2]]]) {
+                    [difference, descriptors[2]], [mapFirst, descriptors[0]],
+                    [mapSecond, descriptors[1]], [mapDifference, descriptors[2]]]) {
                     if (item) image.src = imageUrl(item);
                     else image.removeAttribute("src");
                 }
@@ -304,8 +432,10 @@ app.registerExtension({
             };
             const removed = this.onRemoved;
             this.onRemoved = function() {
+                resizeObserver?.disconnect();
+                mapDrag = null;
                 first.onload = null;
-                for (const image of [first, second, difference]) image.removeAttribute("src");
+                for (const image of [first, second, difference, mapFirst, mapSecond, mapDifference]) image.removeAttribute("src");
                 return removed?.apply(this, arguments);
             };
             applyZoom();

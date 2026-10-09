@@ -52,7 +52,7 @@ Connect `image_1` and `image_2`, then run the workflow. The node compares the fi
 
 The comparison is an output node and saves three temporary PNG previews (two aligned images and their difference). Transparent input images are composited over black for comparison. Saved workflows can restore the preview while those temporary files still exist.
 
-Use **25%**, **50%**, **75%**, **100%**, or **Fit** above the preview to change its
+Use **25%**, **50%**, **75%**, **100%**, **150%**, **200%**, **400%**, or **Fit** above the preview to change its
 display scale. Percentages use the pixel dimensions of the aligned comparison
 canvas, not each input's original dimensions. Both aligned images, their black
 padding, the Difference image, and the slider share one canvas and zoom together.
@@ -60,6 +60,15 @@ Fit keeps the current full-frame preview behavior; larger percentage views can
 be scrolled. Zoom changes apply immediately without another workflow run and keep
 the node size. Saved workflows restore the zoom and divider position, and new
 executions preserve the selected zoom even when the comparison resolution changes.
+
+When the zoomed canvas extends beyond the preview, a minimap appears at the bottom
+right. It shows the same aligned comparison (or Difference) and outlines the
+visible region. Click to jump to a location or drag the outlined region to pan;
+dragging keeps the point you grabbed under the pointer. The minimap also supports
+arrow keys while focused. Scrolling and resizing update the outline, and changing
+zoom keeps the inspected area centered where possible. Fit and percentage views
+that show the whole canvas hide the minimap. Navigation moves both inputs and
+Difference together without changing the comparison divider.
 
 The node has no `IMAGE` output; use its preview to inspect the two inputs.
 
