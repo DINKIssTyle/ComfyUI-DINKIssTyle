@@ -69,6 +69,99 @@ Connect a native ComfyUI `VIDEO` input. This output node also passes the same `V
 
 The on-node player shows video resolution and keeps the node at the user's chosen size. **Fit** contains the full frame while preserving its aspect ratio. **100%** shows one video pixel per screen pixel inside a scrollable viewport. Right-click for `Open Video` or `Save Video`, which use the saved file in the selected format. For formats browsers may not play directly, the node creates a temporary H.264 MP4 solely for playback.
 
+Additional format presets are `h265-mp4`, `vp9-webm`, `prores-mov`, `ffv1-mkv`,
+`gif`, and `webp`, subject to installed encoder support. Presets choose their codec;
+the separate `codec` control applies to the original container options. The new
+optional `pixel_format` and `bitrate_mbps` controls default to `auto` and `0`,
+preserving existing workflows. Presets or custom encoding settings decode the
+input into frames and audio and encode a new file. The passed-through `VIDEO`
+remains the original input. GIF/WebP previews use an animated image; their source
+must have no audio because those formats cannot store it.
+
+#### DKST Video (Combine)
+
+Combines an `IMAGE` batch and optional `AUDIO` into a saved file. The `filename`
+output is its absolute path. The node is an output node and has the same **Fit**,
+**100%**, resolution display, and `Open Video` / `Save Video` preview menu as Video
+Player. Workflow reload restores the last preview and view mode.
+
+[Download Video_Combine.json](../sample_workflows/Video_Combine.json)
+
+The example connects Load & Crop through ComfyUI's **Get Video Components** to
+Combine, preserving images, audio, and FPS. Select or upload a source video before
+running it. Generated image batches and a separate audio source can also connect
+directly to Combine.
+
+| Parameter | Description |
+| :--- | :--- |
+| `images` | Required RGB/RGBA frame batch, in playback order. |
+| `audio` | Optional ComfyUI `AUDIO`, mono or stereo. Longer audio is trimmed to the video; shorter audio is padded with silence. |
+| `filename_prefix` | Defaults to `DKST_Video`; supports subfolders and ComfyUI filename substitutions. A counter is appended to avoid overwriting files. |
+| `format` | Select one of the available presets below. |
+| `frame_rate` | Default 24 FPS; accepts fractional rates. Duration is frame count divided by FPS; this control does not interpolate frames or time-stretch audio. |
+| `pixel_format` | `auto`, YUV 4:2:0 / 4:2:2 / 4:4:4, 10-bit variants, or supported RGB formats. The choices adapt to the selected encoder. |
+| `bitrate_mbps` | Target video bitrate in Mbps, default 8. `0` selects automatic quality. Actual bitrate varies with content. Disabled for ProRes, FFV1, GIF, and WebP. |
+| `always_save` | Off by default: save in ComfyUI `temp`. On: save in `output`. Preview-only files can still be downloaded from the preview menu. |
+| `encoder` | `auto`, `cpu`, `nvenc` (NVIDIA), or `videotoolbox` (Mac). New nodes default to Auto; old workflows and API calls omitting this input keep CPU behavior. |
+
+| Preset | Video / audio | Auto pixel format |
+| :--- | :--- | :--- |
+| `h264-mp4` | H.264 / AAC | `yuv420p` |
+| `h265-mp4` | H.265 / AAC | `yuv420p` |
+| `vp9-webm` | VP9 / Opus | `yuv420p` |
+| `av1-webm` | AV1 / Opus | `yuv420p` |
+| `prores-mov` | ProRes HQ or 4444 / PCM | `yuv422p10le` |
+| `ffv1-mkv` | Lossless FFV1 / FLAC | `bgra` |
+| `gif` | Animated GIF; no audio | Automatic palette |
+| `webp` | Lossless animated WebP; no audio | RGB/RGBA |
+
+These presets follow representative formats from
+[VideoHelperSuite's Video Combine](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite/tree/main/video_formats).
+The node uses ComfyUI's existing PyAV and Pillow; it requires neither VHS nor a
+separate FFmpeg installation. Hardware codecs can also use an already installed
+FFmpeg executable when PyAV cannot provide them. Formats unavailable in both
+runtimes are omitted. No packages, executables, or drivers are installed or
+downloaded. `DKST_FFMPEG_PATH` can select an existing executable; the adapter also
+checks `VHS_FORCE_FFMPEG_PATH`, PATH, and an already installed `imageio_ffmpeg`.
+
+Both Combine and Video Player offer hardware encoding. Auto tests the available
+device with a short isolated encode before using it. A compatible Mac uses
+VideoToolbox for H.264/HEVC; a compatible NVIDIA device uses NVENC for
+H.264/HEVC/AV1. CPU handles the remaining formats. The preview displays the actual
+encoder and applied target bitrate. If the proxy uses a different encoder, that
+is displayed separately. CPU fallback reasons appear in the status tooltip.
+
+Auto falls back to CPU when hardware initialization fails, preserving bit depth
+and chroma sampling. Explicit hardware selection reports an error if unavailable.
+Invalid pixels, disk errors, cancellation, and failures after initialization are
+not retried as CPU work. Codec availability is cached until the server restarts.
+For VideoToolbox, software fallback inside the hardware encoder is disabled.
+
+The pixel choices adapt to the selected encoder, including `nv12` and `p010le`.
+An equivalent plane layout may be used internally, for example 10-bit 4:2:0
+`yuv420p10le` to `p010le`; precision is retained. Changing devices preserves your
+selected pixel value. If an explicit device cannot support it, select a supported
+format or Auto before execution. Hardware `bitrate_mbps = 0` uses a target derived
+from resolution and FPS (0.15 bits/pixel/frame, minimum 0.5 Mbps), which the status
+shows; CPU keeps its existing automatic quality mode.
+
+Frame conversion and transfer still use CPU memory. This implementation provides
+hardware video encoding, not direct GPU tensor transfer. On-node playback and
+file download remain the same, including Fit/100% and `always_save`.
+
+`yuv420p` is a pixel format / chroma-sampling choice, rather than a color-space
+conversion option. Encoding assumes SDR RGB input and uses BT.709 for YUV.
+10-bit encoding uses 16-bit RGB conversion to retain finer input precision; it
+does not turn SDR images into HDR. Subsampled YUV formats pad an odd width or
+height by repeating the edge pixels when needed. FFV1's RGB formats and WebP
+preserve RGBA alpha; other choices composite RGBA over black.
+
+GIF supports at most 100 FPS and WebP at most 1000 FPS. Animation frame delays
+are rounded cumulatively to their supported time units. Connecting audio to
+GIF/WebP reports an error instead of dropping the soundtrack. Formats that need
+a browser-compatible proxy create a temporary H.264 MP4 with synchronized audio;
+the preview menu downloads the selected-format file.
+
 ## DKST Video (Depth Parallax)
 
 Combines one `image` and one `depth_map` into a depth-based animation or side-by-side stereo image. The first frame of each input batch is used; a differently sized depth map is resized to the image. `mode` supports `horizontal`, `vertical`, `circle`, `figure8`, `sbs_parallel`, and `sbs_cross`. Set motion `amount`, `phase`, `focus_depth`, `normalize_depth`, and `frames`, then select `fps`, `format`, and `quality`. Formats are `webp`, `gif`, `mp4`, `png`, and `jpg`; still formats save one frame. `preview_mode` writes to ComfyUI's temporary folder, while the default writes to output. `filename_prefix` names the result. The `filename` output is the saved path and can feed Video Player.

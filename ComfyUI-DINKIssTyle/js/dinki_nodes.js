@@ -1556,41 +1556,91 @@ app.registerExtension({
 app.registerExtension({
     name: "DINKI.VideoViewer",
     beforeRegisterNodeDef(nodeType, nodeData) {
-        if (nodeData.name !== "DINKI_Video_Viewer") return;
+        if (!["DINKI_Video_Viewer", "DINKI_Video_Combine"].includes(nodeData.name)) return;
 
         const created = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function() {
             const result = created?.apply(this, arguments);
             const formatWidget = getWidget(this, "format");
             const codecWidget = getWidget(this, "codec");
-            let syncCodecs;
-            if (formatWidget && codecWidget) {
-                syncCodecs = format => {
+            const pixelWidget = getWidget(this, "pixel_format");
+            const bitrateWidget = getWidget(this, "bitrate_mbps");
+            const encoderWidget = getWidget(this, "encoder");
+            const encoderNames = ["auto", "cpu", "nvenc", "videotoolbox"];
+            if (encoderWidget && encoderNames.includes(this.properties?.dkstEncoder)) {
+                encoderWidget.value = this.properties.dkstEncoder;
+            }
+            const formatPixels = nodeData.input?.required?.format?.[1]?.dkst_pixel_formats || {};
+            const encoderPixels = nodeData.input?.required?.format?.[1]?.dkst_encoder_pixels || {};
+            const yuvPixels = ["auto", "yuv420p", "yuv422p", "yuv444p", "yuv420p10le", "yuv422p10le", "yuv444p10le"];
+            const fallbackPixels = {
+                "h264-mp4": yuvPixels, "h265-mp4": yuvPixels,
+                "vp9-webm": ["auto", "yuv420p", "yuv422p", "yuv444p"],
+                "av1-webm": ["auto", "yuv420p", "yuv420p10le"],
+                "prores-mov": ["auto", "yuv422p10le", "yuv444p10le"],
+                "ffv1-mkv": [...yuvPixels, "bgra", "rgba64le"],
+                gif: ["auto"], webp: ["auto"],
+            };
+            const setChoices = (widget, allowed) => {
+                const options = { ...(widget.options ?? {}), values: allowed };
+                let owner = widget;
+                while (owner && !Object.getOwnPropertyDescriptor(owner, "options")) owner = Object.getPrototypeOf(owner);
+                const descriptor = owner && Object.getOwnPropertyDescriptor(owner, "options");
+                if (!descriptor || descriptor.writable || descriptor.set) widget.options = options;
+                else widget.options.values = allowed;
+                if (widget._state?.options) widget._state.options = { ...widget._state.options, values: allowed };
+            };
+            const syncCodecs = (format, preservePixel = false, persistEncoder = true) => {
+                const preset = !["auto", "mp4", "mkv", "webm"].includes(format);
+                const key = preset ? format : codecWidget?.value === "av1" || format === "webm" ? "av1-webm" : "h264-mp4";
+                if (codecWidget) {
                     const allowed = format === "webm" ? ["auto", "av1"] : ["auto", "h264", "av1"];
-                    const options = codecWidget.options ?? {};
-                    options.values = allowed;
-                    let owner = codecWidget;
-                    while (owner && !Object.getOwnPropertyDescriptor(owner, "options")) owner = Object.getPrototypeOf(owner);
-                    const descriptor = owner && Object.getOwnPropertyDescriptor(owner, "options");
-                    if (descriptor?.set) codecWidget.options = { ...options };
-                    else if (!codecWidget.options && (!descriptor || descriptor.writable)) codecWidget.options = options;
+                    setChoices(codecWidget, allowed);
                     if (!allowed.includes(codecWidget.value)) codecWidget.value = "auto";
-                    this.graph?.incrementVersion?.();
-                    this.setDirtyCanvas?.(true, true);
-                };
-                const formatCallback = formatWidget.callback;
-                formatWidget.callback = function(value) {
-                    const callbackResult = formatCallback?.apply(this, arguments);
-                    syncCodecs(value);
-                    return callbackResult;
-                };
+                    codecWidget.disabled = preset;
+                }
+                if (pixelWidget) {
+                    const registered = encoderPixels[key]?.[encoderWidget?.value || "cpu"];
+                    const allowed = registered?.length ? registered : formatPixels[key] || fallbackPixels[key] || yuvPixels;
+                    setChoices(pixelWidget, allowed);
+                    if (!preservePixel && !allowed.includes(pixelWidget.value)) {
+                        pixelWidget.value = allowed.find(value => value !== "auto") || "auto";
+                    }
+                    pixelWidget.disabled = ["gif", "webp"].includes(format);
+                }
+                if (bitrateWidget) bitrateWidget.disabled = ["gif", "webp", "prores-mov", "ffv1-mkv"].includes(format);
+                if (encoderWidget) {
+                    const fixed = ["gif", "webp", "prores-mov", "ffv1-mkv", "vp9-webm"].includes(format);
+                    encoderWidget.disabled = fixed;
+                    if (fixed && !["auto", "cpu"].includes(encoderWidget.value)) encoderWidget.value = "cpu";
+                    if (persistEncoder) {
+                        this.properties ??= {};
+                        this.properties.dkstEncoder = encoderWidget.value;
+                    }
+                }
+                this.graph?.incrementVersion?.();
+                this.setDirtyCanvas?.(true, true);
+            };
+            if (formatWidget) {
+                for (const control of [formatWidget, codecWidget, encoderWidget].filter(Boolean)) {
+                    const callback = control.callback;
+                    control.callback = function(value) {
+                        const result = callback?.apply(this, arguments);
+                        if (control === encoderWidget) control.value = value;
+                        syncCodecs(control === formatWidget ? value : formatWidget.value, control === encoderWidget);
+                        return result;
+                    };
+                }
                 const widgetChanged = this.onWidgetChanged;
                 this.onWidgetChanged = function(name, value) {
-                    const changedResult = widgetChanged?.apply(this, arguments);
-                    if (name === "format") syncCodecs(value);
-                    return changedResult;
+                    const result = widgetChanged?.apply(this, arguments);
+                    if (["format", "codec", "encoder"].includes(name)) {
+                        if (name === "encoder" && encoderWidget) encoderWidget.value = value;
+                        syncCodecs(name === "format" ? value : formatWidget.value, name === "encoder");
+                    }
+                    return result;
                 };
-                syncCodecs(formatWidget.value);
+                syncCodecs(formatWidget.value, false, false);
             }
             const container = document.createElement("div");
             Object.assign(container.style, {
@@ -1620,6 +1670,17 @@ app.registerExtension({
                 textOverflow: "ellipsis", whiteSpace: "nowrap",
             });
             toolbar.append(fitButton, actualButton, resolution);
+            const encodingStatus = document.createElement("div");
+            Object.assign(encodingStatus.style, {
+                flex: "0 0 auto", padding: "0 6px 4px", color: "#bbb", fontSize: "11px",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "none",
+            });
+            toolbar.appendChild(encodingStatus);
+            toolbar.style.flex = "0 0 auto";
+            toolbar.style.minHeight = "30px";
+            toolbar.style.flexWrap = "wrap";
+            encodingStatus.style.width = "100%";
+            encodingStatus.style.boxSizing = "border-box";
             const viewport = document.createElement("div");
             Object.assign(viewport.style, {
                 flex: "1 1 0", minHeight: "0", minWidth: "0", overflow: "hidden",
@@ -1629,7 +1690,12 @@ app.registerExtension({
             const video = document.createElement("video");
             Object.assign(video, { controls: true, autoplay: true, loop: true, muted: true });
             video.playsInline = true;
+            const image = document.createElement("img");
+            image.alt = "Video Combine animation preview";
+            image.style.display = "none";
             viewport.appendChild(video);
+            viewport.appendChild(image);
+            let animated = false;
             container.append(toolbar, viewport);
             const widget = this.addDOMWidget("dkst_video_viewer", "DKST_VIDEO_VIEWER", container, {
                 hideOnZoom: false, getMinHeight: () => 140,
@@ -1648,13 +1714,13 @@ app.registerExtension({
                     overflow: actual ? "auto" : "hidden",
                     display: actual ? "block" : "flex",
                 });
-                Object.assign(video.style, {
+                for (const media of [video, image]) Object.assign(media.style, {
                     width: actual && naturalWidth ? `${naturalWidth}px` : "100%",
                     height: actual && naturalHeight ? `${naturalHeight}px` : "100%",
                     maxWidth: actual ? "none" : "100%",
                     maxHeight: actual ? "none" : "100%",
                     objectFit: actual ? "fill" : "contain",
-                    display: "block", margin: actual ? "auto" : "0",
+                    display: (media === image) === animated ? "block" : "none", margin: actual ? "auto" : "0",
                 });
                 fitButton.disabled = !this.dkstSavedVideo || !actual;
                 actualButton.disabled = !this.dkstSavedVideo || actual;
@@ -1669,14 +1735,24 @@ app.registerExtension({
             fitButton.onclick = () => setViewMode("fit");
             actualButton.onclick = () => setViewMode("actual");
             video.onloadedmetadata = () => {
-                naturalWidth = video.videoWidth || naturalWidth;
-                naturalHeight = video.videoHeight || naturalHeight;
+                if (!reportedResolution) {
+                    naturalWidth = video.videoWidth || naturalWidth;
+                    naturalHeight = video.videoHeight || naturalHeight;
+                }
                 if (!reportedResolution && naturalWidth && naturalHeight) {
                     resolution.textContent = `${naturalWidth} × ${naturalHeight}`;
                 }
                 applyViewMode();
             };
-            for (const element of [container, viewport, video]) {
+            image.onload = () => {
+                if (!reportedResolution) {
+                    naturalWidth = image.naturalWidth || naturalWidth;
+                    naturalHeight = image.naturalHeight || naturalHeight;
+                    if (naturalWidth && naturalHeight) resolution.textContent = `${naturalWidth} × ${naturalHeight}`;
+                }
+                applyViewMode();
+            };
+            for (const element of [container, viewport, video, image]) {
                 for (const eventName of ["pointerdown", "mousedown"]) {
                     element.addEventListener(eventName, event => {
                         if (event.button === 2) event.stopPropagation();
@@ -1709,6 +1785,8 @@ app.registerExtension({
                     this.properties.dkstVideoViewer = {
                         dkst_video: [saved], dkst_video_preview: [preview],
                         resolution: message?.resolution || [], viewMode,
+                        encoding: message?.encoding || [], preview_encoding: message?.preview_encoding || [],
+                        preview_seconds: message?.preview_seconds || [],
                     };
                 } else if (message?.viewMode === "actual" || message?.viewMode === "fit") {
                     viewMode = message.viewMode;
@@ -1719,13 +1797,29 @@ app.registerExtension({
                 reportedResolution = naturalWidth && naturalHeight
                     ? `${naturalWidth} × ${naturalHeight}` : "";
                 resolution.textContent = reportedResolution;
+                const encodingInfo = message?.encoding?.[0];
+                const proxyInfo = message?.preview_encoding?.[0];
+                encodingStatus.style.display = encodingInfo?.label ? "block" : "none";
+                encodingStatus.textContent = encodingInfo?.label || "";
+                if (encodingInfo?.pixel_format) encodingStatus.textContent += ` · ${encodingInfo.pixel_format}`;
+                if (proxyInfo?.label && proxyInfo.label !== encodingInfo?.label) {
+                    encodingStatus.textContent += ` · Preview: ${proxyInfo.label}`;
+                }
+                const rate = encodingInfo?.bitrate_mbps;
+                if (rate > 0) encodingStatus.textContent += ` · ${Number(rate.toFixed(2))} Mbps`;
+                if (encodingInfo?.reason) encodingStatus.textContent += " · CPU fallback";
+                encodingStatus.title = [encodingInfo?.reason, proxyInfo?.reason].filter(Boolean).join("\n");
+                animated = /\.(gif|webp)$/i.test(preview.filename);
                 applyViewMode();
                 if (!sameFile || persist) {
                     video.pause();
-                    video.src = api.apiURL(`/view?${new URLSearchParams({
+                    video.removeAttribute("src");
+                    image.removeAttribute("src");
+                    const media = animated ? image : video;
+                    media.src = api.apiURL(`/view?${new URLSearchParams({
                         ...preview, format: "video", t: String(Date.now()),
                     })}`);
-                    video.load?.();
+                    if (!animated) video.load?.();
                 }
                 this.setDirtyCanvas?.(true, true);
             };
@@ -1737,7 +1831,15 @@ app.registerExtension({
             const configured = this.onConfigure;
             this.onConfigure = function() {
                 const configuredResult = configured?.apply(this, arguments);
-                syncCodecs?.(formatWidget?.value);
+                const info = arguments[0];
+                if (encoderWidget && Array.isArray(info?.widgets_values)) {
+                    // Both nodes had six serialized encoding controls before this
+                    // addition (the earliest Player had four). DOM placeholders
+                    // are not valid encoder values in those older workflows.
+                    const saved = info.properties?.dkstEncoder || info.widgets_values[6];
+                    encoderWidget.value = encoderNames.includes(saved) ? saved : "cpu";
+                }
+                syncCodecs?.(formatWidget?.value, true);
                 queueMicrotask(() => this.dkstRestoreVideoViewer?.());
                 return configuredResult;
             };
@@ -1745,6 +1847,7 @@ app.registerExtension({
             this.onRemoved = function() {
                 video.pause();
                 video.removeAttribute("src");
+                image.removeAttribute("src");
                 video.load?.();
                 return removed?.apply(this, arguments);
             };
@@ -1758,7 +1861,7 @@ app.registerExtension({
         };
     },
     loadedGraphNode(node) {
-        if (node.comfyClass === "DINKI_Video_Viewer") node.dkstRestoreVideoViewer?.();
+        if (["DINKI_Video_Viewer", "DINKI_Video_Combine"].includes(node.comfyClass)) node.dkstRestoreVideoViewer?.();
     },
 });
 

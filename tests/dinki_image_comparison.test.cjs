@@ -11,6 +11,7 @@ function element(tagName = 'div') {
         tagName: tagName.toUpperCase(), style: {}, children: [], listeners: {},
         append(...children) { this.children.push(...children); },
         appendChild(child) { this.children.push(child); },
+        setAttribute(name, value) { this[name] = value; },
         removeAttribute(name) { delete this[name]; },
         addEventListener(name, callback) { this.listeners[name] = callback; },
         remove() { this.removed = true; },
@@ -45,6 +46,7 @@ function fixture() {
             this.comfyClass = 'DINKI_Image_Comparison';
             this.properties = properties;
             this.widgets = [{ name: 'mode', value: 'Slide' }];
+            this.size = [420, 340];
             this.onNodeCreated();
         }
         addDOMWidget(name, type, root) {
@@ -64,18 +66,27 @@ const output = { dkst_comparison: [
     { filename: 'difference.png', type: 'temp' },
 ] };
 
+function parts(node) {
+    const [toolbar, viewport] = node.root.children;
+    const panArea = viewport.children[0];
+    const canvas = panArea.children[0];
+    const [first, second, difference, divider] = canvas.children;
+    return { toolbar, viewport, panArea, canvas, first, second, difference, divider,
+        button: label => toolbar.children.find(item => item.textContent === label) };
+}
+
 test('Slide follows pointer position and Difference displays the computed preview', () => {
     const { CompareNode } = fixture();
     const node = new CompareNode();
     node.onExecuted(output);
-    const [first, second, difference, divider] = node.root.children;
+    const { first, second, difference, divider, viewport } = parts(node);
     assert.match(first.src, /first\.png/);
     assert.equal(first.style.objectFit, 'contain');
     assert.equal(first.style.objectPosition, 'center');
     assert.equal(second.style.objectFit, 'contain');
     assert.equal(difference.style.objectFit, 'contain');
     assert.equal(second.style.display, 'block');
-    node.root.listeners.pointermove({ clientX: 70 });
+    viewport.listeners.pointermove({ clientX: 70 });
     assert.equal(second.style.clipPath, 'inset(0 75% 0 0)');
     assert.equal(divider.style.left, '25%');
     node.onWidgetChanged('mode', 'Difference');
@@ -95,11 +106,11 @@ test('comparison restores its own images after a tab switch', async () => {
     ] };
     const restored = new CompareNode(structuredClone(first.properties));
     extension.loadedGraphNode(restored);
-    assert.match(restored.root.children[0].src, /first\.png/);
+    assert.match(parts(restored).first.src, /first\.png/);
     restored.widgets[0].value = 'Difference';
     restored.onConfigure();
     await Promise.resolve();
-    assert.equal(restored.root.children[2].style.display, 'block');
+    assert.equal(parts(restored).difference.style.display, 'block');
 });
 
 test('right-click menu changes mode and opens or saves the selected comparison images', async () => {
@@ -113,14 +124,14 @@ test('right-click menu changes mode and opens or saves the selected comparison i
     node.root.listeners.contextmenu(event);
     assert.equal(event.prevented, true);
     assert.equal(event.stopped, true);
-    const buttons = context.elements.filter(item => item.tagName === 'BUTTON');
+    const buttons = context.elements.filter(item => item.tagName === 'BUTTON' && /^(Mode:|Open Image|Save Image)/.test(item.textContent));
     assert.deepEqual(buttons.map(item => item.textContent), [
         'Mode: Slide', 'Mode: Difference', 'Open Image 1', 'Save Image 1',
         'Open Image 2', 'Save Image 2',
     ]);
     await buttons[1].onclick();
     assert.equal(node.widgets[0].value, 'Difference');
-    assert.equal(node.root.children[2].style.display, 'block');
+    assert.equal(parts(node).difference.style.display, 'block');
     await buttons[2].onclick();
     assert.match(context.opened, /filename=first\.png/);
     await buttons[5].onclick();
@@ -132,4 +143,99 @@ test('right-click menu changes mode and opens or saves the selected comparison i
     const options = [];
     node.getExtraMenuOptions(null, options);
     assert.deepEqual(options.map(item => item.content), buttons.map(item => item.textContent));
+});
+
+test('zoom scales the same aligned images and Difference without changing inputs or node size', () => {
+    const { CompareNode } = fixture();
+    const node = new CompareNode();
+    node.onExecuted({ ...output, resolution: ['1600 × 900'] });
+    const p = parts(node);
+    const sources = [p.first.src, p.second.src, p.difference.src];
+    assert.deepEqual(p.toolbar.children.map(button => button.textContent), ['25%', '50%', '75%', '100%', 'Fit']);
+    assert.equal(p.canvas.style.width, '100%');
+    assert.equal(p.first.style.objectFit, 'contain');
+    for (const [label, width, height] of [['25%', 400, 225], ['50%', 800, 450], ['75%', 1200, 675], ['100%', 1600, 900]]) {
+        p.button(label).onclick();
+        assert.equal(p.canvas.style.width, `${width}px`);
+        assert.equal(p.canvas.style.height, `${height}px`);
+        assert.equal(p.viewport.style.overflow, 'auto');
+        assert.equal(p.button(label)['aria-pressed'], 'true');
+        assert.deepEqual([p.first.src, p.second.src, p.difference.src], sources);
+        for (const image of [p.first, p.second, p.difference]) {
+            assert.equal(image.style.width, '100%');
+            assert.equal(image.style.height, '100%');
+            assert.equal(image.style.objectPosition, 'center');
+        }
+        node.onWidgetChanged('mode', 'Difference');
+        assert.equal(p.difference.style.display, 'block');
+        assert.equal(p.canvas.style.width, `${width}px`);
+        assert.deepEqual(node.size, [420, 340]);
+    }
+    p.button('Fit').onclick();
+    assert.equal(p.canvas.style.width, '100%');
+    assert.equal(p.canvas.style.height, '100%');
+    assert.equal(p.viewport.style.overflow, 'hidden');
+});
+
+test('slider uses zoomed canvas screen coordinates after scrolling and graph zoom', () => {
+    const { CompareNode } = fixture();
+    const node = new CompareNode();
+    node.onExecuted({ ...output, resolution: ['1600 × 900'] });
+    const p = parts(node);
+    p.button('50%').onclick();
+    // 800 CSS pixels shown at 75% graph zoom, with the canvas scrolled left.
+    p.canvas.getBoundingClientRect = () => ({ left: -100, width: 600 });
+    p.viewport.listeners.pointermove({ clientX: 50 });
+    assert.equal(p.second.style.clipPath, 'inset(0 75% 0 0)');
+    assert.equal(p.divider.style.left, '25%');
+    p.button('100%').onclick();
+    assert.equal(p.divider.style.left, '25%');
+    p.canvas.getBoundingClientRect = () => ({ left: -200, width: 1200 });
+    p.viewport.listeners.pointermove({ clientX: 400 });
+    assert.equal(p.divider.style.left, '50%');
+    p.viewport.listeners.pointermove({ clientX: -400 });
+    assert.equal(p.divider.style.left, '0%');
+});
+
+test('zoom and divider restore across reload and persist when input resolution changes', async () => {
+    const { CompareNode, extension } = fixture();
+    const node = new CompareNode();
+    node.onExecuted({ ...output, resolution: ['1600 × 900'] });
+    parts(node).button('75%').onclick();
+    parts(node).viewport.listeners.pointermove({ clientX: 70 });
+    const restored = new CompareNode(structuredClone(node.properties));
+    extension.loadedGraphNode(restored);
+    assert.equal(parts(restored).canvas.style.width, '1200px');
+    assert.equal(parts(restored).divider.style.left, '25%');
+    restored.onConfigure();
+    await Promise.resolve();
+    assert.equal(parts(restored).canvas.style.height, '675px');
+    restored.onExecuted({ ...output, resolution: ['800 × 1200'] });
+    assert.equal(parts(restored).canvas.style.width, '600px');
+    assert.equal(parts(restored).canvas.style.height, '900px');
+    assert.equal(restored.properties.dkstComparison.zoom, .75);
+    assert.equal(parts(restored).divider.style.left, '25%');
+});
+
+test('legacy previews use decoded dimensions for zoom and controls keep canvas gestures separate', () => {
+    const { CompareNode } = fixture();
+    const node = new CompareNode();
+    node.onExecuted(output);
+    const p = parts(node);
+    assert.equal(p.button('100%').disabled, true);
+    p.first.naturalWidth = 1200;
+    p.first.naturalHeight = 800;
+    p.first.onload();
+    p.button('25%').onclick();
+    assert.equal(p.canvas.style.width, '300px');
+    let stopped = 0;
+    p.toolbar.listeners.pointerdown({ stopPropagation() { stopped++; } });
+    p.viewport.listeners.wheel({ stopPropagation() { stopped++; } });
+    assert.equal(stopped, 2);
+    p.button('Fit').onclick();
+    p.viewport.listeners.wheel({ stopPropagation() { stopped++; } });
+    assert.equal(stopped, 2);
+    node.onRemoved();
+    assert.equal(p.first.src, undefined);
+    assert.equal(p.first.onload, null);
 });

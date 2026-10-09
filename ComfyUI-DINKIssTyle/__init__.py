@@ -71,6 +71,7 @@ from .dinki_viewer import (
     DINKI_Video_Player,
     DINKI_Video_Viewer,
 )
+from .dinki_video_combine import DINKI_Video_Combine
 
 # 6. 스위치 관련
 from .dinki_switch import (
@@ -157,6 +158,7 @@ NODE_CLASS_MAPPINGS = {
     # Viewer
     "DINKI_Video_Player": DINKI_Video_Player,
     "DINKI_Video_Viewer": DINKI_Video_Viewer,
+    "DINKI_Video_Combine": DINKI_Video_Combine,
 
     # Switch
     "DINKI_IfElseBranch": DINKI_IfElseBranch,
@@ -238,6 +240,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # Viewer
     "DINKI_Video_Player": "DKST Video (Sequence Player)",
     "DINKI_Video_Viewer": "DKST Video (Video Player)",
+    "DINKI_Video_Combine": "DKST Video (Combine)",
 
     # Switch
     "DINKI_IfElseBranch": "DKST Util (If/Else Branch)",

@@ -22,7 +22,7 @@ function element(tagName) {
     };
 }
 
-async function fixture() {
+async function fixture(className = "DINKI_Video_Viewer", nodeData = {}) {
     let extension, opened, fetched;
     const elements = [];
     const createElement = tag => {
@@ -45,12 +45,15 @@ async function fixture() {
     class Viewer {
         constructor(properties = {}) {
             this.id = 12;
-            this.comfyClass = 'DINKI_Video_Viewer';
+            this.comfyClass = className;
             this.properties = properties;
             this.size = [420, 320];
             this.widgets = [
-                { name: 'format', value: 'auto', options: { values: ['auto', 'mp4', 'mkv', 'webm'] } },
-                { name: 'codec', value: 'auto', options: { values: ['auto', 'h264', 'av1'] } },
+                { name: 'format', value: className === 'DINKI_Video_Combine' ? 'h264-mp4' : 'auto', options: { values: ['auto', 'mp4', 'mkv', 'webm'] } },
+                ...(className === 'DINKI_Video_Combine' ? [] : [{ name: 'codec', value: 'auto', options: { values: ['auto', 'h264', 'av1'] } }]),
+                { name: 'pixel_format', value: className === 'DINKI_Video_Combine' ? 'yuv420p' : 'auto', options: {} },
+                { name: 'bitrate_mbps', value: 8, options: {} },
+                { name: 'encoder', value: 'auto', options: {} },
             ];
             this.onNodeCreated();
         }
@@ -61,7 +64,7 @@ async function fixture() {
         }
         setDirtyCanvas() {}
     }
-    await extension.beforeRegisterNodeDef(Viewer, { name: 'DINKI_Video_Viewer' });
+    await extension.beforeRegisterNodeDef(Viewer, { name: className, ...nodeData });
     return { app, extension, Viewer, elements,
         get opened() { return opened; }, get fetched() { return fetched; } };
 }
@@ -69,7 +72,7 @@ async function fixture() {
 function parts(node) {
     const [toolbar, viewport] = node.container.children;
     const [fit, actual, resolution] = toolbar.children;
-    return { fit, actual, resolution, viewport, video: viewport.firstChild };
+    return { fit, actual, resolution, viewport, video: viewport.firstChild, image: viewport.children[1] };
 }
 
 test('video stays inside the user-sized node and Fit/100% switch its viewport scale', async () => {
@@ -159,4 +162,129 @@ test('WebM hides H.264 in classic and Nodes 2.0 controls', async () => {
     assert.equal(codec.value, 'auto');
     node.onWidgetChanged('format', 'mp4');
     assert.deepEqual(Array.from(codec.options.values), ['auto', 'h264', 'av1']);
+});
+
+test('Combine uses the same Fit/100% viewer and restores its saved preview', async () => {
+    const { Viewer, extension } = await fixture('DINKI_Video_Combine');
+    const node = new Viewer();
+    node.onExecuted({ dkst_video: [{ filename: 'combined.mp4', subfolder: '', type: 'temp' }], resolution: ['1280 × 720'] });
+    assert.match(parts(node).video.src, /filename=combined\.mp4/);
+    parts(node).actual.onclick();
+    assert.equal(parts(node).video.style.width, '1280px');
+    const restored = new Viewer(structuredClone(node.properties));
+    extension.loadedGraphNode(restored);
+    assert.equal(parts(restored).video.style.width, '1280px');
+    assert.deepEqual(restored.size, [420, 320]);
+});
+
+test('GIF/WebP use an animated image preview with Fit/100% and original file actions', async () => {
+    const { Viewer } = await fixture('DINKI_Video_Combine');
+    const node = new Viewer();
+    for (const extension of ['gif', 'webp']) {
+        node.onExecuted({ dkst_video: [{ filename: `animation.${extension}`, subfolder: '', type: 'output' }], resolution: ['640 × 480'] });
+        const { video, image, fit, actual, viewport, resolution } = parts(node);
+        assert.match(image.src, new RegExp(`filename=animation\\.${extension}`));
+        assert.equal(image.style.display, 'block');
+        assert.equal(video.style.display, 'none');
+        assert.equal(video.src, undefined);
+        assert.equal(resolution.textContent, '640 × 480');
+        actual.onclick();
+        assert.equal(image.style.width, '640px');
+        assert.equal(viewport.style.overflow, 'auto');
+        fit.onclick();
+        assert.equal(image.style.objectFit, 'contain');
+        assert.equal(node.dkstSavedVideo.filename, `animation.${extension}`);
+    }
+    node.onRemoved();
+    assert.equal(parts(node).image.src, undefined);
+});
+
+test('format selection limits pixel formats and disables irrelevant encoding controls', async () => {
+    const { Viewer } = await fixture('DINKI_Video_Combine');
+    const node = new Viewer();
+    const get = name => node.widgets.find(widget => widget.name === name);
+    get('format').callback('prores-mov');
+    assert.equal(get('pixel_format').value, 'yuv422p10le');
+    assert.equal(get('bitrate_mbps').disabled, true);
+    assert.deepEqual(Array.from(get('pixel_format').options.values), ['auto', 'yuv422p10le', 'yuv444p10le']);
+    get('format').callback('gif');
+    assert.equal(get('pixel_format').value, 'auto');
+    assert.equal(get('pixel_format').disabled, true);
+    get('format').callback('h264-mp4');
+    assert.equal(get('pixel_format').disabled, false);
+    assert.equal(get('bitrate_mbps').disabled, false);
+});
+
+test('extended Player presets choose their codec and preserve resolution for 100% proxy playback', async () => {
+    const { Viewer } = await fixture();
+    const node = new Viewer();
+    node.widgets.find(widget => widget.name === 'format').callback('h265-mp4');
+    assert.equal(node.widgets.find(widget => widget.name === 'codec').disabled, true);
+    node.onExecuted({ dkst_video: [{ filename: 'hevc.mp4', type: 'output', subfolder: '' }],
+        dkst_video_preview: [{ filename: 'proxy.mp4', type: 'temp', subfolder: '' }], resolution: ['1920 × 1080'] });
+    parts(node).video.videoWidth = 640; parts(node).video.videoHeight = 360;
+    parts(node).video.onloadedmetadata(); parts(node).actual.onclick();
+    assert.equal(parts(node).video.style.width, '1920px');
+    assert.equal(parts(node).resolution.textContent, '1920 × 1080');
+    node.widgets.find(widget => widget.name === 'format').callback('mp4');
+    assert.equal(node.widgets.find(widget => widget.name === 'codec').disabled, false);
+});
+
+test('old workflow encoding controls migrate to CPU while new nodes default to Auto', async () => {
+    for (const type of ['DINKI_Video_Viewer', 'DINKI_Video_Combine']) {
+        const { Viewer } = await fixture(type);
+        const getEncoder = node => node.widgets.find(widget => widget.name === 'encoder');
+        const node = new Viewer();
+        assert.equal(getEncoder(node).value, 'auto');
+        const legacyProperties = {};
+        const oldNode = new Viewer(legacyProperties);
+        oldNode.onConfigure({ widgets_values: ['DKST_Video', 'h264-mp4', 24, 'yuv420p', 8, false], properties: legacyProperties });
+        assert.equal(getEncoder(oldNode).value, 'cpu', 'Creating a node must not mark shared legacy properties as Auto');
+        node.onConfigure({ widgets_values: ['DKST_Video', 'auto', 'auto', false], properties: {} });
+        assert.equal(getEncoder(node).value, 'cpu');
+        node.onConfigure({ widgets_values: ['DKST_Video', 'mp4', 'auto', false, 'auto', 0, null], properties: {} });
+        assert.equal(getEncoder(node).value, 'cpu');
+        node.onConfigure({ widgets_values: ['DKST_Video', 'mp4', 'auto', false, 'auto', 0, 'videotoolbox'], properties: {} });
+        assert.equal(getEncoder(node).value, 'videotoolbox');
+        const restored = new Viewer(structuredClone(node.properties));
+        assert.equal(getEncoder(restored).value, 'videotoolbox');
+    }
+});
+
+test('encoder controls use server-supported pixel formats and persist Nodes 2.0 changes', async () => {
+    const { Viewer } = await fixture('DINKI_Video_Combine', { input: { required: { format: [[], {
+        dkst_encoder_pixels: { 'h264-mp4': {
+            auto: ['auto', 'yuv420p', 'yuv444p10le'], cpu: ['auto', 'yuv420p', 'yuv444p10le'],
+            videotoolbox: ['auto', 'yuv420p', 'nv12'], nvenc: ['auto', 'yuv420p', 'p010le'],
+        } },
+    }] } } });
+    const node = new Viewer();
+    const get = name => node.widgets.find(widget => widget.name === name);
+    get('pixel_format').value = 'yuv444p10le';
+    get('encoder').callback('videotoolbox');
+    assert.deepEqual(Array.from(get('pixel_format').options.values), ['auto', 'yuv420p', 'nv12']);
+    assert.equal(get('pixel_format').value, 'yuv444p10le', 'Changing device must not silently reduce precision');
+    node.onWidgetChanged('encoder', 'nvenc');
+    assert.deepEqual(Array.from(get('pixel_format').options.values), ['auto', 'yuv420p', 'p010le']);
+    assert.equal(node.properties.dkstEncoder, 'nvenc');
+    get('format').callback('gif');
+    assert.equal(get('encoder').disabled, true);
+    assert.equal(get('encoder').value, 'cpu');
+});
+
+test('actual encoder, proxy encoder and fallback reason survive preview restoration', async () => {
+    const { Viewer, extension } = await fixture('DINKI_Video_Combine');
+    const node = new Viewer();
+    node.onExecuted({
+        dkst_video: [{ filename: 'hevc.mp4', type: 'temp', subfolder: '' }],
+        dkst_video_preview: [{ filename: 'preview.mp4', type: 'temp', subfolder: '' }],
+        encoding: [{ label: 'HEVC · CPU', bitrate_mbps: 8, reason: 'Device busy' }],
+        preview_encoding: [{ label: 'H.264 · VideoToolbox' }], resolution: ['128 × 128'],
+    });
+    const status = node.container.children[0].children[3];
+    assert.match(status.textContent, /HEVC · CPU.*Preview: H.264 · VideoToolbox.*8 Mbps.*CPU fallback/);
+    assert.equal(status.title, 'Device busy');
+    const restored = new Viewer(structuredClone(node.properties));
+    extension.loadedGraphNode(restored);
+    assert.equal(restored.container.children[0].children[3].textContent, status.textContent);
 });

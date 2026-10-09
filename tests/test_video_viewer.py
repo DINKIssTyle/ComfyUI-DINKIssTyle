@@ -1,10 +1,10 @@
 import ast
-import runpy
+import importlib.util
 import sys
 import unittest
 from enum import Enum
 from pathlib import Path
-from types import SimpleNamespace
+from types import SimpleNamespace, ModuleType
 from unittest.mock import MagicMock, patch
 
 
@@ -44,10 +44,17 @@ class VideoViewerTests(unittest.TestCase):
         cls.paths = MagicMock()
         cls.paths.get_output_directory.return_value = "/output"
         cls.paths.get_temp_directory.return_value = "/temp"
+        package = ModuleType("dkst_viewer_test")
+        package.__path__ = [str(ROOT)]
+        cls.package_patch = patch.dict(sys.modules, {"dkst_viewer_test": package})
+        cls.package_patch.start()
+        cls.addClassCleanup(cls.package_patch.stop)
         with patch.dict(sys.modules, {"folder_paths": cls.paths}):
-            module = runpy.run_path(str(ROOT / "dinki_viewer.py"))
-        cls.sequence_class = module["DINKI_Video_Player"]
-        cls.viewer_class = module["DINKI_Video_Viewer"]
+            spec = importlib.util.spec_from_file_location("dkst_viewer_test.dinki_viewer", ROOT / "dinki_viewer.py")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        cls.sequence_class = module.DINKI_Video_Player
+        cls.viewer_class = module.DINKI_Video_Viewer
 
     def setUp(self):
         self.paths.get_save_image_path.reset_mock()
@@ -68,7 +75,9 @@ class VideoViewerTests(unittest.TestCase):
             def __exit__(self, *_):
                 return False
 
-        self.av = SimpleNamespace(open=MagicMock(return_value=Container()))
+        self.av = SimpleNamespace(open=MagicMock(return_value=Container()), Codec=lambda name, mode:
+            SimpleNamespace(video_formats=[SimpleNamespace(name=pixel) for pixel in
+                ["yuv420p", "yuv422p", "yuv444p", "yuv420p10le", "yuv422p10le", "yuv444p10le", "bgra", "rgba64le"]]))
         self.modules = patch.dict(sys.modules, {
             "folder_paths": self.paths,
             "av": self.av,
@@ -109,7 +118,8 @@ class VideoViewerTests(unittest.TestCase):
         required = self.viewer_class.INPUT_TYPES()["required"]
         self.assertEqual(required["video"][0], "VIDEO")
         self.assertEqual(required["filename_prefix"][1]["default"], "DKST_Video")
-        self.assertEqual(required["format"][0], ["auto", "mp4", "mkv", "webm"])
+        self.assertEqual(required["format"][0], ["auto", "mp4", "mkv", "webm", "h265-mp4",
+            "vp9-webm", "prores-mov", "ffv1-mkv", "gif", "webp"])
         self.assertEqual(required["codec"][0], ["auto", "h264", "av1"])
         self.assertFalse(required["always_save"][1]["default"])
         self.assertEqual(self.viewer_class.RETURN_TYPES, ("VIDEO",))

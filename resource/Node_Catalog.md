@@ -2,7 +2,7 @@
 
 [Home](../README.md)
 
-60 nodes across 9 categories. Display names use `DKST Category (Function)`.
+61 nodes across 9 categories. Display names use `DKST Category (Function)`.
 Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` is now `DINKIssTyle/Util`.
 
 Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · [LM Studio](DINKI_LM_Studio_Assistant.md) · [Processing](DINKI_PS.md) · [Prompts and Text](DINKI_Prompt_and_String.md) · [Utilities](DINKI_Node_Utils.md) · [Video and Player](DINKI_Video_Tools.md). [System Monitor](DKST_System_Monitor.md) is a frontend feature and does not register a workflow node.
@@ -65,6 +65,7 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Util` | DKST Util (Workflow Lock) | `DINKI_Workflow_Lock` |
 | `DINKIssTyle/Video` | DKST Video (Depth Parallax) | `DINKI_DepthParallax_MOV` |
 | `DINKIssTyle/Video` | DKST Video (Load & Crop) | `DINKI_Video_Load_Crop` |
+| `DINKIssTyle/Video` | DKST Video (Combine) | `DINKI_Video_Combine` |
 | `DINKIssTyle/Video` | DKST Video (Image Compare) | `DINKI_Image_Comparer_MOV` |
 | `DINKIssTyle/Video` | DKST Video (Video Player) | `DINKI_Video_Viewer` |
 | `DINKIssTyle/Viewer` | DKST Video (Sequence Player) | `DINKI_Video_Player` |

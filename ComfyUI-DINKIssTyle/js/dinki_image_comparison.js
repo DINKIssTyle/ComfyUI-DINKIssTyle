@@ -70,10 +70,26 @@ app.registerExtension({
             const result = created?.apply(this, arguments);
             const root = document.createElement("div");
             Object.assign(root.style, {
-                position: "relative", width: "100%", height: "100%", minHeight: "180px",
+                width: "100%", height: "100%", minHeight: "0",
+                display: "flex", flexDirection: "column", contain: "size layout paint",
                 overflow: "hidden", background: "#181818", borderRadius: "6px",
-                cursor: "ew-resize", userSelect: "none", touchAction: "none",
+                userSelect: "none",
             });
+            const toolbar = document.createElement("div");
+            Object.assign(toolbar.style, {
+                display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px",
+                padding: "4px 6px", flex: "0 0 auto",
+            });
+            const viewport = document.createElement("div");
+            Object.assign(viewport.style, {
+                flex: "1 1 0", minWidth: "0", minHeight: "0", overflow: "hidden",
+            });
+            const panArea = document.createElement("div");
+            Object.assign(panArea.style, {
+                display: "grid", placeItems: "center", minWidth: "100%", minHeight: "100%",
+            });
+            const canvas = document.createElement("div");
+            canvas.style.position = "relative";
             const makeImage = () => {
                 const image = document.createElement("img");
                 Object.assign(image.style, {
@@ -98,7 +114,10 @@ app.registerExtension({
                 position: "absolute", inset: "0", display: "grid", placeItems: "center",
                 color: "#bbb", font: "12px sans-serif", pointerEvents: "none",
             });
-            root.append(first, second, difference, divider, hint);
+            canvas.append(first, second, difference, divider, hint);
+            panArea.appendChild(canvas);
+            viewport.appendChild(panArea);
+            root.append(toolbar, viewport);
             const widget = this.addDOMWidget("dkst_image_comparison", "DKST_IMAGE_COMPARISON", root, {
                 hideOnZoom: false, getMinHeight: () => 180,
                 getMaxHeight: () => 700, getHeight: () => 300,
@@ -108,8 +127,61 @@ app.registerExtension({
 
             let descriptors = [];
             let position = 50;
+            let naturalWidth = 0;
+            let naturalHeight = 0;
+            const validZoom = value => ["fit", .25, .5, .75, 1].includes(value);
+            let zoom = validZoom(this.properties?.dkstComparison?.zoom) ? this.properties.dkstComparison.zoom : "fit";
             let selectedMode = this.widgets?.find(item => item.name === "mode")?.value || "Slide";
             const imageUrl = comparisonFileUrl;
+            const zoomButtons = [];
+            const persistView = () => {
+                if (this.properties?.dkstComparison) {
+                    Object.assign(this.properties.dkstComparison, { zoom, position });
+                }
+            };
+            const applyZoom = () => {
+                const fit = zoom === "fit" || !naturalWidth || !naturalHeight;
+                viewport.style.overflow = fit ? "hidden" : "auto";
+                panArea.style.width = fit ? "100%" : "max-content";
+                panArea.style.height = fit ? "100%" : "max-content";
+                canvas.style.width = fit ? "100%" : `${naturalWidth * zoom}px`;
+                canvas.style.height = fit ? "100%" : `${naturalHeight * zoom}px`;
+                for (const [button, value] of zoomButtons) {
+                    button.disabled = value === zoom || (value !== "fit" && (!naturalWidth || !naturalHeight));
+                    button.setAttribute("aria-pressed", String(value === zoom));
+                }
+            };
+            for (const [label, value] of [["25%", .25], ["50%", .5], ["75%", .75], ["100%", 1], ["Fit", "fit"]]) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.textContent = label;
+                button.title = value === "fit" ? "Fit the aligned comparison canvas to the preview" : `${label} of the aligned comparison canvas`;
+                Object.assign(button.style, {
+                    height: "24px", padding: "0 8px", border: "1px solid #555",
+                    borderRadius: "4px", background: "#2b2b2b", color: "#eee", cursor: "pointer",
+                });
+                button.onclick = () => {
+                    zoom = value;
+                    persistView();
+                    applyZoom();
+                    this.setDirtyCanvas?.(true, true);
+                };
+                zoomButtons.push([button, value]);
+                toolbar.appendChild(button);
+            }
+            for (const eventName of ["pointerdown", "mousedown", "click"]) {
+                toolbar.addEventListener(eventName, event => event.stopPropagation());
+            }
+            viewport.addEventListener("wheel", event => {
+                if (zoom !== "fit") event.stopPropagation();
+            });
+            first.onload = () => {
+                if (!naturalWidth || !naturalHeight) {
+                    naturalWidth = first.naturalWidth;
+                    naturalHeight = first.naturalHeight;
+                    applyZoom();
+                }
+            };
             const show = () => {
                 const ready = descriptors.length === 3;
                 const slide = selectedMode !== "Difference";
@@ -120,13 +192,16 @@ app.registerExtension({
                 hint.style.display = ready ? "none" : "grid";
                 second.style.clipPath = `inset(0 ${100 - position}% 0 0)`;
                 divider.style.left = `${position}%`;
-                root.style.cursor = slide ? "ew-resize" : "default";
+                canvas.style.cursor = slide ? "ew-resize" : "default";
             };
-            root.addEventListener("pointermove", event => {
+            viewport.addEventListener("pointermove", event => {
                 if (selectedMode === "Difference" || descriptors.length !== 3) return;
-                const bounds = root.getBoundingClientRect();
+                // All three prepared previews share this canvas. Its actual
+                // screen bounds include graph zoom, centering and scroll offset.
+                const bounds = canvas.getBoundingClientRect();
                 if (!bounds.width) return;
                 position = Math.max(0, Math.min(100, 100 * (event.clientX - bounds.left) / bounds.width));
+                persistView();
                 show();
             });
             const menuActions = () => {
@@ -174,11 +249,19 @@ app.registerExtension({
             };
             this.dkstSetComparisonImages = (message, persist = true) => {
                 descriptors = message?.dkst_comparison || [];
+                const size = /^(\d+)\s*[×x]\s*(\d+)$/.exec(message?.resolution?.[0] || "");
+                naturalWidth = size ? Number(size[1]) : 0;
+                naturalHeight = size ? Number(size[2]) : 0;
+                if (!persist) {
+                    if (validZoom(message?.zoom)) zoom = message.zoom;
+                    if (Number.isFinite(message?.position)) position = Math.max(0, Math.min(100, message.position));
+                }
                 if (persist) {
                     this.properties ??= {};
                     this.properties.dkstComparison = {
                         dkst_comparison: descriptors,
                         resolution: message?.resolution || [],
+                        zoom, position,
                     };
                 }
                 for (const [image, item] of [[first, descriptors[0]], [second, descriptors[1]],
@@ -186,6 +269,7 @@ app.registerExtension({
                     if (item) image.src = imageUrl(item);
                     else image.removeAttribute("src");
                 }
+                applyZoom();
                 show();
                 this.setDirtyCanvas?.(true, true);
             };
@@ -218,6 +302,13 @@ app.registerExtension({
                 queueMicrotask(() => this.dkstRestoreComparison?.());
                 return configuredResult;
             };
+            const removed = this.onRemoved;
+            this.onRemoved = function() {
+                first.onload = null;
+                for (const image of [first, second, difference]) image.removeAttribute("src");
+                return removed?.apply(this, arguments);
+            };
+            applyZoom();
             show();
             return result;
         };
