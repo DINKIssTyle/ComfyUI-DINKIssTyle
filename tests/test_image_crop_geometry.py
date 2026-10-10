@@ -60,6 +60,32 @@ class CropGeometryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             crop_bounds(400, 300, "Custom", 0, 5, 0, 0, 1, 1)
 
+    def test_expand_defaults_fit_full_portrait_in_exact_wide_ratio(self):
+        left, top, width, height = crop_bounds(
+            1800, 3358, "16:9", 1, 1, 0, 0, 1, 1, "Expand")
+        self.assertEqual((left, top, width, height), (-2092, -4, 5984, 3366))
+        self.assertLessEqual(left, 0)
+        self.assertLessEqual(top, 0)
+        self.assertGreaterEqual(left + width, 1800)
+        self.assertGreaterEqual(top + height, 3358)
+        self.assertEqual(width * 9, height * 16)
+
+    def test_expand_keeps_negative_offsets_and_oversized_dimensions(self):
+        self.assertEqual(crop_bounds(400, 300, "4:3", 1, 1,
+                                     -0.5, -0.5, 2, 2, "Expand"), (-200, -150, 800, 600))
+        self.assertEqual(crop_bounds(400, 300, "1:1", 1, 1,
+                                     2, 2, 0.5, 2 / 3, "Expand"), (800, 600, 200, 200))
+
+    def test_expand_still_rejects_invalid_values_and_mode(self):
+        for value in (float("nan"), float("inf"), True, -10001, 10001):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                crop_bounds(400, 300, "Original", 1, 1, value, 0, 1, 1, "Expand")
+        for size in (0, -1, 10001):
+            with self.subTest(size=size), self.assertRaises(ValueError):
+                crop_bounds(400, 300, "Original", 1, 1, 0, 0, size, 1, "Expand")
+        with self.assertRaises(ValueError):
+            crop_bounds(400, 300, "Original", 1, 1, 0, 0, 1, 1, "Stretch")
+
 
 if __name__ == "__main__":
     unittest.main()

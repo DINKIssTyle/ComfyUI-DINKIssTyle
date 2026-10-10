@@ -77,6 +77,7 @@ function fixture(className = "DINKI_Image_Crop", deferImages = false, executionH
             ...(className === "DINKI_Image_Load_Crop" ? [
                 { name: "resolution_multiple", value: 8, type: "number" },
                 { name: "megapixels", value: 1, type: "number" },
+                { name: "crop_mode", value: "Crop", type: "combo" },
             ] : []),
         ],
         graph: { incrementVersion() {} }, setDirtyCanvas() {}, expandToFitContent() {},
@@ -271,7 +272,9 @@ test("Load & Crop uses native numeric controls after its flexible crop preview",
     const [custom, canvas] = preview.element.children;
     assert.equal(custom.style.display, "none");
     assert.equal(canvas.tag, "canvas");
-    assert.equal(preview.element.children.length, 2);
+    assert.equal(preview.element.children.length, 3);
+    assert.equal(preview.element.children[2].style.display, "none");
+    assert.ok(position("crop_mode") < position("aspect_ratio"));
     assert.equal(preview.element.style.height, "100%");
     assert.equal(preview.element.style.contain, "size layout paint");
     assert.equal(canvas.style.height, "0");
@@ -286,7 +289,7 @@ test("Load & Crop uses native numeric controls after its flexible crop preview",
     assert.equal(layout.minHeight, 240);
     assert.equal(layout.maxHeight, 10000);
     assert.equal(node.size[0], 370);
-    assert.equal(node.size[1], 464);
+    assert.equal(node.size[1], 488);
     assert.equal(get("resolution_multiple").hidden, undefined);
     assert.equal(get("megapixels").hidden, undefined);
 });
@@ -434,7 +437,7 @@ test("serialized named settings survive UI widgets and saved preview does not re
 test("reloading or refreshing workflow preserves user resized node dimensions", () => {
     const { node, Node, extension } = fixture("DINKI_Image_Load_Crop");
     assert.equal(node.size[0], 370);
-    assert.equal(node.size[1], 464);
+    assert.equal(node.size[1], 488);
     // ComfyUI saves the user's size in the standard node size field.
     node.size = [550, 750];
     const info = { size: [...node.size], widgets_values: [],
@@ -446,7 +449,7 @@ test("reloading or refreshing workflow preserves user resized node dimensions", 
     // Reopen workflow on a new node instance
     const reopened = fixture("DINKI_Image_Load_Crop");
     assert.equal(reopened.node.size[0], 370);
-    assert.equal(reopened.node.size[1], 464);
+    assert.equal(reopened.node.size[1], 488);
 
     // A stale size property from an older workflow must not override the native size.
     info.properties.dkstCropSize = [370, 472];
@@ -459,4 +462,126 @@ test("reloading or refreshing workflow preserves user resized node dimensions", 
     extension.loadedGraphNode(reopened.node);
     assert.equal(reopened.node.size[0], 550);
     assert.equal(reopened.node.size[1], 750);
+});
+
+test("Expand fits a full portrait inside a wide canvas and previews the output size", () => {
+    const { node, get, drawTexts } = fixture("DINKI_Image_Load_Crop");
+    node.dkstCropSourcePreview({ width: 1800, height: 3358, uri: "file:portrait" }, "portrait");
+    get("aspect_ratio").value = "16:9";
+    get("aspect_ratio").callback("16:9");
+    get("crop_mode").value = "Expand";
+    get("crop_mode").callback("Expand");
+    assert.ok(get("crop_x").value < 0);
+    assert.ok(get("crop_y").value < 0);
+    assert.ok(get("crop_width").value > 1);
+    assert.ok(get("crop_height").value >= 1);
+    assert.ok(drawTexts.includes("Canvas 5984 × 3366 px"));
+    assert.equal(drawTexts.at(-1), "Output 1368 × 768 px");
+    const preview = get("__dkst_crop_preview");
+    const [custom, canvas, controls] = preview.element.children;
+    assert.equal(custom.style.display, "none");
+    assert.equal(controls.style.display, "flex");
+    assert.equal(preview.options.getMinHeight(), 276);
+    const r = preview.imageRect;
+    assert.ok(r.x + get("crop_x").value * r.w >= 8);
+    assert.ok(r.x + (get("crop_x").value + get("crop_width").value) * r.w <= canvas.clientWidth - 8);
+
+    get("crop_x").value = -3;
+    controls.children[0].listeners.click({ preventDefault() {}, stopPropagation() {} });
+    assert.ok(Math.abs(get("crop_x").value - (-2092 / 1800)) < 0.000001);
+    get("crop_mode").value = "Crop";
+    get("crop_mode").callback("Crop");
+    assert.ok(get("crop_x").value >= 0);
+    assert.ok(get("crop_width").value <= 1);
+    assert.equal(controls.style.display, "none");
+});
+
+test("Expand drag crosses image bounds, freezes the viewport, and refits on release", () => {
+    const { node, get } = fixture("DINKI_Image_Load_Crop");
+    get("crop_mode").value = "Expand";
+    node.dkstCropSourcePreview({ width: 400, height: 300, uri: "file:image" }, "image");
+    const preview = get("__dkst_crop_preview");
+    const canvas = preview.element.children[1];
+    canvas.displayScale = 0.5;
+    const pointer = (x, y) => ({ button: 0, pointerId: 2, clientX: x * 0.5, clientY: y * 0.5,
+        preventDefault() {}, stopPropagation() {} });
+    const before = { ...preview.imageRect };
+    const start = pointer(before.x, before.y);
+    canvas.listeners.pointerdown(start);
+    canvas.listeners.pointermove(pointer(before.x - before.w / 2, before.y - before.h / 2));
+    assert.ok(get("crop_x").value < 0);
+    assert.ok(get("crop_y").value < 0);
+    assert.ok(get("crop_width").value > 1);
+    assert.equal(preview.imageRect.w, before.w);
+    assert.equal(preview.imageRect.x, before.x);
+    canvas.listeners.pointerup(pointer(before.x - before.w / 2, before.y - before.h / 2));
+    assert.ok(preview.imageRect.w < before.w);
+    const w = get("crop_width").value * 400, h = get("crop_height").value * 300;
+    assert.ok(Math.abs(w / h - 4 / 3) < 0.00001);
+
+    const r = preview.imageRect;
+    const cx = r.x + (get("crop_x").value + get("crop_width").value / 2) * r.w;
+    const cy = r.y + (get("crop_y").value + get("crop_height").value / 2) * r.h;
+    const oldX = get("crop_x").value;
+    canvas.listeners.pointerdown(pointer(cx, cy));
+    canvas.listeners.pointermove(pointer(cx - r.w, cy));
+    assert.ok(get("crop_x").value < oldX);
+    canvas.listeners.pointercancel();
+    assert.ok(preview.imageRect.x !== r.x);
+});
+
+test("Expand restores negative geometry from named and positional saves", () => {
+    for (const info of [
+        { properties: { dkstCropSettings: { crop_mode: "Expand", aspect_ratio: "16:9",
+            crop_x: -1, crop_y: -0.01, crop_width: 3, crop_height: 1.02,
+            resolution_multiple: 32, megapixels: 1.22 } } },
+        { widgets_values: ["", "portrait.png", "Expand", "16:9", 1, 1, -1, -0.01, 3, 1.02, "input", 32, 1.22] },
+        { widgets_values: ["", "portrait.png", "16:9", 1, 1, -1, -0.01, 3, 1.02, 32, 1.22, "input", "Expand"] },
+    ]) {
+        const { node, Node, get, output } = fixture("DINKI_Image_Load_Crop");
+        Node.prototype.onConfigure.call(node, info);
+        assert.equal(get("crop_mode").value, "Expand");
+        assert.equal(get("crop_x").value, -1);
+        assert.equal(get("crop_width").value, 3);
+        assert.equal(get("resolution_multiple").value, 32);
+        assert.equal(get("megapixels").value, 1.22);
+        node.dkstCropOutput(output(300, 400, [-150, -25, 600, 450]));
+        assert.equal(get("crop_x").value, -0.5);
+        assert.equal(get("crop_height").value, 1.125);
+        const saved = {};
+        Node.prototype.onSerialize.call(node, saved);
+        assert.equal(saved.properties.dkstCropSettings.crop_mode, "Expand");
+        assert.equal(saved.properties.dkstCropSettings.crop_x, -0.5);
+    }
+});
+
+test("a new file in Expand refits the full source and legacy saves default to Crop", () => {
+    const { node, Node, get } = fixture("DINKI_Image_Load_Crop");
+    get("crop_mode").value = "Expand";
+    get("aspect_ratio").value = "1:1";
+    node.dkstCropSourcePreview({ width: 300, height: 400, uri: "file:portrait" }, "first");
+    assert.ok(get("crop_width").value > 1);
+    node.dkstCropSourcePreview({ width: 600, height: 300, uri: "file:landscape" }, "second");
+    assert.equal(get("crop_x").value, 0);
+    assert.equal(get("crop_y").value, -0.5);
+    assert.equal(get("crop_height").value, 2);
+    Node.prototype.onConfigure.call(node, { widgets_values: [
+        "", "portrait.png", "4:5", 4, 5, 0.1, 0.2, 0.7, 0.8, 16, 2,
+    ] });
+    assert.equal(get("crop_mode").value, "Crop");
+    assert.equal(get("crop_x").value, 0.1);
+});
+
+test("Expand x offsets resembling old resolution multiples restore as coordinates", () => {
+    for (const cropX of [4, 8, 32, 128]) {
+        const { node, Node, get } = fixture("DINKI_Image_Load_Crop");
+        Node.prototype.onConfigure.call(node, { widgets_values: [
+            "", "portrait.png", "Expand", "16:9", 1, 1, cropX, -0.2, 3, 1.5, 16, 0.56,
+        ] });
+        assert.equal(get("crop_x").value, cropX);
+        assert.equal(get("crop_y").value, -0.2);
+        assert.equal(get("crop_width").value, 3);
+        assert.equal(get("resolution_multiple").value, 16);
+        assert.equal(get("megapixels").value, 0.56);
+    }
 });

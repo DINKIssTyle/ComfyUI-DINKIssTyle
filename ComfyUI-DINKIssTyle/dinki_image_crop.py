@@ -40,15 +40,34 @@ def _ratio_parts(aspect_ratio, custom_width, custom_height, width, height):
 
 
 def _crop_bounds(width, height, aspect_ratio, custom_width, custom_height,
-                 crop_x, crop_y, crop_width, crop_height):
+                 crop_x, crop_y, crop_width, crop_height, crop_mode="Crop"):
     a, b = _ratio_parts(aspect_ratio, custom_width, custom_height, width, height)
+    if crop_mode not in ("Crop", "Expand"):
+        raise ValueError("Unknown crop mode")
     for name, value in (("crop_x", crop_x), ("crop_y", crop_y),
                         ("crop_width", crop_width), ("crop_height", crop_height)):
+        lower, upper = (0, 1) if crop_mode == "Crop" else \
+            ((-10000, 10000) if name in ("crop_x", "crop_y") else (0, 10000))
         if isinstance(value, bool) or not isinstance(value, (int, float)) or \
-                not math.isfinite(value) or not 0 <= value <= 1:
-            raise ValueError(f"{name} must be a finite value from 0 to 1")
+                not math.isfinite(value) or not lower <= value <= upper:
+            raise ValueError(f"{name} must be a finite value from {lower} to {upper}")
     if crop_width <= 0 or crop_height <= 0:
         raise ValueError("Crop width and height must be greater than zero")
+
+    if crop_mode == "Expand":
+        if (crop_x, crop_y, crop_width, crop_height) == (0, 0, 1, 1):
+            # API callers with untouched defaults get the same full-image fit
+            # as selecting Expand in the interactive UI.
+            scale = math.ceil(max(width / a, height / b))
+            out_width, out_height = a * scale, b * scale
+            return (round((width - out_width) / 2),
+                    round((height - out_height) / 2), out_width, out_height)
+        scale = min(crop_width * width / a, crop_height * height / b)
+        out_width, out_height = max(1, round(a * scale)), max(1, round(b * scale))
+        center_x = (crop_x + crop_width / 2) * width
+        center_y = (crop_y + crop_height / 2) * height
+        return (round(center_x - out_width / 2),
+                round(center_y - out_height / 2), out_width, out_height)
 
     requested_width = max(1, min(width, round(crop_width * width)))
     requested_height = max(1, min(height, round(crop_height * height)))

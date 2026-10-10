@@ -6,6 +6,20 @@ const STORED = ["aspect_ratio", "custom_width", "custom_height", "crop_x", "crop
 const SIZE_CONTROLS = ["resolution_multiple", "megapixels"];
 const megapixelsNumber = value => Number(String(value).replace(/MP$/, ""));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const EXPAND_LIMIT = 10000;
+const expanding = node => node.comfyClass === "DINKI_Image_Load_Crop" &&
+    node.widgets.find(widget => widget.name === "crop_mode")?.value === "Expand";
+// Match Python's round() for the expanded canvas and resolution calculations.
+function roundEven(value) {
+    const floor = Math.floor(value);
+    const fraction = value - floor;
+    return fraction < 0.5 ? floor : fraction > 0.5 ? floor + 1 : floor + Math.abs(floor % 2);
+}
+
+function expandedSize(width, height, a, b, maxWidth, maxHeight) {
+    const scale = Math.min(maxWidth / a, maxHeight / b);
+    return [Math.max(1, roundEven(a * scale)), Math.max(1, roundEven(b * scale))];
+}
 
 function targetSize(width, height, node) {
     const megapixels = megapixelsNumber(node.widgets.find(widget => widget.name === "megapixels")?.value);
@@ -69,7 +83,8 @@ function fittedSize(width, height, a, b, maxWidth, maxHeight) {
 }
 
 function values(node) {
-    return Object.fromEntries(STORED.map(name => [name, node.widgets.find(widget => widget.name === name)]));
+    return Object.fromEntries([...STORED, "crop_mode"].map(name =>
+        [name, node.widgets.find(widget => widget.name === name)]));
 }
 
 function rectFromWidgets(widgets) {
@@ -88,12 +103,17 @@ function setWidget(node, widget, value) {
 }
 
 function setRect(node, widgets, rect) {
+    const expand = expanding(node);
     const safe = {
-        x: clamp(rect.x, 0, 1), y: clamp(rect.y, 0, 1),
-        w: clamp(rect.w, 0.000001, 1), h: clamp(rect.h, 0.000001, 1),
+        x: clamp(rect.x, expand ? -EXPAND_LIMIT : 0, expand ? EXPAND_LIMIT : 1),
+        y: clamp(rect.y, expand ? -EXPAND_LIMIT : 0, expand ? EXPAND_LIMIT : 1),
+        w: clamp(rect.w, 0.000001, expand ? EXPAND_LIMIT : 1),
+        h: clamp(rect.h, 0.000001, expand ? EXPAND_LIMIT : 1),
     };
-    safe.x = Math.min(safe.x, 1 - safe.w);
-    safe.y = Math.min(safe.y, 1 - safe.h);
+    if (!expand) {
+        safe.x = Math.min(safe.x, 1 - safe.w);
+        safe.y = Math.min(safe.y, 1 - safe.h);
+    }
     for (const [name, value] of Object.entries({
         crop_x: safe.x, crop_y: safe.y, crop_width: safe.w, crop_height: safe.h,
     })) setWidget(node, widgets[name], Math.round(value * 1000000) / 1000000);
@@ -104,7 +124,9 @@ function setRect(node, widgets, rect) {
 
 function centeredRect(node, width, height) {
     const [a, b] = ratioParts(node, width, height);
-    const [w, h] = fittedSize(width, height, a, b, width, height);
+    const multiple = Math.ceil(Math.max(width / a, height / b));
+    const [w, h] = expanding(node) ? [a * multiple, b * multiple] :
+        fittedSize(width, height, a, b, width, height);
     return { x: (width - w) / (2 * width), y: (height - h) / (2 * height),
         w: w / width, h: h / height };
 }
@@ -162,11 +184,31 @@ function cropPreviewWidget(node, state, widgets) {
         flex: "1 1 0", display: "block", borderRadius: "6px",
         touchAction: "none", cursor: "default" });
     root.append(custom.row, canvas);
+    const expandControls = document.createElement("div");
+    expandControls.style.cssText = "display:none;align-items:center;gap:8px;flex:0 0 28px;min-height:28px";
+    if (widgets.crop_mode) {
+        const fit = document.createElement("button");
+        fit.textContent = "Fit image";
+        fit.setAttribute("aria-label", "Fit the entire image into the selected aspect ratio");
+        fit.style.cssText = "height:28px;border:1px solid var(--border-color,#555);border-radius:5px;background:var(--comfy-input-bg,#32343a);color:var(--input-text,#eee);padding:0 10px;cursor:pointer;font:inherit";
+        fit.addEventListener("click", event => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (state.width) setRect(node, widgets, centeredRect(node, state.width, state.height));
+        });
+        const hint = document.createElement("span");
+        hint.textContent = "Drag corners to add padding";
+        hint.style.cssText = "font-size:11px";
+        expandControls.append(fit, hint);
+        root.append(expandControls);
+    }
     const controlsHeight = () => (custom.row.style.display === "none" ? 0 : 36) +
+        (expandControls.style.display === "none" ? 0 : 36) +
         (node.dkstVideoControlsHeight || 0);
     if (node.comfyClass === "DINKI_Video_Load_Crop") node.dkstCropRoot = root;
     const sync = () => {
         custom.sync();
+        expandControls.style.display = expanding(node) ? "flex" : "none";
         // WidgetDOM in Vue nodes does not apply the legacy height callbacks.
         // A CSS minimum keeps the preview usable there as well as on canvas nodes.
         root.style.minHeight = `${240 + controlsHeight()}px`;
@@ -219,24 +261,56 @@ function cropPreviewWidget(node, state, widgets) {
         const loadCrop = node.comfyClass === "DINKI_Image_Load_Crop" ||
             node.comfyClass === "DINKI_Video_Load_Crop";
         const availableHeight = Math.max(1, height - (loadCrop ? 32 : 18) - inset * 2);
-        const mediaWidth = state.image.videoWidth || state.image.width;
-        const mediaHeight = state.image.videoHeight || state.image.height;
-        const scale = Math.min(availableWidth / mediaWidth, availableHeight / mediaHeight);
-        const iw = mediaWidth * scale;
-        const ih = mediaHeight * scale;
-        const ix = (width - iw) / 2;
-        const iy = inset + (availableHeight - ih) / 2;
-        imageRect = { x: ix, y: iy, w: iw, h: ih };
-        widget.imageRect = imageRect;
-        ctx.drawImage(state.image, ix, iy, iw, ih);
         const rect = rectFromWidgets(widgets);
-        const rx = ix + rect.x * iw, ry = iy + rect.y * ih;
-        const rw = rect.w * iw, rh = rect.h * ih;
+        const expand = expanding(node);
+        let vx = 0, vy = 0, vw = 1, vh = 1;
+        if (expand) {
+            vx = Math.min(0, rect.x); vy = Math.min(0, rect.y);
+            vw = Math.max(1, rect.x + rect.w) - vx;
+            vh = Math.max(1, rect.y + rect.h) - vy;
+            // Leave room to start enlarging a box without leaving the canvas.
+            vx -= vw * 0.08; vy -= vh * 0.08;
+            vw *= 1.16; vh *= 1.16;
+        }
+        const scale = Math.min(availableWidth / (state.width * vw), availableHeight / (state.height * vh));
+        const iw = state.width * scale, ih = state.height * scale;
+        imageRect = active?.imageRect ?? {
+            x: (width - iw * vw) / 2 - vx * iw,
+            y: inset + (availableHeight - ih * vh) / 2 - vy * ih, w: iw, h: ih,
+        };
+        widget.imageRect = imageRect;
+        const { x: ix, y: iy, w: imageW, h: imageH } = imageRect;
+        const rx = ix + rect.x * imageW, ry = iy + rect.y * imageH;
+        const rw = rect.w * imageW, rh = rect.h * imageH;
+        if (expand) {
+            ctx.save();
+            ctx.beginPath(); ctx.rect(rx, ry, rw, rh); ctx.clip();
+            ctx.fillStyle = "#34383e";
+            ctx.fillRect(rx, ry, rw, rh);
+            ctx.fillStyle = "#282c31";
+            // Clip the checkerboard to the visible viewport during dragging.
+            for (let cy = Math.max(0, ry); cy < Math.min(height, ry + rh); cy += 12) {
+                for (let cx = Math.max(0, rx); cx < Math.min(width, rx + rw); cx += 12) {
+                    if ((Math.floor((cx - rx) / 12) + Math.floor((cy - ry) / 12)) % 2 === 0)
+                        ctx.fillRect(cx, cy, 12, 12);
+                }
+            }
+            ctx.restore();
+        }
+        ctx.drawImage(state.image, ix, iy, imageW, imageH);
+        ctx.save();
+        ctx.beginPath(); ctx.rect(ix, iy, imageW, imageH); ctx.clip();
         ctx.fillStyle = "rgba(0,0,0,0.55)";
-        ctx.fillRect(ix, iy, iw, Math.max(0, ry - iy));
-        ctx.fillRect(ix, ry + rh, iw, Math.max(0, iy + ih - ry - rh));
-        ctx.fillRect(ix, ry, Math.max(0, rx - ix), rh);
-        ctx.fillRect(rx + rw, ry, Math.max(0, ix + iw - rx - rw), rh);
+        ctx.beginPath(); ctx.rect(ix, iy, imageW, imageH); ctx.rect(rx, ry, rw, rh);
+        ctx.fill("evenodd");
+        ctx.restore();
+        if (expand) {
+            ctx.strokeStyle = "#727985";
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.strokeRect(ix, iy, imageW, imageH);
+            ctx.setLineDash([]);
+        }
         ctx.strokeStyle = "#f5f7fa";
         ctx.lineWidth = 1.5;
         ctx.strokeRect(rx + 0.75, ry + 0.75, Math.max(1, rw - 1.5), Math.max(1, rh - 1.5));
@@ -245,14 +319,15 @@ function cropPreviewWidget(node, state, widgets) {
             ctx.fillRect(hx - 4, hy - 4, 8, 8);
         }
         const [a, b] = ratioParts(node, state.width, state.height);
-        const [outW, outH] = fittedSize(state.width, state.height, a, b,
-            Math.max(1, Math.round(rect.w * state.width)),
-            Math.max(1, Math.round(rect.h * state.height)));
+        const sizeFunction = expand ? expandedSize : fittedSize;
+        const [outW, outH] = sizeFunction(state.width, state.height, a, b,
+            expand ? rect.w * state.width : Math.max(1, Math.round(rect.w * state.width)),
+            expand ? rect.h * state.height : Math.max(1, Math.round(rect.h * state.height)));
         ctx.fillStyle = "#bfc3cb";
         ctx.font = "11px sans-serif";
         ctx.textAlign = "right";
         const sizeLabel = loadCrop ?
-            `Source crop ${outW} × ${outH} px` : `${outW} × ${outH} px`;
+            `${expand ? "Canvas" : "Source crop"} ${outW} × ${outH} px` : `${outW} × ${outH} px`;
         ctx.fillText(sizeLabel, width - 4, height - (loadCrop ? 18 : 4));
         if (loadCrop) {
             const output = targetSize(outW, outH, node);
@@ -291,10 +366,13 @@ function cropPreviewWidget(node, state, widgets) {
         const x = (position.x - imageRect.x) / imageRect.w;
         const y = (position.y - imageRect.y) / imageRect.h;
         const { mode, current, downX, downY, ratio } = active;
+        const expand = expanding(node);
         if (mode === "move") {
             setRect(node, widgets, { ...current,
-                x: clamp(current.x + x - downX, 0, 1 - current.w),
-                y: clamp(current.y + y - downY, 0, 1 - current.h) });
+                x: clamp(current.x + x - downX, expand ? -EXPAND_LIMIT : 0,
+                    expand ? EXPAND_LIMIT : 1 - current.w),
+                y: clamp(current.y + y - downY, expand ? -EXPAND_LIMIT : 0,
+                    expand ? EXPAND_LIMIT : 1 - current.h) });
             return;
         }
         const anchorX = mode.includes("l") ? current.x + current.w : current.x;
@@ -303,8 +381,10 @@ function cropPreviewWidget(node, state, widgets) {
         const signY = mode.includes("t") ? -1 : 1;
         const desiredW = Math.max(0, signX * (x - anchorX));
         const desiredH = Math.max(0, signY * (y - anchorY));
-        const maxW = signX < 0 ? anchorX : 1 - anchorX;
-        const maxH = signY < 0 ? anchorY : 1 - anchorY;
+        const maxW = expand ? Math.min(EXPAND_LIMIT,
+            signX < 0 ? anchorX + EXPAND_LIMIT : Infinity) : signX < 0 ? anchorX : 1 - anchorX;
+        const maxH = expand ? Math.min(EXPAND_LIMIT,
+            signY < 0 ? anchorY + EXPAND_LIMIT : Infinity) : signY < 0 ? anchorY : 1 - anchorY;
         const maxAllowedW = Math.min(maxW, maxH * ratio);
         const newW = clamp((desiredW + desiredH * ratio) / 2,
             Math.min(maxAllowedW, Math.max(1 / state.width, ratio / state.height)), maxAllowedW);
@@ -320,7 +400,7 @@ function cropPreviewWidget(node, state, widgets) {
         if (!mode) return;
         const current = rectFromWidgets(widgets);
         const [a, b] = ratioParts(node, state.width, state.height);
-        active = { mode, current,
+        active = { mode, current, imageRect: { ...imageRect },
             downX: (position.x - imageRect.x) / imageRect.w,
             downY: (position.y - imageRect.y) / imageRect.h,
             ratio: (a / b) * (state.height / state.width) };
@@ -344,11 +424,13 @@ function cropPreviewWidget(node, state, widgets) {
         if (!active) return;
         drag(event);
         active = null;
+        render();
         canvas.releasePointerCapture?.(event.pointerId);
         event.preventDefault();
         event.stopPropagation();
     });
-    canvas.addEventListener("pointercancel", () => { active = null; });
+    canvas.addEventListener("pointercancel", () => { active = null; render(); });
+    canvas.addEventListener("lostpointercapture", () => { active = null; render(); });
     const observer = typeof ResizeObserver === "function" ? new ResizeObserver(render) : null;
     observer?.observe(root);
     widget.render = render;
@@ -374,6 +456,19 @@ app.registerExtension({
             node.widgets.splice(node.widgets.indexOf(preview), 1);
             node.widgets.push(preview);
             if (nodeData.name === "DINKI_Image_Load_Crop") {
+                if (widgets.crop_mode) {
+                    node.widgets.splice(node.widgets.indexOf(widgets.crop_mode), 1);
+                    node.widgets.splice(node.widgets.indexOf(widgets.aspect_ratio), 0, widgets.crop_mode);
+                    const originalModeCallback = widgets.crop_mode.callback;
+                    widgets.crop_mode.callback = function(value, ...callbackArgs) {
+                        originalModeCallback?.call(this, value, ...callbackArgs);
+                        node.dkstCropSync?.();
+                        if (state.width) setRect(node, widgets, centeredRect(node, state.width, state.height));
+                        else preview.render();
+                        node.expandToFitContent?.();
+                        node.setDirtyCanvas?.(true, true);
+                    };
+                }
                 for (const name of SIZE_CONTROLS) {
                     const control = node.widgets.find(widget => widget.name === name);
                     if (!control) continue;
@@ -512,7 +607,7 @@ app.registerExtension({
             // Only establish a useful size for a newly added node here.
             node.size[0] = Math.max(node.size[0], 370);
             node.size[1] = Math.max(node.size[1],
-                (nodeData.name === "DINKI_Image_Load_Crop" ? 164 : 64) +
+                (nodeData.name === "DINKI_Image_Load_Crop" ? 164 + (widgets.crop_mode ? 24 : 0) : 64) +
                 preview.options.getHeight());
             return result;
         };
@@ -531,12 +626,21 @@ app.registerExtension({
             // layouts place them last, sometimes after the hidden source_type.
             const list = (Array.isArray(info?.widgets_values) ? info.widgets_values : []).filter(value => value != null);
             if (loadCrop) {
+                // The mode widget is shown before aspect_ratio. Remove it before
+                // applying the legacy positional layouts, including optional-tail saves.
+                const modeIndex = list.findIndex((value, index) =>
+                    index >= 2 && (value === "Crop" || value === "Expand"));
+                const savedMode = modeIndex >= 0 ? list.splice(modeIndex, 1)[0] : undefined;
+                const mode = named?.crop_mode ?? namedValues?.crop_mode ?? savedMode ?? "Crop";
+                if (widgets.crop_mode) widgets.crop_mode.value = mode === "Expand" ? "Expand" : "Crop";
                 const sourceIndex = [9, 11].find(index => list[index] === "input" || list[index] === "temp");
                 if (sourceIndex !== undefined) list.splice(sourceIndex, 1);
             }
             const offset = loadCrop ? 2 : 0;
             const earlyMultiple = Number(list[5]);
-            const sizeFirst = loadCrop && Number.isInteger(earlyMultiple) &&
+            // Crop's former 0..1 coordinates made this legacy discriminator
+            // unambiguous. Expand may legitimately start at x=4, 8, etc.
+            const sizeFirst = loadCrop && !expanding(this) && Number.isInteger(earlyMultiple) &&
                 earlyMultiple >= 4 && earlyMultiple <= 128 && earlyMultiple % 4 === 0;
             const positional = Object.fromEntries(STORED.map((name, index) =>
                 [name, list[offset + index + (sizeFirst && index >= 3 ? 2 : 0)]]));
@@ -576,7 +680,7 @@ app.registerExtension({
                 }
                 info.properties ??= {};
                 const names = nodeData.name === "DINKI_Image_Load_Crop" ?
-                    [...STORED, ...SIZE_CONTROLS] : STORED;
+                    [...STORED, ...SIZE_CONTROLS, "crop_mode"] : STORED;
                 info.properties.dkstCropSettings = Object.fromEntries(names.map(name =>
                     [name, this.widgets.find(widget => widget.name === name)?.value]));
                 delete info.properties.dkstCropSize;
