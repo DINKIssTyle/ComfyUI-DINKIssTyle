@@ -100,6 +100,12 @@ from .dinki_image_size import DINKI_GetImageSize
 from .dinki_photo_specs import DINKI_photo_specifications
 from .dinki_photo_studio import DINKI_Photo_Studio, DINKI_Photo_Studio_Source
 from .dinki_multi_lora import DINKI_Multi_LoRA_Loader
+from .dinki_ref import (
+    DINKI_Create_Image_Ref,
+    DINKI_Load_Image_Ref,
+    DINKI_Apply_Image_Ref,
+    DINKI_Inspect_Image_Ref,
+)
 from .dinki_overlay import DINKI_Overlay
 from .dinki_comparer import DINKI_Image_Comparer_MOV
 from .dinki_grid import DINKI_Grid
@@ -155,6 +161,10 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_ToggleUNetLoader": DINKI_ToggleUNetLoader,
     "DINKI_Empty_Or_Image_Latent": DINKI_Empty_Or_Image_Latent,
     "DINKI_Multi_LoRA_Loader": DINKI_Multi_LoRA_Loader,
+    "DINKI_Create_Image_Ref": DINKI_Create_Image_Ref,
+    "DINKI_Load_Image_Ref": DINKI_Load_Image_Ref,
+    "DINKI_Apply_Image_Ref": DINKI_Apply_Image_Ref,
+    "DINKI_Inspect_Image_Ref": DINKI_Inspect_Image_Ref,
 
     # Viewer
     "DINKI_Video_Player": DINKI_Video_Player,
@@ -238,6 +248,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_ToggleUNetLoader": "DKST PS (UNet Loader)",
     "DINKI_Empty_Or_Image_Latent": "DKST PS (Latent Source)",
     "DINKI_Multi_LoRA_Loader": "DKST PS (Multi LoRA Loader)",
+    "DINKI_Create_Image_Ref": "DKST PS (Image Ref Creator)",
+    "DINKI_Load_Image_Ref": "DKST PS (Image Ref Loader)",
+    "DINKI_Apply_Image_Ref": "DKST PS (Image Ref Apply)",
+    "DINKI_Inspect_Image_Ref": "DKST PS (Image Ref Inspect)",
 
     # Viewer
     "DINKI_Video_Player": "DKST Video (Sequence Player)",
