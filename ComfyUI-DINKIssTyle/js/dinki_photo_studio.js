@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { NODE_CLASS, isSetting, settingsOf, setNodeValue, openPhotoStudio, request, workflowImages, inputSignature } from "./dinki_photo_studio_editor.js";
+import { NODE_CLASS, isSetting, settingsOf, setNodeValue, openPhotoStudio, request, selectedImageCandidate, inputSignature } from "./dinki_photo_studio_editor.js";
 
 const LEGACY_DEFAULTS = { lens_blur_aperture_blades: 9, lens_blur_depth_blur_radius: 5, lens_blur_depth_sigma: 2.0 };
 function report(error) {
@@ -17,11 +17,7 @@ app.registerExtension({
         const originalMenu = nodeType.prototype.getExtraMenuOptions;
         nodeType.prototype.getExtraMenuOptions = function (_, options) {
             const result = originalMenu?.apply(this, arguments);
-            const candidates = workflowImages(this.graph);
-            const images = app.nodeOutputs?.[this.id]?.images ?? this.imgs ?? [];
-            const selected = this.imageIndex ?? this.overIndex ?? 0;
-            const index = Number.isInteger(selected) && selected >= 0 && selected < images.length ? selected : 0;
-            const candidate = candidates.find(c => c.previewNodeId === this.id && c.index === index);
+            const candidate = selectedImageCandidate(this);
             if (nodeData.name === NODE_CLASS) options.push({ content: "Open Photo Studio", callback: () => openPhotoStudio(this).catch(report) });
             else if (candidate) options.push({ content: "Open in Photo Studio", callback: () => openPhotoStudio(null, candidate).catch(report) });
             return result;

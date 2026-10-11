@@ -48,6 +48,26 @@ export function linkedImage(node, name = "image") {
     return source ? { node: source, slot: link.origin_slot } : null;
 }
 
+export function previewImages(node) {
+    if (node.comfyClass === "DINKI_Preview_Image" || node.type === "DINKI_Preview_Image") {
+        // The DOM Viewer restores its own saved preview before the output cache.
+        // Prefer the descriptors actually displayed, including a restored batch.
+        if (node.dkstPreviewImages != null) return node.dkstPreviewImages;
+        const stored = node.properties?.dkstPreview?.dkst_images;
+        if (stored?.length) return stored;
+        return app.nodeOutputs?.[node.id]?.dkst_images ?? app.nodeOutputs?.[node.id]?.images ?? [];
+    }
+    return app.nodeOutputs?.[node.id]?.images ?? node.imgs ?? [];
+}
+
+export function selectedImageCandidate(node) {
+    const images = previewImages(node);
+    const selected = node.dkstPreviewImageIndex ?? node.properties?.dkstPreview?.selectedIndex ??
+        node.imageIndex ?? node.overIndex ?? 0;
+    const index = Number.isInteger(selected) && selected >= 0 && selected < images.length ? selected : 0;
+    return workflowImages(node.graph).find(c => c.previewNodeId === node.id && c.index === index) || null;
+}
+
 // Only resolve actual IMAGE ports. Never substitute a sampler's ancestor input
 // for the sampler output, or bypass an unexecuted crop/composite.
 export function workflowImages(graph = app.graph) {
@@ -59,7 +79,7 @@ export function workflowImages(graph = app.graph) {
             if (descriptor && outputs.length) candidates.push({ descriptor, nodeId: node.id, slot: outputs[0].slot, label: node.title || "Load Image", previewNodeId: node.id, index: 0, direct: true, loader: (node.comfyClass === "LoadImage" || node.type === "LoadImage") ? "LoadImage" : "PhotoStudioSource", interpretation: widget(node, "interpretation")?.value });
             continue;
         }
-        const images = app.nodeOutputs?.[node.id]?.images ?? node.imgs ?? [];
+        const images = previewImages(node);
         images.forEach((image, index) => {
             const descriptor = descriptorOf(image);
             if (!descriptor) return;

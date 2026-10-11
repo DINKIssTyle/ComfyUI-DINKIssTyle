@@ -5,7 +5,7 @@ const { join } = require('node:path');
 const vm = require('node:vm');
 
 test('DOM preview menu uses selected batch image and blocks ordinary menu', async () => {
-    let extension, opened, copied, fetched;
+    let extension, opened, copied, fetched, studioCandidate;
     const blob = { type: 'image/png' };
     const elements = [];
     function createElement(tag) {
@@ -21,6 +21,8 @@ test('DOM preview menu uses selected batch image and blocks ordinary menu', asyn
     const app = { registerExtension(ext) { if (ext.name === 'DINKI.PreviewImage.Resolution') extension = ext; } };
     vm.runInNewContext(readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_nodes.js'), 'utf8').replace(/^import .*;\r?\n/gm, ''), {
         app, api: { apiURL: url => url }, URLSearchParams,
+        selectedImageCandidate: node => ({ descriptor: node.dkstPreviewImages[node.dkstPreviewImageIndex], index: node.dkstPreviewImageIndex }),
+        openPhotoStudio: async(node, candidate) => { assert.equal(node, null); studioCandidate = candidate; },
         fetch: async(url) => { fetched = url; return { ok: true, blob: async() => blob }; },
         ClipboardItem: class { constructor(data) { this.data = data; } },
         navigator: { clipboard: { write: async(items) => { copied = await items[0].data['image/png']; } } },
@@ -52,13 +54,16 @@ test('DOM preview menu uses selected batch image and blocks ordinary menu', asyn
     image.events.contextmenu(event);
     assert.ok(event.prevented);
     const buttons = elements.filter(el => el.tag === 'button');
-    assert.deepEqual(buttons.map(el => el.textContent), ['Open Image', 'Copy Image', 'Save Image']);
+    assert.deepEqual(buttons.map(el => el.textContent), ['Open Image', 'Copy Image', 'Save Image', 'Open in Photo Studio']);
     await buttons[0].onclick();
     assert.match(opened, /two.png/);
     await buttons[1].onclick();
     assert.match(fetched, /two.png/);
     assert.match(fetched, /type=output/);
     assert.equal(copied, blob);
+    await buttons[3].onclick();
+    assert.equal(studioCandidate.descriptor.filename, 'two.png');
+    assert.equal(studioCandidate.index, 1);
     const options = [];
     node.getExtraMenuOptions(null, options);
     assert.equal(options[0].content, 'Copy Image');

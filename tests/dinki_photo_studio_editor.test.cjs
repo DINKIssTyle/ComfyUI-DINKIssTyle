@@ -24,6 +24,7 @@ async function fixture() {
     dom.window.prompt = () => 'My Look';
     const calls = [], queueCalls = [], listeners = new Map();
     let extension, previewHandler;
+    const extensions = new Map();
     let nextId = 1, nextLink = 1, sessionId = 1;
     const graph = { _nodes:[], links:{}, version:0,
         getNodeById(id) { return this._nodes.find(n => n.id === id); },
@@ -48,7 +49,7 @@ async function fixture() {
         disconnectInput(slot) { const old=this.inputs[slot].link; if (old != null) delete this.graph.links[old]; this.inputs[slot].link=null; }
         connect(slot,target,input) { target.disconnectInput(input); const link={id:nextLink++,origin_id:this.id,origin_slot:slot,target_id:target.id,target_slot:input}; this.graph.links[link.id]=link; target.inputs[input].link=link.id; return link; }
     }
-    const app = { graph, canvas:{graph_mouse:[500,100]}, nodeOutputs:{}, registerExtension(e) {extension=e;}, ui:{dialog:{show(){}}}, queuePrompt(...args){queueCalls.push(args);} };
+    const app = { graph, canvas:{graph_mouse:[500,100]}, nodeOutputs:{}, registerExtension(e) {extension=e;extensions.set(e.name,e);}, ui:{dialog:{show(){}}}, queuePrompt(...args){queueCalls.push(args);} };
     const api = { apiURL:path=>path,
         addEventListener(name,handler) { if(!listeners.has(name))listeners.set(name,new Set()); listeners.get(name).add(handler); },
         removeEventListener(name,handler) { listeners.get(name)?.delete(handler); },
@@ -68,7 +69,7 @@ async function fixture() {
     context.LiteGraph={createNode:type=>new Node(type)};
     const modules=new Map();
     const synthetic = exports => new vm.SyntheticModule(Object.keys(exports),function(){for(const [key,value] of Object.entries(exports))this.setExport(key,value);},{context});
-    const appModule=synthetic({app}),apiModule=synthetic({api});
+    const appModule=synthetic({app,ComfyApp:class {}}),apiModule=synthetic({api});
     async function load(path) {
         if(modules.has(path))return modules.get(path);
         const module=new vm.SourceTextModule(readFileSync(path,'utf8'),{context,identifier:path,initializeImportMeta(meta){meta.url=pathToFileURL(path).href;}});
@@ -85,12 +86,96 @@ async function fixture() {
     const node=add('DINKI_Photo_Studio');photo.connect(0,node,0);
     await settle();
     return {dom,graph,app,api,node,photo,depth,add,editorModule,calls,queueCalls,Node,extension,
+        async addViewer(properties = {}) {
+            const module = await load(join(root,'dinki_nodes.js')); await module.evaluate();
+            class Viewer {
+                constructor() { this.type=this.comfyClass='DINKI_Preview_Image';this.title='DKST Image (Viewer)';this.properties=properties;this.outputs=[{type:'IMAGE'}];this.inputs=[{name:'images',link:null}];this.widgets=[];this.pos=[0,0];this.onNodeCreated(); }
+                addDOMWidget(...args) { const w=Node.prototype.addDOMWidget.apply(this,args);this.preview=w.element;return w; }
+                setDirtyCanvas() {}
+                disconnectInput(...args) { return Node.prototype.disconnectInput.apply(this,args); }
+                connect(...args) { return Node.prototype.connect.apply(this,args); }
+            }
+            await extensions.get('DINKIssTyle.PhotoStudio').beforeRegisterNodeDef(Viewer,{name:'DINKI_Preview_Image'});
+            await extensions.get('DINKI.PreviewImage.Resolution').beforeRegisterNodeDef(Viewer,{name:'DINKI_Preview_Image'});
+            const viewer=new Viewer();graph.add(viewer);viewer.dkstRestorePreview();return viewer;
+        },
         setPreview(handler){previewHandler=handler;},
         cleanup(){for(const overlay of dom.window.document.querySelectorAll('.dkst-photo-overlay'))overlay.remove();dom.window.close();},
     };
 }
 
 // These exercise the actual extension modules, not a copy of editor logic.
+test('Viewer images are discoverable from output cache, saved workflow and live DOM preview',async()=>{
+    const f=await fixture();
+    try {
+        const viewer=f.add('DINKI_Preview_Image');
+        f.app.nodeOutputs[viewer.id]={dkst_images:[{filename:'cached.png',type:'temp'}]};
+        assert.equal(f.editorModule.selectedImageCandidate(viewer).descriptor.filename,'cached.png');
+        viewer.properties.dkstPreview={dkst_images:[],selectedIndex:0};
+        assert.equal(f.editorModule.selectedImageCandidate(viewer).descriptor.filename,'cached.png');
+        viewer.properties.dkstPreview={dkst_images:[{filename:'restored.png',type:'output'}],selectedIndex:0};
+        assert.equal(f.editorModule.selectedImageCandidate(viewer).descriptor.filename,'restored.png');
+        viewer.dkstPreviewImages=[{filename:'live.png',type:'temp'}];
+        assert.equal(f.editorModule.selectedImageCandidate(viewer).descriptor.filename,'live.png');
+        viewer.dkstPreviewImages=[];
+        assert.equal(f.editorModule.selectedImageCandidate(viewer),null);
+    } finally {f.cleanup();}
+});
+
+test('Viewer node menu opens its IMAGE output as a new Studio branch',async()=>{
+    const f=await fixture();
+    try {
+        const viewer=await f.addViewer();f.photo.connect(0,viewer,0);
+        viewer.onExecuted({dkst_images:[{filename:'viewer.png',type:'temp'}]});
+        const options=[];viewer.getExtraMenuOptions(null,options);
+        const actions=options.filter(o=>o.content==='Open in Photo Studio');
+        assert.equal(actions.length,1);
+        const editor=await actions[0].callback();
+        assert.equal(editor.imageCandidate.nodeId,viewer.id);
+        assert.equal(editor.imageCandidate.direct,true);
+        await editor.apply();
+        const created=f.graph._nodes.filter(n=>n.type==='DINKI_Photo_Studio').at(-1);
+        assert.equal(f.graph.links[created.inputs[0].link].origin_id,viewer.id);
+        assert.equal(f.graph.links[viewer.inputs[0].link].origin_id,f.photo.id);
+        assert.equal(f.queueCalls.length,0);
+    } finally {f.cleanup();}
+});
+
+test('Viewer image menu opens the restored selected batch frame and persists a snapshot on Apply',async()=>{
+    const f=await fixture();
+    try {
+        const viewer=await f.addViewer({dkstPreview:{dkst_images:[
+            {filename:'first.png',type:'temp'},{filename:'second.png',type:'output'},
+        ],selectedIndex:1}});
+        assert.match(viewer.preview.querySelector('img').src,/second.png/);
+        const image=viewer.preview.querySelector('img');
+        const event=new f.dom.window.MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:20,clientY:20});
+        image.dispatchEvent(event);
+        assert.equal(event.defaultPrevented,true);
+        const button=[...f.dom.window.document.querySelectorAll('button')].find(b=>b.textContent==='Open in Photo Studio');
+        assert.ok(button);assert.equal(button.disabled,false);
+        await button.onclick();
+        assert.equal(f.calls.find(c=>c.path.endsWith('/session')).payload.image.filename,'second.png');
+        assert.ok(f.dom.window.document.querySelector('.dkst-photo-overlay'));
+        // The menu has already opened this exact candidate; reuse the singleton.
+        const editor=await f.editorModule.openPhotoStudio();
+        assert.equal(editor.imageCandidate.index,1);
+        assert.equal(editor.imageCandidate.direct,false);
+        await editor.apply();
+        assert.equal(f.calls.find(c=>c.path.endsWith('/materialize')).payload.image.filename,'second.png');
+        const source=f.graph._nodes.find(n=>n.type==='DINKI_Photo_Studio_Source');
+        const created=f.graph._nodes.filter(n=>n.type==='DINKI_Photo_Studio').at(-1);
+        assert.equal(f.graph.links[created.inputs[0].link].origin_id,source.id);
+        assert.equal(f.queueCalls.length,0);
+        const selector=viewer.preview.querySelector('select');
+        selector.value='0';selector.onchange();
+        const options=[];viewer.getExtraMenuOptions(null,options);
+        const firstEditor=await options.find(o=>o.content==='Open in Photo Studio').callback();
+        assert.equal(firstEditor.imageCandidate.descriptor.filename,'first.png');
+        firstEditor.close();
+    } finally {f.cleanup();}
+});
+
 test('modal uses detached draft; Cancel leaves values, links and graph unchanged',async()=>{
     const f=await fixture();
     try {

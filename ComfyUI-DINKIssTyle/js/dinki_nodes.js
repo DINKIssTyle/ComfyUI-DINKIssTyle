@@ -2,6 +2,7 @@
 
 import { app, ComfyApp } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
+import { openPhotoStudio, selectedImageCandidate } from "./dinki_photo_studio_editor.js";
 
 // Restore the state output on saved Switch and Branch nodes.
 app.registerExtension({
@@ -191,7 +192,7 @@ function showMediaContextMenu(event, descriptor, actions = previewImageActions(d
         position: "fixed", zIndex: "100000", background: "#252525", color: "white",
         padding: "5px", border: "1px solid #555", borderRadius: "6px",
         left: `${Math.max(0, Math.min(event.clientX, window.innerWidth - 190))}px`,
-        top: `${Math.max(0, Math.min(event.clientY, window.innerHeight - 100))}px`,
+        top: `${Math.max(0, Math.min(event.clientY, window.innerHeight - (actions.length * 36 + 12)))}px`,
     });
     const close = () => {
         menu.remove();
@@ -2367,6 +2368,8 @@ app.registerExtension({
             const display = () => {
                 const generation = ++previewGeneration;
                 const item = selected();
+                this.dkstPreviewImages = descriptors;
+                this.dkstPreviewImageIndex = Number(selector.value) || 0;
                 if (!item) {
                     image.removeAttribute("src");
                     image.style.display = "none";
@@ -2400,7 +2403,14 @@ app.registerExtension({
                 });
             }
             image.addEventListener("contextmenu", event => {
-                if (selected()) showMediaContextMenu(event, selected());
+                if (selected()) {
+                    const candidate = selectedImageCandidate(this);
+                    showMediaContextMenu(event, selected(), [
+                        ...previewImageActions(selected()),
+                        { content: "Open in Photo Studio", disabled: !candidate,
+                            callback: () => openPhotoStudio(null, candidate) },
+                    ]);
+                }
             });
             this.dkstUpdatePreview = (message, persist = true) => {
                 descriptors = message?.dkst_images || message?.images || [];

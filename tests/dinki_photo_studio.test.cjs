@@ -65,7 +65,7 @@ function fixture() {
     vm.runInNewContext(source.replace(/^import .*;\r?\n/gm, ""),
         { app, api, window, Image: FakeImage, document, queueMicrotask,
             NODE_CLASS: "DINKI_Photo_Studio", isSetting: name => /^(light|color|effects|detail|optics|lens_blur|depth_near_is_white|grain_seed)/.test(name),
-            inputSignature: () => "signature", workflowImages: () => [], openPhotoStudio: async () => {},
+            inputSignature: () => "signature", selectedImageCandidate: () => null, openPhotoStudio: async () => {},
             setNodeValue(node, name, value) { const w = node.widgets.find(w => w.name === name); if (w) w.value = value; },
             request: async () => ({ presets, defaults }),
         });
