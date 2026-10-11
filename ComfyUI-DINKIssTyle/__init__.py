@@ -98,7 +98,7 @@ from .dinki_lmstudio import DINKI_LMStudio
 from .dinki_batchImages import DINKI_BatchImages
 from .dinki_image_size import DINKI_GetImageSize
 from .dinki_photo_specs import DINKI_photo_specifications
-from .dinki_photo_studio import DINKI_Photo_Studio
+from .dinki_photo_studio import DINKI_Photo_Studio, DINKI_Photo_Studio_Source
 from .dinki_multi_lora import DINKI_Multi_LoRA_Loader
 from .dinki_overlay import DINKI_Overlay
 from .dinki_comparer import DINKI_Image_Comparer_MOV
@@ -145,6 +145,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Color_Lut_Preview": DINKI_Color_Lut_Preview,
     "DINKI_Deband": DINKI_Deband,
     "DINKI_Photo_Studio": DINKI_Photo_Studio,
+    "DINKI_Photo_Studio_Source": DINKI_Photo_Studio_Source,
 
     # Photoshop/Processing (dinki_ps)
     "DINKI_Upscale_Latent_By": DINKI_Upscale_Latent_By,
@@ -227,6 +228,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Color_Lut_Preview": "DKST Color (LUT Preview)",
     "DINKI_Deband": "DKST Color (Deband)",
     "DINKI_Photo_Studio": "DKST Color (Photo Studio)",
+    "DINKI_Photo_Studio_Source": "DKST Color (Photo Studio Source)",
 
     # Photoshop/Processing
     "DINKI_Upscale_Latent_By": "DKST PS (Latent Upscale)",

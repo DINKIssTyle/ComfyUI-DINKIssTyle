@@ -577,12 +577,28 @@ class DINKI_Photo_Studio:
                 required[name] = ("INT" if spec[0] == "int" else "FLOAT", options)
         return {"required": required, "optional": {"depth_image": ("IMAGE",)}}
 
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        # ComfyUI otherwise keeps returning an expired UI token from its result
+        # cache. Only Photo Studio is invalidated; unchanged upstream nodes can
+        # continue using their normal execution cache.
+        with _SESSION_LOCK:
+            _prune_sessions()
+            return _SOURCE_REVISION
+
     def execute(self, image, active=True, preset="Custom", depth_image=None, **settings):
         ui = {"depth_preview": [_depth_preview(
             depth_image, settings.get("lens_blur_depth_blur_radius", 5),
             settings.get("lens_blur_depth_sigma", 2.0))],
               "auto_light_suggestion": [_auto_light_controls(image)]}
         result = self.apply(image, active, preset, depth_image, **settings)
+        # A detached first-frame snapshot allows editing the actual input even
+        # when it was produced by a sampler/crop rather than an image file.
+        try:
+            ui["photo_studio_source"] = [_store_source(image, depth_image)]
+            ui["photo_studio_preview"] = [_png_uri(result[0][:1].detach().float().cpu(), 320)]
+        except ValueError as error:
+            ui["photo_studio_preview_error"] = [str(error)]
         return {"ui": ui, "result": result}
 
     def apply(self, image, active=True, preset="Custom", depth_image=None, **settings):
@@ -656,7 +672,11 @@ async def photo_studio_presets(request):
     try:
         with _PRESET_LOCK:
             presets = _read_presets(_preset_path(request))
-        return web.json_response({"presets": presets, "defaults": _defaults()})
+        return web.json_response({"presets": presets, "defaults": _defaults(),
+                                  "controls": {name: {"kind": spec[0], "tooltip": TOOLTIPS.get(name, ""),
+                                      **({"values": spec[2]} if spec[0] == "choice" else
+                                         {"min": spec[2], "max": spec[3], "step": spec[4]} if len(spec) == 5 else {})}
+                                               for name, spec in CONTROLS.items()}})
     except (ValueError, OSError, json.JSONDecodeError) as error:
         return web.json_response({"error": str(error)}, status=400)
 
@@ -677,3 +697,368 @@ async def photo_studio_save_preset(request):
         return web.json_response({"error": str(error)}, status=409)
     except (ValueError, OSError, TypeError, json.JSONDecodeError, AttributeError) as error:
         return web.json_response({"error": str(error)}, status=400)
+
+
+# Preview sources are capabilities with unguessable IDs. They are never written
+# into workflow properties; editor sessions are additionally bound to a user.
+import asyncio
+import secrets
+import time
+from collections import OrderedDict
+
+_SESSION_LOCK = threading.RLock()
+_RENDER_LOCK = threading.Lock()
+_RENDER_SLOTS = threading.BoundedSemaphore(2)
+_SESSIONS = OrderedDict()
+_SESSION_TTL = 30 * 60
+_SESSION_BYTES = 512 * 1024 * 1024
+_SOURCE_BYTES = 256 * 1024 * 1024
+_MAX_PIXELS = 16_000_000
+_SOURCE_REVISION = 0
+
+
+def _session_size(item):
+    return sum(value.numel() * value.element_size() for value in
+               (item["image"], item["depth"]) if value is not None)
+
+
+def _drop_source(token):
+    global _SOURCE_REVISION
+    item = _SESSIONS.pop(token)
+    if item["owner"] is None:
+        _SOURCE_REVISION += 1
+
+
+def _prune_sessions():
+    now = time.monotonic()
+    for token, item in list(_SESSIONS.items()):
+        if now - item["touched"] > _SESSION_TTL:
+            _drop_source(token)
+
+
+def _store_source(image, depth=None, owner=None):
+    if not isinstance(image, torch.Tensor) or image.ndim != 4 or image.shape[0] < 1:
+        raise ValueError("No preview image available")
+    if min(image.shape[1:3]) < 1 or image.shape[-1] not in (3, 4) or image.shape[1] * image.shape[2] > _MAX_PIXELS:
+        raise ValueError("Preview supports RGB/RGBA images up to 16 megapixels")
+    image = image[:1].detach().to(device="cpu", dtype=torch.float32).clone()
+    if not torch.isfinite(image).all():
+        raise ValueError("image contains non-finite values")
+    if depth is not None:
+        if not isinstance(depth, torch.Tensor) or depth.ndim != 4 or depth.shape[0] < 1 or depth.shape[-1] not in (1, 3, 4):
+            raise ValueError("Invalid depth image")
+        depth = depth[:1].detach().to(device="cpu", dtype=torch.float32).clone()
+        if min(depth.shape[1:3]) < 1 or depth.shape[1] * depth.shape[2] > _MAX_PIXELS or not torch.isfinite(depth).all():
+            raise ValueError("Depth image is too large or contains non-finite values")
+        if abs(depth.shape[2] / depth.shape[1] - image.shape[2] / image.shape[1]) > 0.02:
+            raise ValueError("depth_image aspect ratio must match image aspect ratio")
+    item = {"image": image, "depth": depth, "owner": owner, "touched": time.monotonic()}
+    size = _session_size(item)
+    if size > _SOURCE_BYTES:
+        raise ValueError("Preview source exceeds 256 MB")
+    with _SESSION_LOCK:
+        _prune_sessions()
+        while _SESSIONS and (len(_SESSIONS) >= 16 or sum(_session_size(v) for v in _SESSIONS.values()) + size > _SESSION_BYTES):
+            _drop_source(next(iter(_SESSIONS)))
+        token = secrets.token_urlsafe(32)
+        _SESSIONS[token] = item
+    return token
+
+
+def _get_source(token, owner=None, capture=False):
+    with _SESSION_LOCK:
+        _prune_sessions()
+        item = _SESSIONS.get(token) if isinstance(token, str) else None
+        if item is None or (item["owner"] != owner and not (capture and item["owner"] is None)):
+            raise LookupError("Preview expired. Select an image again, or execute the Photo Studio node to capture its input.")
+        item["touched"] = time.monotonic()
+        _SESSIONS.move_to_end(token)
+        return item
+
+
+def _preview_owner(request):
+    return str(_preset_path(request).parent.resolve())
+
+
+def _descriptor_path(descriptor):
+    import folder_paths
+    if not isinstance(descriptor, dict):
+        raise ValueError("Select a workflow image")
+    kind = descriptor.get("type", "input")
+    filename = descriptor.get("filename")
+    subfolder = descriptor.get("subfolder", "")
+    if kind not in ("input", "output", "temp") or not isinstance(filename, str) or not filename or Path(filename).name != filename or "\\" in filename:
+        raise ValueError("Invalid image descriptor")
+    if not isinstance(subfolder, str) or "\\" in subfolder or Path(subfolder).is_absolute():
+        raise ValueError("Invalid image folder")
+    root = Path(folder_paths.get_directory_by_type(kind)).resolve()
+    path = (root / subfolder / filename).resolve()
+    if not path.is_relative_to(root) or not path.is_file():
+        raise ValueError("Image is unavailable or outside the ComfyUI image directory")
+    if path.stat().st_size > 128 * 1024 * 1024:
+        raise ValueError("Image file exceeds 128 MB")
+    return path
+
+
+def _read_image_descriptor(descriptor, depth=False):
+    import numpy as np
+    from PIL import ImageOps
+    path = _descriptor_path(descriptor)
+    with Image.open(path) as original:
+        if original.width * original.height > _MAX_PIXELS:
+            raise ValueError("Preview supports images up to 16 megapixels")
+        image = ImageOps.exif_transpose(original)
+        # Preserve 16-bit grayscale depth instead of converting it through RGB8.
+        if depth and image.mode in ("I", "I;16", "I;16B", "I;16L", "F"):
+            pixels = np.array(image, dtype=np.float32, copy=True)
+            if image.mode != "F":
+                pixels /= 65535.0
+            pixels = pixels[..., None]
+        else:
+            has_alpha = "A" in image.getbands() or "transparency" in image.info
+            pixels = np.array(image.convert("RGBA" if has_alpha else "RGB"), dtype=np.float32) / 255.0
+    return torch.from_numpy(pixels).unsqueeze(0)
+
+
+
+def _read_preview_input(descriptor, depth=False, loader=None, interpretation=None):
+    if loader not in (None, "LoadImage", "PhotoStudioSource"):
+        raise ValueError("Unknown image loader")
+    if loader == "PhotoStudioSource":
+        if interpretation not in ("Image", "Depth map"):
+            raise ValueError("Invalid image interpretation")
+        depth = interpretation == "Depth map"
+    if loader == "LoadImage":
+        # Use the installed core loader's interpretation (RGB/alpha, grayscale
+        # bit depth, EXIF orientation) when the final graph uses that loader.
+        import nodes
+        path = _descriptor_path(descriptor)
+        with Image.open(path) as image:
+            if image.width * image.height * getattr(image, "n_frames", 1) > _MAX_PIXELS:
+                raise ValueError("Preview input is too large")
+        name = "/".join(filter(None, (descriptor.get("subfolder"), descriptor["filename"])))
+        if descriptor.get("type", "input") != "input":
+            name += " [" + descriptor["type"] + "]"
+        return nodes.LoadImage().load_image(name)[0][:1].detach().float().cpu()
+    return _read_image_descriptor(descriptor, depth)
+
+
+def _proxy(image, edge):
+    h, w = image.shape[1:3]
+    if max(h, w) <= edge:
+        return image
+    ratio = edge / max(h, w)
+    return F.interpolate(image.permute(0, 3, 1, 2),
+                         size=(max(1, round(h * ratio)), max(1, round(w * ratio))),
+                         mode="area").permute(0, 2, 3, 1)
+
+
+def _png_uri(image, edge=1400):
+    pixels = (_proxy(image, edge)[0].clamp(0, 1) * 255).round().byte().numpy()
+    if pixels.shape[-1] == 1:
+        pixels = pixels[..., 0]
+    stream = io.BytesIO()
+    Image.fromarray(pixels).save(stream, format="PNG", compress_level=2)
+    return "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode("ascii")
+
+
+def _preview_depth(item, settings):
+    rgb = item["image"][..., :3].permute(0, 3, 1, 2).clamp(0, 1)
+    depth = _prepare_depth(item["depth"], rgb, settings["depth_near_is_white"],
+                           settings["lens_blur_depth_blur_radius"], settings["lens_blur_depth_sigma"])
+    if settings["optics_distortion"]:
+        _, depth, _ = _distort(rgb, depth, None, settings["optics_distortion"])
+    return depth
+
+
+def _render_preview(item, payload):
+    settings = _validate_settings(payload.get("settings", {}))
+    quality = payload.get("quality", "fast")
+    if quality not in ("fast", "original"):
+        raise ValueError("Invalid preview quality")
+    with _RENDER_LOCK, torch.inference_mode():
+        image = item["image"] if quality == "original" else _proxy(item["image"], 1024)
+        depth = item["depth"]
+        if depth is not None and quality == "fast":
+            depth = _proxy(depth, 1024)
+        result = DINKI_Photo_Studio().apply(image, depth_image=depth, **settings)[0]
+        histogram_image = _proxy(result, 256)[0, ..., :3]
+        histogram = [torch.histc(histogram_image[..., c].float(), bins=64, min=0, max=1).int().tolist() for c in range(3)]
+        response = {"preview": _png_uri(result), "histogram": histogram,
+                    "quality": quality, "proxy": image.shape != item["image"].shape}
+        if item["depth"] is not None:
+            key = tuple(settings[name] for name in ("depth_near_is_white", "lens_blur_depth_blur_radius", "lens_blur_depth_sigma", "optics_distortion"))
+            if item.get("depth_preview_key") != key:
+                item["depth_preview"] = _png_uri(_preview_depth(item, settings).permute(0, 2, 3, 1), 640)
+                item["depth_preview_key"] = key
+            # Display normalized focus depth; click sampling uses the float map.
+            response["depth_preview"] = item["depth_preview"]
+        return response
+
+
+async def _preview_payload(request):
+    if request.content_length is not None and request.content_length > 64 * 1024:
+        raise ValueError("Preview request is too large")
+    body = await request.content.read(64 * 1024 + 1)
+    if len(body) > 64 * 1024:
+        raise ValueError("Preview request is too large")
+    payload = json.loads(body)
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid preview request")
+    return payload
+
+
+async def _preview_work(function, *args):
+    if not _RENDER_SLOTS.acquire(blocking=False):
+        raise web.HTTPTooManyRequests(text="Photo Studio preview is busy. Try again shortly.")
+    task = asyncio.create_task(asyncio.to_thread(function, *args))
+    task.add_done_callback(lambda finished: (_RENDER_SLOTS.release(), None if finished.cancelled() else finished.exception()))
+    return await asyncio.shield(task)
+
+
+@PromptServer.instance.routes.post("/dinki/photo-studio/session")
+async def photo_studio_session(request):
+    try:
+        payload = await _preview_payload(request)
+        owner = _preview_owner(request)
+        def create():
+            with torch.inference_mode():
+                source = _get_source(payload["source_session"], owner, capture=True) if payload.get("source_session") else None
+                image = source["image"] if source else _read_preview_input(payload.get("image"), loader=payload.get("image_loader"), interpretation=payload.get("image_interpretation"))
+                depth = source["depth"] if source and payload.get("use_source_depth", True) else None
+                if payload.get("depth_source_session") and not payload.get("depth"):
+                    depth = _get_source(payload["depth_source_session"], owner, capture=True)["depth"]
+                if payload.get("depth") is not None:
+                    depth = _read_preview_input(payload["depth"], depth=True, loader=payload.get("depth_loader"), interpretation=payload.get("depth_interpretation"))
+                token = _store_source(image, depth, owner)
+                return {"session": token, "original": _png_uri(image),
+                        "width": image.shape[2], "height": image.shape[1],
+                        "has_depth": depth is not None, "auto": _auto_light_controls(image)}
+        return web.json_response(await _preview_work(create))
+    except LookupError as error:
+        return web.json_response({"error": str(error)}, status=410)
+    except (ValueError, OSError, TypeError, AttributeError, Image.DecompressionBombError, json.JSONDecodeError) as error:
+        return web.json_response({"error": str(error)}, status=400)
+
+
+@PromptServer.instance.routes.post("/dinki/photo-studio/preview")
+async def photo_studio_preview(request):
+    try:
+        payload = await _preview_payload(request)
+        item = _get_source(payload.get("session"), _preview_owner(request))
+        return web.json_response(await _preview_work(_render_preview, item, payload))
+    except LookupError as error:
+        return web.json_response({"error": str(error)}, status=410)
+    except (ValueError, OSError, TypeError, AttributeError, Image.DecompressionBombError, json.JSONDecodeError) as error:
+        return web.json_response({"error": str(error)}, status=400)
+
+
+@PromptServer.instance.routes.post("/dinki/photo-studio/focus")
+async def photo_studio_focus(request):
+    try:
+        payload = await _preview_payload(request)
+        item = _get_source(payload.get("session"), _preview_owner(request))
+        settings = _validate_settings(payload.get("settings", {}))
+        point = payload.get("point")
+        if not isinstance(point, list) or len(point) != 2 or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= 1 for v in point):
+            raise ValueError("Invalid focus point")
+        def sample():
+            with _RENDER_LOCK, torch.inference_mode():
+                depth = _preview_depth(item, settings)
+                y = min(depth.shape[2] - 1, int(point[1] * depth.shape[2]))
+                x = min(depth.shape[3] - 1, int(point[0] * depth.shape[3]))
+                return {"focus": float(depth[0, 0, y, x])}
+        return web.json_response(await _preview_work(sample))
+    except LookupError as error:
+        return web.json_response({"error": str(error)}, status=410)
+    except (ValueError, OSError, TypeError, AttributeError, Image.DecompressionBombError, json.JSONDecodeError) as error:
+        return web.json_response({"error": str(error)}, status=400)
+
+
+@PromptServer.instance.routes.post("/dinki/photo-studio/release")
+async def photo_studio_release(request):
+    try:
+        payload = await _preview_payload(request)
+        owner = _preview_owner(request)
+        with _SESSION_LOCK:
+            item = _SESSIONS.get(payload.get("session"))
+            if item and item["owner"] == owner:
+                del _SESSIONS[payload["session"]]
+        return web.json_response({"ok": True})
+    except (ValueError, TypeError, json.JSONDecodeError) as error:
+        return web.json_response({"error": str(error)}, status=400)
+
+
+@PromptServer.instance.routes.post("/dinki/photo-studio/materialize")
+async def photo_studio_materialize(request):
+    """Keep a selected preview/batch frame in input storage for LoadImage."""
+    try:
+        import hashlib
+        import shutil
+        import folder_paths
+        payload = await _preview_payload(request)
+        owner = _preview_owner(request)
+        def persist():
+            descriptor = payload.get("image")
+            path = _descriptor_path(descriptor)
+            _read_image_descriptor(descriptor, depth=True)  # validate image limits
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            subfolder = "dkst_photo_studio/" + hashlib.sha256(owner.encode()).hexdigest()[:16]
+            root = Path(folder_paths.get_directory_by_type("input")).resolve()
+            directory = (root / subfolder).resolve()
+            if not directory.is_relative_to(root):
+                raise ValueError("Invalid input storage directory")
+            directory.mkdir(parents=True, exist_ok=True)
+            filename = digest + path.suffix.lower()
+            target = directory / filename
+            if not target.resolve().is_relative_to(root):
+                raise ValueError("Invalid input storage file")
+            if not target.exists():
+                fd, temporary = tempfile.mkstemp(prefix=".photo-", dir=directory)
+                os.close(fd)
+                try:
+                    shutil.copyfile(path, temporary)
+                    os.replace(temporary, target)
+                finally:
+                    if os.path.exists(temporary):
+                        os.unlink(temporary)
+            return {"filename": filename, "subfolder": subfolder, "type": "input"}
+        return web.json_response(await _preview_work(persist))
+    except (ValueError, OSError, TypeError, AttributeError, Image.DecompressionBombError, json.JSONDecodeError) as error:
+        return web.json_response({"error": str(error)}, status=400)
+
+
+class DINKI_Photo_Studio_Source:
+    """File-backed first-frame input matching the editor's image interpretation.
+
+    A separate loader keeps imported RGBA and 16-bit depth intact regardless of
+    the installed core LoadImage version's RGB conversion behavior.
+    """
+    CATEGORY = "DINKIssTyle/Color"
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "execute"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"image": ("STRING", {"default": ""}),
+                             "interpretation": (["Image", "Depth map"],)}}
+
+    @staticmethod
+    def _descriptor(image):
+        if not isinstance(image, str) or not image:
+            raise ValueError("Choose a file in Photo Studio")
+        path = Path(image)
+        return {"filename": path.name, "subfolder": str(path.parent) if str(path.parent) != "." else "", "type": "input"}
+
+    def execute(self, image, interpretation="Image"):
+        descriptor = self._descriptor(image)
+        tensor = _read_image_descriptor(descriptor, depth=interpretation == "Depth map")
+        return {"ui": {"images": [descriptor]}, "result": (tensor,)}
+
+    @classmethod
+    def IS_CHANGED(cls, image, interpretation="Image"):
+        import hashlib
+        try:
+            return hashlib.sha256(_descriptor_path(cls._descriptor(image)).read_bytes()).hexdigest()
+        except (ValueError, OSError):
+            return float("nan")

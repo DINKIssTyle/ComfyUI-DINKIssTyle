@@ -63,7 +63,12 @@ function fixture() {
         }; } };
     } };
     vm.runInNewContext(source.replace(/^import .*;\r?\n/gm, ""),
-        { app, api, window, Image: FakeImage, document, queueMicrotask });
+        { app, api, window, Image: FakeImage, document, queueMicrotask,
+            NODE_CLASS: "DINKI_Photo_Studio", isSetting: name => /^(light|color|effects|detail|optics|lens_blur|depth_near_is_white|grain_seed)/.test(name),
+            inputSignature: () => "signature", workflowImages: () => [], openPhotoStudio: async () => {},
+            setNodeValue(node, name, value) { const w = node.widgets.find(w => w.name === name); if (w) w.value = value; },
+            request: async () => ({ presets, defaults }),
+        });
     const nodeType = function () {};
     extension.beforeRegisterNodeDef(nodeType, { name: "DINKI_Photo_Studio" });
     const node = {
@@ -111,55 +116,22 @@ function fixture() {
     return { node, nodeType, extension, app, calls, queueCalls, messages, emit, defaults, presets, listeners };
 }
 
-test("loading presets keeps workflow widget values until selection", async () => {
+test("compact node keeps hidden values serializable and presets do not replace restored settings", async () => {
     const { node } = fixture();
     await new Promise(resolve => setImmediate(resolve));
     const preset = node.widgets.find(widget => widget.name === "preset");
     const exposure = node.widgets.find(widget => widget.name === "light_exposure");
     assert.equal(preset.type, "combo");
     assert.deepEqual([...preset.options.values], ["Custom", "Default", "Portrait"]);
-    assert.deepEqual(node.widgets.slice(0, 6).map(widget => widget.name),
-        ["active", "preset", "Save", "Save As", "Auto", "Reset"]);
-    assert.deepEqual(node.widgets.filter(widget => widget.type === "dkst_photo_section").map(widget => widget.name), [
-        "__dkst_photo_section_light", "__dkst_photo_section_color",
-        "__dkst_photo_section_effects", "__dkst_photo_section_detail",
-        "__dkst_photo_section_optics", "__dkst_photo_section_lens_blur",
-    ]);
-    assert.equal(node.widgets.find(widget => widget.name === "light_exposure").label, "Exposure");
-    assert.equal(node.widgets.find(widget => widget.name === "lens_blur_apply").label, "Apply");
-    assert.equal(node.widgets.find(widget => widget.name === "lens_blur_aperture_blades").label,
-        "Aperture Blades");
-    assert.equal(node.widgets.find(widget => widget.name === "lens_blur_depth_blur_radius").label,
-        "Depth Blur Radius");
-    assert.equal(node.widgets.find(widget => widget.name === "lens_blur_depth_sigma").label,
-        "Depth Sigma");
-    assert.ok(node.widgets.findIndex(widget => widget.name === "lens_blur_bokeh_boost") <
-        node.widgets.findIndex(widget => widget.name === "lens_blur_depth_blur_radius"));
-    assert.ok(node.widgets.findIndex(widget => widget.name === "lens_blur_depth_blur_radius") <
-        node.widgets.findIndex(widget => widget.name === "lens_blur_depth_sigma"));
-    assert.ok(node.widgets.filter(widget => widget.type === "dkst_photo_section").every(widget => widget.serialize === false));
-    assert.equal(exposure.value, 0.4);
-    preset.callback("Portrait");
-    assert.equal(exposure.value, 1.3);
-    preset.callback("Default");
-    assert.equal(exposure.value, 0);
-});
-
-test("Save As persists current values and keeps node size", async () => {
-    const { node, calls, defaults } = fixture();
-    await new Promise(resolve => setImmediate(resolve));
-    const button = node.widgets.find(widget => widget.name === "Save As");
-    await button.callback();
-    const request = calls.find(call => call.options?.method === "POST");
-    assert.equal(request.path, "/dinki/photo-studio/presets");
-    const payload = JSON.parse(request.options.body);
-    assert.equal(payload.name, "My Look");
-    assert.equal(payload.settings.light_exposure, 0.4);
-    assert.equal(Object.keys(payload.settings).length, Object.keys(defaults).length);
-    assert.equal(payload.settings.auto_light_request, undefined);
-    assert.equal(payload.overwrite, false);
-    assert.deepEqual(node.size, [320, 700]);
-    assert.equal(node.widgets.find(widget => widget.name === "preset").value, "My Look");
+    assert.equal(node.widgets.filter(w => w.type === "button").length, 1);
+    assert.equal(node.widgets.at(-1).name, "Open Photo Studio");
+    assert.equal(node.widgets.at(-1).serialize, false);
+    assert.equal(exposure.hidden, true);
+    assert.notEqual(exposure.serialize, false);
+    assert.equal(exposure.value, .4);
+    preset.callback("Portrait"); assert.equal(exposure.value, 1.3);
+    preset.callback("Default"); assert.equal(exposure.value, 0);
+    assert.deepEqual([...node.size], [300, 280]);
 });
 
 test("old positional workflows with serialized Save buttons keep control values", () => {
@@ -255,119 +227,18 @@ test("positional workflows ignore serialized visual separators", () => {
     assert.equal(node.widgets.find(widget => widget.name === "grain_seed").value, 33);
 });
 
-test("Auto applies the last suggestion immediately without queueing", async () => {
-    const { node, queueCalls, emit } = fixture();
-    const get = name => node.widgets.find(widget => widget.name === name);
-    emit("executed", { node: "999", output: { auto_light_suggestion: [{ light_exposure: 2 }] } });
-    assert.equal(get("light_exposure").value, 0.4);
-    const light = {
-        light_exposure: 0.75, light_contrast: 8, light_highlights: -24,
-        light_shadows: 16, light_whites: -9, light_blacks: 5,
-    };
-    emit("executed", { node: "42", output: { auto_light_suggestion: [light] } });
-    assert.equal(get("light_exposure").value, 0.4);
-    get("Auto").callback();
-    for (const [name, value] of Object.entries(light)) assert.equal(get(name).value, value);
-    assert.equal(get("color_white_balance").value, "Auto");
-    assert.equal(get("preset").value, "Custom");
-    assert.deepEqual(queueCalls, []);
-});
-
-test("Reset restores every section default while keeping Active unchanged", async () => {
-    const { node, defaults } = fixture();
-    await new Promise(resolve => setImmediate(resolve));
-    const get = name => node.widgets.find(widget => widget.name === name);
-    for (const name of Object.keys(defaults)) get(name).value = "changed";
-    assert.equal(get("active").value, false);
-    get("preset").value = "Portrait";
-    await get("Reset").callback();
-    for (const [name, value] of Object.entries(defaults)) assert.equal(get(name).value, value, name);
-    assert.equal(get("preset").value, "Default");
-    assert.equal(get("active").value, false);
-});
-
-test("Auto without a prior execution asks for an image run", () => {
-    const { node, queueCalls, messages } = fixture();
-    node.widgets.find(widget => widget.name === "Auto").callback();
-    assert.equal(node.widgets.find(widget => widget.name === "light_exposure").value, 0.4);
-    assert.deepEqual(queueCalls, []);
-    assert.match(messages[0], /Run this node once with an image/);
-});
-
-test("depth preview below Apply sets Focus by click and drag", () => {
-    const { node, emit } = fixture();
-    const get = name => node.widgets.find(widget => widget.name === name);
-    const preview = get("__dkst_depth_focus");
-    assert.equal(node.widgets.indexOf(preview), node.widgets.indexOf(get("lens_blur_apply")) + 1);
-    emit("executed", { node: "42", output: { depth_preview: ["data:image/png;base64,preview"] } });
-    const ctx = Object.fromEntries([
-        "save", "restore", "fillRect", "fillText", "drawImage", "beginPath", "arc",
-        "stroke", "moveTo", "lineTo",
-    ].map(name => [name, () => {}]));
-    preview.draw(ctx, node, 320, 100, 210);
-    const rect = preview.imageRect;
-    assert.ok(rect);
-    const at = (x, y) => ({ button: 0,
-        canvasX: node.pos[0] + rect.x + rect.width * x,
-        canvasY: node.pos[1] + rect.y + rect.height * y });
-    const pointer = { eDown: at(0.75, 0.75) };
-    assert.equal(preview.onPointerDown(pointer), true);
-    assert.equal(get("lens_blur_focus").value, 1);
-    pointer.onDrag(at(0.25, 0.75));
-    assert.equal(get("lens_blur_focus").value, 0.5);
-    get("depth_near_is_white").value = false;
-    preview.draw(ctx, node, 320, 100, 210);
-    preview.onPointerDown({ eDown: at(0.75, 0.25) });
-    assert.equal(get("lens_blur_focus").value, 0.75);
-    let markerDraws = 0;
-    ctx.arc = () => { markerDraws++; };
-    preview.draw(ctx, node, 320, 100, 210);
-    assert.ok(markerDraws > 0);
-    get("lens_blur_focus").callback(0.3);
-    markerDraws = 0;
-    preview.draw(ctx, node, 320, 100, 210);
-    assert.equal(markerDraws, 0);
-    emit("executed", { node: "42", output: { depth_preview: [null] } });
-    assert.equal(preview.imageRect, null);
-});
-
-test("a new image run replaces the depth preview and Auto suggestion immediately", () => {
-    const { node, nodeType } = fixture();
-    const preview = node.widgets.find(widget => widget.name === "__dkst_depth_focus");
-    const ctx = Object.fromEntries([
-        "save", "restore", "fillRect", "fillText", "beginPath", "arc",
-        "stroke", "moveTo", "lineTo",
-    ].map(name => [name, () => {}]));
-    const drawn = [];
-    ctx.drawImage = image => drawn.push(image.source);
-    nodeType.prototype.onExecuted.call(node, {
-        depth_preview: ["data:image/png;base64,first"],
-        auto_light_suggestion: [{ light_exposure: 0.25 }],
-    });
-    preview.draw(ctx, node, 320, 100, 210);
-    nodeType.prototype.onExecuted.call(node, {
-        depth_preview: ["data:image/png;base64,second"],
-        auto_light_suggestion: [{ light_exposure: 1.25 }],
-    });
-    preview.draw(ctx, node, 320, 100, 210);
-    assert.deepEqual(drawn, ["data:image/png;base64,first", "data:image/png;base64,second"]);
-    node.widgets.find(widget => widget.name === "Auto").callback();
-    assert.equal(node.widgets.find(widget => widget.name === "light_exposure").value, 1.25);
-});
-
-test("loading a workflow restores the latest cached depth preview", async () => {
-    const { node, extension, app } = fixture();
+test("execution source tokens are transient and cached output is restored", async () => {
+    const { node, nodeType, app, extension, emit, listeners } = fixture();
+    emit("executed", { node: "42", output: { photo_studio_source: ["source-token"] } });
+    assert.equal(node.dkstPhotoStudioSource, "source-token");
+    const info = {};
+    nodeType.prototype.onSerialize.call(node, info);
+    assert.equal(JSON.stringify(info).includes("source-token"), false);
     node.comfyClass = "DINKI_Photo_Studio";
-    app.nodeOutputs = { 42: { depth_preview: ["data:image/png;base64,cached"] } };
+    app.nodeOutputs = { 42: { photo_studio_source: ["cached-token"] } };
     extension.loadedGraphNode(node);
     await new Promise(resolve => queueMicrotask(resolve));
-    const preview = node.widgets.find(widget => widget.name === "__dkst_depth_focus");
-    const drawn = [];
-    const ctx = Object.fromEntries([
-        "save", "restore", "fillRect", "fillText", "beginPath", "arc",
-        "stroke", "moveTo", "lineTo",
-    ].map(name => [name, () => {}]));
-    ctx.drawImage = image => drawn.push(image.source);
-    preview.draw(ctx, node, 320, 100, 210);
-    assert.deepEqual(drawn, ["data:image/png;base64,cached"]);
+    assert.equal(node.dkstPhotoStudioSource, "cached-token");
+    node.onRemoved();
+    assert.equal(listeners.get("executed").size, 0);
 });

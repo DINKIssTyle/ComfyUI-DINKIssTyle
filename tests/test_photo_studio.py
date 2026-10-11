@@ -387,6 +387,142 @@ class PhotoStudioTests(unittest.TestCase):
         conflict = asyncio.run(self.module["photo_studio_save_preset"](request))
         self.assertEqual(conflict.status, 409)
 
+    def preview_request(self, endpoint, payload, user="preview-user"):
+        body = json.dumps(payload).encode()
+        request = MagicMock()
+        request.user = user
+        request.content_length = len(body)
+        request.content.read = AsyncMock(return_value=body)
+        return asyncio.run(self.module[endpoint](request))
+
+    def test_editor_captures_original_without_mutating_input_and_binds_session_to_user(self):
+        image = torch.full((2, 12, 14, 4), 0.3)
+        depth = torch.rand((1, 12, 14, 1))
+        execution = self.node.execute(image, depth_image=depth, light_exposure=1)
+        capture = execution["ui"]["photo_studio_source"][0]
+        image.zero_()
+        opened = self.preview_request("photo_studio_session", {"source_session": capture})
+        self.assertEqual(opened.status, 200)
+        data = json.loads(opened.text)
+        self.assertTrue(data["has_depth"])
+        pixels = Image.open(io.BytesIO(base64.b64decode(data["original"].split(",")[1])))
+        self.assertAlmostEqual(pixels.getpixel((0, 0))[0], 76, delta=1)
+        rendered = self.preview_request("photo_studio_preview", {"session": data["session"], "settings": {"light_exposure": 1}, "quality": "original"})
+        self.assertEqual(rendered.status, 200)
+        preview = json.loads(rendered.text)
+        expected = self.node.apply(torch.full((1, 12, 14, 4), .3), light_exposure=1)[0]
+        result = Image.open(io.BytesIO(base64.b64decode(preview["preview"].split(",")[1])))
+        self.assertEqual(result.getpixel((0, 0))[0], round(float(expected[0, 0, 0, 0]) * 255))
+        self.assertEqual(len(preview["histogram"]), 3)
+        denied = self.preview_request("photo_studio_preview", {"session": data["session"]}, "other-user")
+        self.assertEqual(denied.status, 410)
+        self.preview_request("photo_studio_release", {"session": data["session"]}, "other-user")
+        self.assertEqual(self.preview_request("photo_studio_preview", {"session": data["session"]}).status, 200)
+        self.preview_request("photo_studio_release", {"session": data["session"]})
+        self.assertEqual(self.preview_request("photo_studio_preview", {"session": data["session"]}).status, 410)
+
+    def test_focus_samples_float_depth_with_polarity_and_distortion(self):
+        image = torch.rand((1, 12, 16, 3))
+        depth = torch.linspace(0, 1, 16)[None, None, :, None].expand(1, 12, 16, 1)
+        capture = self.module["_store_source"](image, depth)
+        opened = json.loads(self.preview_request("photo_studio_session", {"source_session": capture}).text)
+        settings = {"depth_near_is_white": False, "lens_blur_depth_blur_radius": 0, "optics_distortion": 50}
+        response = self.preview_request("photo_studio_focus", {"session": opened["session"], "settings": settings, "point": [.25, .5]})
+        self.assertEqual(response.status, 200)
+        item = self.module["_get_source"](opened["session"], str((Path(self.temp.name) / "preview-user" / "dkst_photo_studio").resolve()))
+        expected = self.module["_preview_depth"](item, self.module["_validate_settings"](settings))
+        self.assertAlmostEqual(json.loads(response.text)["focus"], float(expected[0, 0, 6, 4]))
+        self.assertEqual(self.preview_request("photo_studio_focus", {"session": opened["session"], "point": [2, .5]}).status, 400)
+        self.assertEqual(self.preview_request("photo_studio_preview", {"session": opened["session"], "settings": {"light_exposure": 99}}).status, 400)
+
+    def test_descriptor_loader_preserves_depth_precision_and_rejects_escape(self):
+        import numpy as np
+        folders = {kind: Path(self.temp.name) / "images" / kind for kind in ("input", "output", "temp")}
+        for folder in folders.values(): folder.mkdir(parents=True, exist_ok=True)
+        pixels = np.array([[0, 32768], [32769, 65535]], dtype=np.uint16)
+        Image.fromarray(pixels).save(folders["temp"] / "depth.png")
+        rgba = Image.new("RGBA", (2, 2), (100, 150, 200, 45))
+        rgba.save(folders["input"] / "rgba.png")
+        indexed = Image.new("P", (2, 2), 0)
+        indexed.putpalette([100, 150, 200] + [0] * 765)
+        indexed.save(folders["input"] / "palette.png", transparency=0)
+        folder_paths = MagicMock()
+        folder_paths.get_directory_by_type.side_effect = lambda kind: str(folders[kind])
+        with patch.dict(sys.modules, {"folder_paths": folder_paths}):
+            depth = self.module["_read_image_descriptor"]({"filename": "depth.png", "type": "temp"}, depth=True)
+            self.assertAlmostEqual(float(depth[0, 1, 0, 0]), 32769 / 65535, places=6)
+            self.assertNotEqual(float(depth[0, 0, 1, 0]), float(depth[0, 1, 0, 0]))
+            with self.assertRaises(ValueError): self.module["_read_image_descriptor"]({"filename": "depth.png", "subfolder": "../temp", "type": "input"})
+            with self.assertRaises(ValueError): self.module["_read_image_descriptor"]({"filename": "../temp/depth.png", "type": "input"})
+            with self.assertRaises(ValueError): self.module["_read_image_descriptor"]({"filename": "depth.png", "type": "arbitrary"})
+            result = self.module["DINKI_Photo_Studio_Source"]().execute("rgba.png")["result"][0]
+            palette = self.module["DINKI_Photo_Studio_Source"]().execute("palette.png")["result"][0]
+            self.assertEqual(palette.shape[-1], 4)
+            self.assertEqual(float(palette[0, 0, 0, 3]), 0)
+            self.assertEqual(result.shape[-1], 4)
+            self.assertAlmostEqual(float(result[0, 0, 0, 3]), 45 / 255)
+            saved = self.preview_request("photo_studio_materialize", {"image": {"filename": "depth.png", "type": "temp"}})
+            self.assertEqual(saved.status, 200)
+            descriptor = json.loads(saved.text)
+            (folders["temp"] / "depth.png").unlink()
+            source = self.module["DINKI_Photo_Studio_Source"]()
+            file = descriptor["subfolder"] + "/" + descriptor["filename"]
+            self.assertTrue(torch.equal(source.execute(file, "Depth map")["result"][0], depth))
+
+    def test_preview_cache_expiry_and_count_are_bounded(self):
+        cache = self.module["_SESSIONS"]
+        cache.clear()
+        image = torch.ones((1, 8, 8, 3))
+        first = self.module["_store_source"](image)
+        for _ in range(16): self.module["_store_source"](image)
+        self.assertEqual(len(cache), 16)
+        with self.assertRaises(LookupError): self.module["_get_source"](first, capture=True)
+        token = next(iter(cache))
+        cache[token]["touched"] -= 3600
+        with self.assertRaises(LookupError): self.module["_get_source"](token, capture=True)
+        with self.assertRaises(ValueError): self.module["_store_source"](torch.full((1, 2, 2, 3), float("nan")))
+
+    def test_preview_proxy_and_missing_depth_are_explicit(self):
+        image = torch.rand((1, 50, 1100, 3))
+        token = self.module["_store_source"](image)
+        opened = json.loads(self.preview_request("photo_studio_session", {"source_session": token}).text)
+        rendered = self.preview_request("photo_studio_preview", {"session": opened["session"]})
+        self.assertTrue(json.loads(rendered.text)["proxy"])
+        failed = self.preview_request("photo_studio_preview", {"session": opened["session"], "settings": {"lens_blur_apply": True}})
+        self.assertEqual(failed.status, 400)
+        self.assertIn("depth_image", json.loads(failed.text)["error"])
+
+    def test_preview_payload_size_and_unknown_session_fail_without_render(self):
+        response = self.preview_request("photo_studio_session", {"source_session": "expired"})
+        self.assertEqual(response.status, 410)
+        response = self.preview_request("photo_studio_preview", {"session": "invalid", "padding": "x" * 65536})
+        self.assertEqual(response.status, 400)
+
+    def test_expired_capture_invalidates_photo_studio_execution_cache(self):
+        cache = self.module["_SESSIONS"]
+        cache.clear()
+        before = self.node.IS_CHANGED()
+        token = self.module["_store_source"](torch.ones((1, 8, 8, 3)))
+        self.assertEqual(self.node.IS_CHANGED(), before)
+        cache[token]["touched"] -= 3600
+        after = self.node.IS_CHANGED()
+        self.assertGreater(after, before)
+        self.assertEqual(self.node.IS_CHANGED(), after)
+
+    def test_connected_core_loader_uses_the_installed_loadimage_interpretation(self):
+        directory = Path(self.temp.name) / "core-input"
+        directory.mkdir(exist_ok=True)
+        Image.new("RGBA", (8, 8), (10, 20, 30, 40)).save(directory / "photo.png")
+        folder_paths = MagicMock()
+        folder_paths.get_directory_by_type.return_value = str(directory)
+        nodes = MagicMock()
+        tensor = torch.full((1, 8, 8, 3), .123)
+        nodes.LoadImage.return_value.load_image.return_value = (tensor,)
+        with patch.dict(sys.modules, {"folder_paths": folder_paths, "nodes": nodes}):
+            source = self.module["_read_preview_input"]({"filename": "photo.png"}, loader="LoadImage")
+        self.assertTrue(torch.equal(source, tensor))
+        nodes.LoadImage.return_value.load_image.assert_called_once_with("photo.png")
+
 
 if __name__ == "__main__":
     unittest.main()
