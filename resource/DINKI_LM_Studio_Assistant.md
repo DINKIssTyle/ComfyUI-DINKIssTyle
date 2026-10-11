@@ -15,6 +15,7 @@
 
 * **Multimodal Capabilities:** Supports both **Text-to-Text** and **Image-to-Text** (Vision) generation.
 * **Local & Private:** Runs via your LM Studio server, with optional API key authentication.
+* **Connection Aliases:** Register server connections in **Settings → DKST → LLM** and select an alias from the node dropdown. Addresses, ports and API keys are stored outside the workflow.
 * **Batch Support:** Attaches each image from an input batch to one chat completion request for joint analysis.
 * **Memory Management:** Includes an `auto_unload` feature to free up VRAM for Stable Diffusion generation after the LLM task is finished.
 * **Flexible Control:** Full access to LLM parameters like `temperature`, `max_tokens`, and `system_prompt`.
@@ -51,16 +52,26 @@ By setting `assistant_enabled` to **False**, the node bypasses the LLM entirely 
 3.  **Start Local Server:**
     * Go to the **Local Server** tab ( double arrow icon <-> ) in LM Studio.
     * Click **Start Server**.
-    * Ensure the port matches the node settings (Default: `1234`).
+    * The usual port is `1234`.
+4.  **Register a Connection:** Open ComfyUI **Settings → DKST → LLM → Connections**. Enter a non-sensitive alias, IP address/hostname, port, HTTP/HTTPS protocol, and optional API key, then click **Save**. **Test saved connection** checks the saved profile against `/v1/models`.
+5.  **Select the Alias:** Choose it from the node's **Connection alias** dropdown. **Refresh connections** reloads profiles changed from another browser. A missing/deleted alias stays selected and gives a configuration error instead of switching servers.
+
+### Connection storage and workflow sharing
+
+Profiles are shared by clients of the same ComfyUI server and stored at `<ComfyUI user directory>/dkst_llm/connections.json`. The file uses restricted permissions where supported and contains plaintext API keys; protect the server's user directory and backups. The settings editor never returns stored keys to the browser. Leave the key field empty to preserve a saved key, enter a new key to replace it, or check **Remove stored API key** to clear it. To use a different alias, create a new profile and select it on the node.
+
+Only the alias and generation settings enter workflow/API JSON and output workflow metadata. Changing a profile invalidates the LLM node's cached result. A shared workflow can use a different endpoint on another server by registering the same alias there. API callers should submit `connection_alias`; removed `ip_address`, `port` and `api_key` inputs are stripped at the queue boundary and are not used for execution.
+
+Opening a legacy workflow with literal connection widgets replaces the widgets with an alias and registers/deduplicates them in the background as **Migrated LLM 1**, **Migrated LLM 2**, etc. Save it again to keep the updated workflow. Pasted legacy nodes and imported API JSON also support literal connections. Registration failures do not prevent the workflow from opening: register the connection manually in settings and select its alias. Linked legacy connection inputs are disconnected while other links are preserved; remove any credential source nodes before sharing, since those source nodes may still store secrets. Unknown positional LLM widget layouts are reset with an explanation, while named generation settings are retained. Previously saved workflows, generated images/videos and backups are not modified retroactively.
+
+Connection errors report status and configuration guidance without returning request URLs, authentication headers or raw server error bodies. Other workflow content, such as user prompts and unrelated nodes, still follows normal ComfyUI metadata behavior.
 
 ### 🎛️ Parameters Guide
 
 | Parameter | Description |
 | :--- | :--- |
 | **assistant_enabled** | Master toggle. If `False`, passes input text directly to output without calling the LLM. |
-| **ip_address** | The IP of the LM Studio server (Default: `127.0.0.1`). |
-| **port** | The port of the LM Studio server (Default: `1234`). |
-| **api_key** | API key sent as `Authorization: Bearer …` for generation and automatic unloading. Leave empty when server authentication is disabled. |
+| **connection_alias** | Registered connection selected from a dropdown. Manage addresses, ports and API keys in Settings → DKST → LLM. Authentication applies to generation and automatic unloading. |
 | **model_key** | The model identifier string (e.g., `qwen/qwen3-vl-8b`). Can often be left generic depending on LM Studio version. |
 | **seed** | Generation seed; `-1` chooses a time-based seed (default). |
 | **system_prompt** | Defines the AI's persona (e.g., "You are a prompt engineer..."). |

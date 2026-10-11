@@ -1,10 +1,19 @@
 import base64, io, json, time, requests
 import numpy as np
 from PIL import Image
+from .dinki_llm_connections import (
+    NONE, aliases, resolve, revision, connection_url, connection_headers,
+)
 
 class DINKI_LMStudio:
     @classmethod
     def INPUT_TYPES(cls):
+        try:
+            registered = aliases()
+        except ValueError:
+            # A damaged profile file must not prevent all ComfyUI node
+            # definitions from loading. Settings/runtime report the problem.
+            registered = []
         return {
             "required": {},
             "optional": {
@@ -23,11 +32,9 @@ class DINKI_LMStudio:
                 "timeout_seconds": ("INT", {"default": 300}),
                 "auto_unload": ("BOOLEAN", {"default": False}),
                 "unload_delay": ("INT", {"default": 0, "min": 0, "max": 600}),
-                "ip_address": ("STRING", {"default": "127.0.0.1"}),
-                "port": ("INT", {"default": 1234, "min": 1, "max": 65535}),
-                "api_key": ("STRING", {"default": "", "multiline": False,
-                    "dynamicPrompts": False,
-                    "tooltip": "API key for servers requiring Bearer authentication. Leave empty if authentication is disabled."}),
+                "connection_alias": ([NONE, *registered], {
+                    "default": NONE,
+                    "tooltip": "Register connections in Settings > DKST > LLM. Only this alias is saved in the workflow."}),
             }
         }
 
@@ -36,6 +43,16 @@ class DINKI_LMStudio:
     FUNCTION = "run"
     CATEGORY = "DINKIssTyle/LLM"
 
+    @classmethod
+    def VALIDATE_INPUTS(cls, connection_alias=NONE, **kwargs):
+        # Allow missing aliases to survive workflow loading without selecting a
+        # different server. The runtime resolver supplies the actionable error.
+        return True
+
+    @classmethod
+    def IS_CHANGED(cls, connection_alias=NONE, **kwargs):
+        return revision(connection_alias)
+
     # --- helpers ---
     def _read_completion(self, response):
         if "text/event-stream" not in response.headers.get("Content-Type", "").lower():
@@ -43,7 +60,7 @@ class DINKI_LMStudio:
             try:
                 return data["choices"][0]["message"]["content"] or ""
             except (KeyError, IndexError, TypeError):
-                return json.dumps(data, ensure_ascii=False)
+                raise RuntimeError("Invalid completion response.") from None
 
         parts = []
         # Small reads allow a completion marker to end the request even if a
@@ -58,7 +75,7 @@ class DINKI_LMStudio:
                 return "".join(parts)
             event = json.loads(payload)
             if "error" in event:
-                raise RuntimeError(json.dumps(event["error"], ensure_ascii=False))
+                raise RuntimeError("Server returned a stream error.")
             for choice in event.get("choices", []):
                 if choice.get("index", 0) != 0:
                     continue
@@ -98,20 +115,24 @@ class DINKI_LMStudio:
         timeout_seconds=300,
         auto_unload=False,
         unload_delay=0,
-        ip_address="127.0.0.1",
-        port=1234,
-        api_key="",
+        connection_alias=NONE,
     ):
         # 1) 패스스루 모드
         if not assistant_enabled:
             return (user_prompt or "",)
+
+        try:
+            profile = resolve(connection_alias)
+        except ValueError as error:
+            return (f"Error: {error}",)
+        base_url = connection_url(profile)
 
         # 2) 시드 처리
         if seed == -1: # seed가 -1이면 랜덤 (ComfyUI 위젯 특성상 randomize string 대신 -1 int 체크가 일반적이나, string 입력이 있다면 변환)
              seed = int(time.time_ns() % (2**31))
 
         # 3) 메시지 구성
-        url = f"http://{ip_address}:{port}/v1/chat/completions"
+        url = base_url + "/v1/chat/completions"
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -146,26 +167,26 @@ class DINKI_LMStudio:
         }
         if int(max_tokens) > 0:
             body["max_tokens"] = int(max_tokens)
-        headers = {}
-        if api_key and api_key.strip():
-            headers["Authorization"] = f"Bearer {api_key.strip()}"
+        headers = connection_headers(profile)
 
         # 4) 호출
         resp = None
         try:
             print("[DINKI LM Studio] Sending generation request.", flush=True)
             resp = requests.post(url, json=body, headers=headers,
-                                 timeout=(10, timeout_seconds), stream=True)
+                                 timeout=(10, timeout_seconds), stream=True, allow_redirects=False)
             print(f"[DINKI LM Studio] HTTP {resp.status_code}; receiving response.", flush=True)
             resp.raise_for_status()
+            if not 200 <= resp.status_code < 300:
+                return ("Error: LM Studio redirected the request. Check the connection in Settings > DKST > LLM.",)
             text = self._read_completion(resp)
             print(f"[DINKI LM Studio] Response complete ({len(text)} characters).", flush=True)
-        except requests.HTTPError as e:
-            detail = resp.text.strip()
-            return (f"Error: {e}" + (f"\nServer response: {detail}" if detail else ""),)
-        except Exception as e:
-            # 에러 발생 시 상세 내용 반환 (디버깅용)
-            return (f"Error: {e}",)
+        except requests.HTTPError:
+            return (f"Error: LM Studio request failed (HTTP {resp.status_code}). Check the connection and model settings.",)
+        except Exception:
+            # requests exceptions can contain the URL; server error bodies may
+            # echo credentials. Neither belongs in a text output or metadata.
+            return ("Error: LM Studio request failed or returned an incomplete response. Check Settings > DKST > LLM and the model.",)
         finally:
             if resp is not None:
                 resp.close()
@@ -175,12 +196,14 @@ class DINKI_LMStudio:
             print(f"[DINKI LM Studio] Waiting {unload_delay}s before unloading.", flush=True)
             time.sleep(unload_delay)
             unload_endpoints = [
-                f"http://{ip_address}:{port}/v1/models/unload",
-                f"http://{ip_address}:{port}/v1/unload"
+                base_url + "/v1/models/unload",
+                base_url + "/v1/unload"
             ]
             for u in unload_endpoints:
                 try:
-                    requests.post(u, json={"model": model_key}, headers=headers, timeout=2)
+                    with requests.post(u, json={"model": model_key}, headers=headers,
+                                       timeout=2, allow_redirects=False):
+                        pass
                 except Exception:
                     pass
 

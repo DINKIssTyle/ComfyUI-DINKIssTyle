@@ -1,5 +1,22 @@
 # Tests
 
+LLM connection profiles, alias dropdown, legacy migration and credential exclusion:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_l*m*.py'
+node --experimental-vm-modules --test tests/dinki_llm_connections.test.cjs
+```
+
+These tests stub ComfyUI/HTTP services while exercising actual profile-file persistence,
+permissions, auth, cache revisions, settings DOM and workflow/API serialization.
+They also cover cyclic widget references, runtime LinkMap proxies, loading without
+waiting for migration APIs, migration/refresh failures, linked legacy inputs and
+the bundled legacy sample workflow with promoted generation inputs. On a
+running ComfyUI instance, also check the DKST → LLM settings panel, alias selection
+with regular nodes and Nodes 2.0, generation against LM Studio, and the `workflow`
+and `prompt` metadata written by image/video save nodes. Previously generated files
+are outside the migration scope.
+
 Note UI and Markdown rendering tests:
 
 ```sh

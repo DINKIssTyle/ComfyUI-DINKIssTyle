@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 node_modules/
+dkst_llm/
 ComfyUI-DINKIssTyle/csv/Cinema_Prompt.csv
 ComfyUI-DINKIssTyle_VoxCPM2/model/*
 !ComfyUI-DINKIssTyle_VoxCPM2/model/.gitkeep
