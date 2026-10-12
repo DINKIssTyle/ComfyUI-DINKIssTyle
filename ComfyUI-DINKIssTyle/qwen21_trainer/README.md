@@ -6,6 +6,9 @@ pooled `.safetensors` reference files are not training datasets.
 
 ## Install on the training machine
 
+Qwen's engine and shared job management live in `qwen21_trainer`. H3's engine
+lives separately in `minimax_trainer` and can reuse the Qwen training Python.
+
 An NVIDIA CUDA GPU is required for the full trainer. Use a separate Python 3.12
 environment, keeping ComfyUI's packages unchanged. From this directory on Windows:
 

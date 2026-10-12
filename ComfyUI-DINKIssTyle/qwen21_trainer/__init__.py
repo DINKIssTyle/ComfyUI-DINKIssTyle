@@ -1,1 +1,1 @@
-"""Qwen-only trainer support. Heavy training dependencies stay in the worker."""
+"""Shared job support and Qwen engine. Heavy dependencies stay in the worker."""

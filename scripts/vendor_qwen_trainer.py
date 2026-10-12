@@ -189,4 +189,4 @@ def build(source, destination, family="qwen_image21"):
 
 
 if __name__ == "__main__":
-    build(Path(sys.argv[1]), Path(__file__).resolve().parents[1] / "ComfyUI-DINKIssTyle/lora_trainer/vendor")
+    build(Path(sys.argv[1]), Path(__file__).resolve().parents[1] / "ComfyUI-DINKIssTyle/qwen21_trainer/vendor")

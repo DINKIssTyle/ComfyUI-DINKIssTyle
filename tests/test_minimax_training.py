@@ -19,7 +19,7 @@ pkg.__path__ = [str(NODE)]
 with patch.dict(sys.modules, {'dkst_minimax_tests':pkg}):
     config = importlib.import_module('dkst_minimax_tests.minimax_trainer.config')
     runner = importlib.import_module('dkst_minimax_tests.minimax_trainer.runner')
-    jobs = importlib.import_module('dkst_minimax_tests.lora_trainer.jobs')
+    jobs = importlib.import_module('dkst_minimax_tests.qwen21_trainer.jobs')
 
 
 class TestMinimax(unittest.TestCase):

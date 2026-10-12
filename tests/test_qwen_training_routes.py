@@ -32,7 +32,7 @@ aiohttp.web = types.SimpleNamespace(json_response=lambda data, status=200: {"bod
 with patch.dict(sys.modules, {"dkst_qwen_route_tests": package, "folder_paths": folder_paths,
                               "server": server, "aiohttp": aiohttp}):
     module = importlib.import_module("dkst_qwen_route_tests.dinki_qwen_train")
-    config_module = importlib.import_module("dkst_qwen_route_tests.lora_trainer.config")
+    config_module = importlib.import_module("dkst_qwen_route_tests.qwen21_trainer.config")
     h3 = importlib.import_module("dkst_qwen_route_tests.dinki_minimax_train")
     shared = importlib.import_module("dkst_qwen_route_tests.dinki_training_shared")
     guard = importlib.import_module("dkst_qwen_route_tests.training_guard")
@@ -59,12 +59,24 @@ class TestTrainingRoutes(unittest.TestCase):
         reservation.start()
         self.addCleanup(reservation.stop)
 
+    def test_trainer_readme_links_and_runtime_files_exist_in_checkout(self):
+        # Catch a partial rename where documentation/tests point to a missing folder.
+        import re
+        for document in (NODE_DIR.parent / "README.md", NODE_DIR.parent / "resource/DINKI_PS.md"):
+            links = re.findall(r'\]\(([^)]+qwen21_trainer/README\.md)\)', document.read_text())
+            self.assertTrue(links, str(document))
+            for link in links:
+                self.assertTrue((document.parent / link).is_file(), link)
+        for name in ("README.md", "__init__.py", "config.py", "jobs.py", "runner.py", "setup_runtime.py",
+                     "requirements.txt", "vendor/UPSTREAM.json"):
+            self.assertTrue((NODE_DIR / "qwen21_trainer" / name).is_file(), name)
+
     def test_model_dropdown_uses_registered_paths_aliases_and_skips_missing_files(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("model.safetensors", "vae.safetensors", "encoder.safetensors", "adapter.safetensors"):
                 (root / name).touch()
-            runtime = root / "lora_trainer/.venv/Scripts/python.exe"
+            runtime = root / "qwen21_trainer/.venv/Scripts/python.exe"
             runtime.parent.mkdir(parents=True)
             runtime.touch()
             names = {"diffusion_models": ["sub/model.safetensors", "missing.safetensors"],

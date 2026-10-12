@@ -30,7 +30,7 @@ a manually entered vision-model name. It fills blank gallery descriptions for
 review, preserving existing captions. Users without an LLM can enter descriptions
 manually and train normally.
 
-See [installation, model requirements and controls](../ComfyUI-DINKIssTyle/lora_trainer/README.md)
+See [installation, model requirements and controls](../ComfyUI-DINKIssTyle/qwen21_trainer/README.md)
 and the [empty-gallery starter workflow](../sample_workflows/Qwen21_LoRA_Trainer.json).
 This is actual LoRA training; Image Ref Creator remains a separate retained node.
 

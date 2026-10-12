@@ -12,7 +12,7 @@ import torch
 from torch import nn
 from safetensors.torch import save_file, load_file
 
-VENDOR = Path(__file__).resolve().parents[1] / "ComfyUI-DINKIssTyle/lora_trainer/vendor"
+VENDOR = Path(__file__).resolve().parents[1] / "ComfyUI-DINKIssTyle/qwen21_trainer/vendor"
 sys.path.insert(0, str(VENDOR / "src"))
 from fizgig.qwen_image21.text_weights import decode_text_weights
 from fizgig.qwen_image21.embedder import Qwen21TextEncoder
