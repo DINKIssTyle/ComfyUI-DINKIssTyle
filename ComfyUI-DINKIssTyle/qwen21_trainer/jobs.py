@@ -10,25 +10,31 @@ import threading
 import time
 import uuid
 
-from .config import ACTIVE, ENGINE_VERSION, MODEL_KEYS, dataset_toml, model_signature, training_options, validate_runtime
+from .config import ACTIVE, model_signature
+from . import config as qwen_config
 from .runner import write_json
 
 
 class Jobs:
-    def __init__(self, root, output_root, image_roots):
+    def __init__(self, root, output_root, image_roots, *, config=qwen_config, runner=None,
+                 output_prefix="DKST_Qwen21", label="Qwen"):
         self.root = Path(root).resolve()
         self.output_root = Path(output_root).resolve()
         self.image_roots = {k: Path(v).resolve() for k, v in image_roots.items()}
         self.lock = threading.RLock()
         self.processes = {}
         self.preparing = False
+        self.config = config
+        self.runner = Path(runner) if runner else Path(__file__).with_name("runner.py")
+        self.output_prefix = output_prefix
+        self.label = label
 
     def settings(self):
         path = self.root / "settings.json"
         return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
     def save_settings(self, data):
-        config = validate_runtime(data)
+        config = self.config.validate_runtime(data)
         self.root.mkdir(parents=True, exist_ok=True)
         with self.lock:
             if self.active():
@@ -70,8 +76,10 @@ class Jobs:
 
     def prepare(self, data):
         from PIL import Image, ImageOps
-        options = training_options(data)
-        runtime = validate_runtime(self.settings())
+        options = self.config.training_options(data)
+        runtime = self.config.validate_runtime(self.settings())
+        if hasattr(self.config, "validate_job"):
+            self.config.validate_job(options, runtime)
         items = data.get("image_gallery", [])
         if isinstance(items, str):
             try:
@@ -100,33 +108,33 @@ class Jobs:
         directory = self.root / "projects" / options["project_name"] / "jobs" / job_id
         images = directory / "images"
         images.mkdir(parents=True)
-        signatures = {key: model_signature(runtime[key]) for key in MODEL_KEYS if runtime[key]}
+        signatures = {key: model_signature(runtime[key]) for key in self.config.MODEL_KEYS if runtime[key]}
         fingerprint = hashlib.sha256(json.dumps({
-            "engine": ENGINE_VERSION, "images": [name for name, _, _ in photos],
+            "engine": self.config.ENGINE_VERSION, "images": [name for name, _, _ in photos],
             "resolution": options["resolution"], "vae": signatures["vae"],
         }, sort_keys=True).encode()).hexdigest()[:24]
         cache = directory.parents[1] / "cache" / fingerprint
         cache.mkdir(parents=True, exist_ok=True)
-        output = self.output_root / "DKST_Qwen21" / options["project_name"] / job_id
+        output = self.output_root / self.output_prefix / options["project_name"] / job_id
         output.mkdir(parents=True)
         for name, pixels, caption in photos:
             (images / (name + ".png")).write_bytes(pixels)
             (images / (name + ".txt")).write_text(caption, encoding="utf-8")
         config = directory / "dataset.toml"
-        config.write_text(dataset_toml(images, cache, options["resolution"]), encoding="utf-8")
+        config.write_text(self.config.dataset_toml(images, cache, options["resolution"]), encoding="utf-8")
         prompts = directory / "sample_prompts.txt"
         prompts.write_text(options["sample_prompt"].replace("{trigger}", options["trigger_word"]) + "\n", encoding="utf-8")
         job = dict(id=job_id, options=options, runtime=runtime, model_signatures=signatures,
                    image_dir=str(images), cache_dir=str(cache), dataset_config=str(config),
                    output_dir=str(output), sample_prompts=str(prompts), num_images=len(photos),
-                   created=time.time(), engine_version=ENGINE_VERSION)
+                   created=time.time(), engine_version=self.config.ENGINE_VERSION)
         write_json(directory / "job.json", job)
         return directory / "job.json"
 
     def launch(self, path):
         job = json.loads(path.read_text(encoding="utf-8"))
         write_json(path.parent / "status.json", dict(id=job["id"], status="starting", heartbeat=time.time(), error=""))
-        runner = Path(__file__).with_name("runner.py")
+        runner = self.runner
         try:
             with (path.parent / "worker.log").open("a", encoding="utf-8") as log:
                 process = subprocess.Popen([job["runtime"]["python"], "-u", str(runner), "--job", str(path)],
@@ -142,7 +150,7 @@ class Jobs:
     def start(self, data, before_launch=None):
         with self.lock:
             if self.active():
-                raise ValueError("Another Qwen training job is already active.")
+                raise ValueError(f"Another {self.label} training job is already active.")
             self.preparing = True
             try:
                 path = self.prepare(data)
@@ -155,7 +163,7 @@ class Jobs:
     def resume(self, job_id, before_launch=None):
         with self.lock:
             if self.active():
-                raise ValueError("Another Qwen training job is already active.")
+                raise ValueError(f"Another {self.label} training job is already active.")
             path = self.job_file(job_id)
             job = json.loads(path.read_text(encoding="utf-8"))
             if self.status(job_id)["status"] == "completed":

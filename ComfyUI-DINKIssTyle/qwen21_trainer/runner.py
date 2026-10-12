@@ -65,7 +65,7 @@ def check_environment():
             "message": "Ready" if torch.cuda.is_available() else "Training requires an NVIDIA CUDA GPU."}
 
 
-def invalidate_text_cache(job):
+def invalidate_text_cache(job, architecture="qwenimage21"):
     """Plain T2I upstream skip-existing only checks the filename. Also check
     captions and encoder identity, while retaining the independent VAE caches.
     """
@@ -75,8 +75,8 @@ def invalidate_text_cache(job):
     signature = model_signature(job["runtime"]["text_encoder"])
     previous = json.loads(marker.read_text(encoding="utf-8")) if marker.is_file() else None
     images = Path(job["image_dir"])
-    for path in cache.glob("*_qwenimage21_te.safetensors"):
-        stem = path.name.removesuffix("_qwenimage21_te.safetensors")
+    for path in cache.glob(f"*_{architecture}_te.safetensors"):
+        stem = path.name.removesuffix(f"_{architecture}_te.safetensors")
         caption_file = images / (stem + ".txt")
         valid = False
         if previous == signature and caption_file.is_file():
@@ -120,7 +120,14 @@ def validate_lora(path):
             raise RuntimeError("The final file has no complete Qwen LoRA weight pairs.")
 
 
-def run_job(path):
+def run_job(path, engine=None):
+    # Model-specific entry points reuse process control without sharing GPU model imports.
+    runtime_validator = engine.validate_runtime if engine else validate_runtime
+    environment_check = engine.check_environment if engine else check_environment
+    command_builder = engine.commands if engine else commands
+    text_invalidator = engine.invalidate_text_cache if engine else invalidate_text_cache
+    artifact_validator = engine.validate_lora if engine else validate_lora
+    vendor = engine.VENDOR if engine else VENDOR
     job = json.loads(path.read_text(encoding="utf-8"))
     status_path = path.parent / "status.json"
     state = {"id": job["id"], "status": "starting", "pid": os.getpid(), "error": ""}
@@ -136,17 +143,19 @@ def run_job(path):
     with (path.parent / "train.log").open("a", encoding="utf-8", buffering=1) as log:
         try:
             update("starting")
-            validate_runtime(job["runtime"])
+            runtime_validator(job["runtime"])
             for key, signature in job["model_signatures"].items():
                 if model_signature(job["runtime"][key]) != signature:
                     raise ValueError(f"The {key} model file changed since this job was prepared. Start a new job.")
-            env_result = check_environment()
+            env_result = environment_check()
             if not env_result["ok"]:
                 raise RuntimeError(env_result["message"])
-            stage_commands = commands(job, VENDOR)
+            if engine and hasattr(engine, "validate_models"):
+                engine.validate_models(job)
+            stage_commands = command_builder(job, vendor)
             env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8")
             # Don't leak another ComfyUI/Fizgig installation into the worker's imports.
-            env["PYTHONPATH"] = str(VENDOR / "src")
+            env["PYTHONPATH"] = str(vendor / "src")
             # Each stage exits and releases its encoder/GPU allocations.
             for stage in ("latents", "text", "training"):
                 if cancel.exists():
@@ -155,11 +164,11 @@ def run_job(path):
                 if pause.exists() and stage != "training":
                     update("paused")
                     return
-                signature = invalidate_text_cache(job) if stage == "text" else None
+                signature = text_invalidator(job) if stage == "text" else None
                 log.write(f"\n[DKST] Stage: {stage}\n")
                 update(stage)
                 process = subprocess.Popen(stage_commands[stage], stdout=log, stderr=subprocess.STDOUT,
-                                           env=env, cwd=str(VENDOR), start_new_session=os.name != "nt",
+                                           env=env, cwd=str(vendor), start_new_session=os.name != "nt",
                                            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
                 while process.poll() is None:
                     if cancel.exists():
@@ -177,7 +186,7 @@ def run_job(path):
                     return
             if not final.is_file():
                 raise RuntimeError("The trainer exited without writing the final LoRA.")
-            validate_lora(final)
+            artifact_validator(final)
             state["lora_path"] = str(final)
             update("completed")
         except BaseException as error:

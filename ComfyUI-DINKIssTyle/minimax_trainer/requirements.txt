@@ -1,0 +1,2 @@
+# Uses the same CUDA training dependencies as the Qwen trainer.
+-r ../qwen21_trainer/requirements.txt

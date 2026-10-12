@@ -162,3 +162,7 @@ Review captions before **Start Training**. Clear a photo's description to regene
 **Stop Captioning** stops after the current photo. Earlier completed captions remain
 if a request fails; manually edited or removed photos never receive stale results.
 Captioning is unavailable while a training job is active.
+
+Qwen and MiniMax H3 trainer jobs share a GPU reservation. Finish or actually pause
+one before starting/resuming the other. Their settings and job IDs remain separate;
+the same training Python environment can be selected by both nodes.

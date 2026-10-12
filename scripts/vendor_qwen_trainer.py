@@ -15,34 +15,39 @@ COMMIT = "33454e1b0bf06dd2203551abd3bdcdfd8cdaee68"
 SOURCE_URL = f"https://github.com/shootthesound/Fizgig/tree/{COMMIT}"
 
 
-def build(source, destination):
+def build(source, destination, family="qwen_image21"):
+    if family not in {"qwen_image21", "minimax"}:
+        raise ValueError("Unsupported trainer family")
     root = source / "src"
     edited = {}
-    # Own layout adapter, reproduced alongside the upstream subset.
-    edited["fizgig/qwen_image21/vae_weights.py"] = (Path(__file__).parent / "patches/qwen21_vae_weights.py").read_text()
-    path = "fizgig/qwen_image21/vae.py"
-    text = (root / path).read_text()
-    text = text.replace('"""The diffusers-format VAE file', '"""The ComfyUI or Diffusers-format VAE file')
-    text = text.replace("    vae.load_state_dict(load_file(path))", '''    from fizgig.qwen_image21.vae_weights import normalize_vae_weights
+    if family == "qwen_image21":
+        # Own layout adapter, reproduced alongside the upstream subset.
+        edited["fizgig/qwen_image21/vae_weights.py"] = (Path(__file__).parent / "patches/qwen21_vae_weights.py").read_text()
+        path = "fizgig/qwen_image21/vae.py"
+        text = (root / path).read_text()
+        text = text.replace('"""The diffusers-format VAE file', '"""The ComfyUI or Diffusers-format VAE file')
+        text = text.replace("    vae.load_state_dict(load_file(path))", '''    from fizgig.qwen_image21.vae_weights import normalize_vae_weights
     state, layout = normalize_vae_weights(load_file(path), vae.state_dict(), cfg.get("num_res_blocks", 2))
     vae.load_state_dict(state, strict=True)
     print(f"[DKST] Loaded Qwen 2.1 VAE ({layout} layout, {len(state)} weights).", flush=True)''')
-    edited[path] = text
-    edited["fizgig/qwen_image21/text_weights.py"] = (Path(__file__).parent / "patches/qwen21_text_weights.py").read_text()
-    path = "fizgig/qwen_image21/embedder.py"
-    text = (root / path).read_text()
-    text = text.replace('        sd = _convert_comfyui_qwen3vl_state_dict(load_split_weights(model_path, device="cpu", dtype=dtype))', '''        from fizgig.qwen_image21.text_weights import decode_text_weights
+        edited[path] = text
+        edited["fizgig/qwen_image21/text_weights.py"] = (Path(__file__).parent / "patches/qwen21_text_weights.py").read_text()
+        path = "fizgig/qwen_image21/embedder.py"
+        text = (root / path).read_text()
+        text = text.replace('        sd = _convert_comfyui_qwen3vl_state_dict(load_split_weights(model_path, device="cpu", dtype=dtype))', '''        from fizgig.qwen_image21.text_weights import decode_text_weights
         sd, decoded = decode_text_weights(load_split_weights(model_path, device="cpu"), dtype=dtype)
         sd = _convert_comfyui_qwen3vl_state_dict(sd)
         if decoded:
             print(f"[DKST] Text encoder: decoded {decoded} ComfyUI INT8 weight(s) with scales and ConvRot metadata.", flush=True)''')
-    edited[path] = text
+        edited[path] = text
     registry = (root / "fizgig/families/registry.py").read_text()
-    for family in ("klein", "krea2", "minimax", "sdxl", "anima", "zimage", "acestep"):
+    for omitted in ("klein", "krea2", "minimax", "qwen_image", "sdxl", "anima", "zimage", "acestep"):
+        if omitted == ("qwen_image" if family == "qwen_image21" else family):
+            continue
         registry = "\n".join(line for line in registry.splitlines()
-                             if not line.startswith(f"from fizgig.families.{family} import")) + "\n"
+                             if not line.startswith(f"from fizgig.families.{omitted} import")) + "\n"
     registry = registry.replace("(KLEIN, MINIMAX, KREA2, QWEN_IMAGE_21, SDXL, ANIMA, ZIMAGE, ACESTEP15)",
-                                "(QWEN_IMAGE_21,)")
+                                "(QWEN_IMAGE_21,)" if family == "qwen_image21" else "(MINIMAX,)")
     edited["fizgig/families/registry.py"] = registry
     # Generic caching helpers were housed in Klein's CLI files. Keep only
     # their reusable functions; omit the Klein loaders and entry points.
@@ -51,15 +56,16 @@ def build(source, destination):
         text = (root / path).read_text().split("def setup_parser()", 1)[0]
         edited[path] = "\n".join(line for line in text.splitlines()
                                    if not line.startswith("from fizgig.klein.model_utils import")) + "\n"
-    # Qwen only needs this state-dict converter, not Krea's conditioner.
-    path = "fizgig/krea2/embedder.py"
-    original = (root / path).read_text()
-    tree = ast.parse(original)
-    fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
-              and n.name == "_convert_comfyui_qwen3vl_state_dict")
-    edited[path] = ('"""Qwen checkpoint key conversion, extracted from Fizgig Krea2.\n'
-                    'Modified by DKST; original attribution is in THIRD_PARTY_NOTICES.md.\n"""\n'
-                    'from torch import Tensor\n\n' + ast.get_source_segment(original, fn) + "\n")
+    if family == "qwen_image21":
+        # Qwen only needs this state-dict converter, not Krea's conditioner.
+        path = "fizgig/krea2/embedder.py"
+        original = (root / path).read_text()
+        tree = ast.parse(original)
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
+                  and n.name == "_convert_comfyui_qwen3vl_state_dict")
+        edited[path] = ('"""Qwen checkpoint key conversion, extracted from Fizgig Krea2.\n'
+                        'Modified by DKST; original attribution is in THIRD_PARTY_NOTICES.md.\n"""\n'
+                        'from torch import Tensor\n\n' + ast.get_source_segment(original, fn) + "\n")
     # Omit optional workbench/video/auto-caption/fine-tune dependency trees.
     # Fail explicitly if an unsupported API is called, rather than leaving
     # missing imports hidden inside dormant methods.
@@ -71,24 +77,28 @@ def build(source, destination):
         for n in sorted(nodes, key=lambda n: n.lineno, reverse=True):
             start = n.body[0].lineno - 1
             indent = " " * n.body[0].col_offset
-            lines[start:n.end_lineno] = [indent + 'raise NotImplementedError("This Qwen-only build supports image LoRA training.")\n']
+            lines[start:n.end_lineno] = [indent + 'raise NotImplementedError("This image-only build supports LoRA training.")\n']
         edited[path] = "".join(lines)
 
     unsupported_methods("fizgig/families/description.py", {"workbench_engine_class"})
     unsupported_methods("fizgig/families/loss_watch.py", {"_recaption"})
-    for path in ("fizgig/families/driver.py", "fizgig/qwen_image21/driver.py"):
+    for path in ("fizgig/families/driver.py", f"fizgig/{family}/driver.py"):
         tree = ast.parse((root / path).read_text())
         names = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
                  and any(isinstance(i, ast.ImportFrom) and i.module == "fizgig.families.ft"
                          for i in ast.walk(n))}
         unsupported_methods(path, names)
+    if family == "minimax":
+        unsupported_methods("fizgig/minimax/driver.py", {"ft_spec", "ft_card_plan", "ft_source_unfit", "ft_backend", "ft_cycle"})
+        path = "fizgig/minimax/driver.py"
+        edited[path] = edited[path].replace("from fizgig.families.workbench import RenderCancelled", "class RenderCancelled(RuntimeError): pass")
     path = "fizgig/families/train.py"
     text = (root / path).read_text()
     n = next(n for n in ast.parse(text).body if isinstance(n, ast.ClassDef) and n.name == "_FineTune")
     lines = text.splitlines(keepends=True)
     lines[n.lineno-1:n.end_lineno] = ['class _FineTune:\n',
         '    def __init__(self, *args, **kwargs):\n',
-        '        raise NotImplementedError("Full fine-tuning is not included in this Qwen-only build.")\n']
+        '        raise NotImplementedError("Full fine-tuning is not included in this image-only build.")\n']
     edited[path] = "".join(lines)
     path = "fizgig/dataset/image_dataset.py"
     text = (root / path).read_text()
@@ -99,9 +109,13 @@ def build(source, destination):
     # Only the innermost clip branch, leaving still-image processing intact.
     for n in sorted(branches, key=lambda n: n.lineno, reverse=True)[:1]:
         start, end = n.body[0].lineno - 1, n.body[-1].end_lineno
-        lines[start:end] = [" " * n.body[0].col_offset + 'raise ValueError("Only still images are supported by the Qwen trainer.")\n']
+        lines[start:end] = [" " * n.body[0].col_offset + 'raise ValueError("Only still images are supported by this trainer.")\n']
     edited[path] = "".join(lines)
-    pending = ["fizgig.families.train", "fizgig.families.cache", "fizgig.qwen_image21.driver"]
+    if family == "qwen_image21":
+        edited = {k: v.replace("This image-only build supports LoRA training.", "This Qwen-only build supports image LoRA training.")
+                     .replace("Full fine-tuning is not included in this image-only build.", "Full fine-tuning is not included in this Qwen-only build.")
+                     .replace("Only still images are supported by this trainer.", "Only still images are supported by the Qwen trainer.") for k, v in edited.items()}
+    pending = ["fizgig.families.train", "fizgig.families.cache", f"fizgig.{family}.driver"]
     found = {}
 
     def add_module(module):
@@ -156,16 +170,23 @@ def build(source, destination):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text)
     # Small local model configs loaded by filename are outside the import graph.
-    for path in (root / "fizgig/qwen_image21").glob("*.json"):
-        shutil.copy2(path, destination / "src/fizgig/qwen_image21" / path.name)
+    for path in (root / f"fizgig/{family}").glob("*.json"):
+        shutil.copy2(path, destination / f"src/fizgig/{family}" / path.name)
+    if family == "minimax":
+        assets = root / "fizgig/assets/qwen3vl_tokenizer"
+        shutil.copytree(assets, destination / "src/fizgig/assets/qwen3vl_tokenizer", dirs_exist_ok=True)
     for name in ("LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(source / name, destination / name)
     manifest = {"upstream": SOURCE_URL, "commit": COMMIT,
                 "modified_files": sorted(edited),
                 "files": {k: hashlib.sha256(v.encode()).hexdigest() for k, v in sorted(found.items())}}
+    if family == "minimax":
+        for asset in (destination / "src/fizgig/assets").rglob("*"):
+            if asset.is_file():
+                manifest["files"][asset.relative_to(destination / "src").as_posix()] = hashlib.sha256(asset.read_bytes()).hexdigest()
     (destination / "UPSTREAM.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    print(f"Vendored {len(found)} Python modules; only qwen_image21 is registered.")
+    print(f"Vendored {len(found)} Python modules; only {family} is registered.")
 
 
 if __name__ == "__main__":
-    build(Path(sys.argv[1]), Path(__file__).resolve().parents[1] / "ComfyUI-DINKIssTyle/qwen21_trainer/vendor")
+    build(Path(sys.argv[1]), Path(__file__).resolve().parents[1] / "ComfyUI-DINKIssTyle/lora_trainer/vendor")

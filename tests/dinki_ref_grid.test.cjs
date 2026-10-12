@@ -5,6 +5,7 @@ const { join } = require('node:path');
 const vm = require('node:vm');
 
 const source = readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_ref_grid.js'), 'utf8');
+const scrollSource = readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_scroll.js'), 'utf8').replace(/^export /gm, '');
 
 class Element {
     constructor(tagName) {
@@ -13,6 +14,9 @@ class Element {
         this.children = [];
         this.listeners = {};
         this.attributes = {};
+        this.scrollTop = this.scrollLeft = 0;
+        this.clientHeight = this.clientWidth = 100;
+        this.scrollHeight = this.scrollWidth = 100;
     }
     append(...children) { this.children.push(...children); }
     appendChild(child) { this.children.push(child); }
@@ -40,7 +44,7 @@ function makeWidget(initialData = "[]", captions = false) {
     const document = {
         createElement: tag => new Element(tag),
     };
-    vm.runInNewContext(source.replace(/^import .*;\r?\n/gm, ''), {
+    vm.runInNewContext(scrollSource + '\n' + source.replace(/^import .*;\r?\n/gm, ''), {
         app,
         document,
         requestAnimationFrame: cb => cb(),
@@ -145,19 +149,47 @@ test('Stale LLM results cannot overwrite manual edits or replaced gallery photos
     assert.equal(JSON.parse(widget.value)[0].caption, '');
 });
 
-test('Gallery and caption wheels preserve native scrolling without reaching the canvas', () => {
+test('Gallery wheels scroll even after canvas cancellation, and captions hand off at their boundary', () => {
     const { root } = makeWidget(JSON.stringify([{ filename: 'face.png', caption: 'long description' }]), true);
-    const grid = root.children.at(-1);
+    const grid = root.children.find(child => child.className === 'dkst-ref-viewport');
     const caption = elements(root, 'textarea')[0];
+    grid.scrollHeight = 1000;
+    caption.scrollHeight = 200;
     for (const element of [grid, caption]) {
         let stopped = false;
         element.fire('wheel', {
+            defaultPrevented: true, deltaY: 60,
             stopPropagation() { stopped = true; },
-            preventDefault() { assert.fail('Native scrolling must remain enabled'); },
+            preventDefault() {},
         });
         assert.equal(stopped, true);
+        assert.equal(element.scrollTop, 60);
         stopped = false;
         element.fire('pointerdown', { stopPropagation() { stopped = true; } });
         assert.equal(stopped, true);
     }
+    caption.scrollTop = 100;
+    caption.fire('wheel', { deltaY: 50, stopPropagation() {}, preventDefault() {} });
+    assert.equal(caption.scrollTop, 100);
+    assert.equal(grid.scrollTop, 110);
+});
+
+test('Source image navigation reaches both ends and selection preserves its position', () => {
+    const { root } = makeWidget(JSON.stringify([{ filename: 'face.png' }]));
+    const grid = root.children.find(child => child.className === 'dkst-ref-viewport');
+    const [up, slider, down] = root.children.at(-1).children;
+    grid.scrollHeight = 1000;
+    grid.fire('scroll');
+    assert.equal(up.disabled, true);
+    assert.equal(down.disabled, false);
+    down.fire('click');
+    assert.equal(grid.scrollTop, 80);
+    slider.value = '1000';
+    slider.fire('input');
+    assert.equal(grid.scrollTop, 900);
+    assert.equal(down.disabled, true);
+    root.querySelectorAll('.dkst-ref-card')[0].fire('click');
+    assert.equal(grid.scrollTop, 900);
+    up.fire('click');
+    assert.equal(grid.scrollTop, 820);
 });

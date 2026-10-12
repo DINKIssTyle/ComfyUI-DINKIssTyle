@@ -21,11 +21,11 @@ NODE_DIR = Path(__file__).resolve().parents[1] / "ComfyUI-DINKIssTyle"
 pkg = types.ModuleType("dkst_qwen_tests")
 pkg.__path__ = [str(NODE_DIR)]
 with patch.dict(sys.modules, {"dkst_qwen_tests": pkg}):
-    config = importlib.import_module("dkst_qwen_tests.qwen21_trainer.config")
-    jobs_module = importlib.import_module("dkst_qwen_tests.qwen21_trainer.jobs")
-    runner = importlib.import_module("dkst_qwen_tests.qwen21_trainer.runner")
+    config = importlib.import_module("dkst_qwen_tests.lora_trainer.config")
+    jobs_module = importlib.import_module("dkst_qwen_tests.lora_trainer.jobs")
+    runner = importlib.import_module("dkst_qwen_tests.lora_trainer.runner")
 
-sys.path.insert(0, str(NODE_DIR / "qwen21_trainer/vendor/src"))
+sys.path.insert(0, str(NODE_DIR / "lora_trainer/vendor/src"))
 from fizgig.families.registry import FAMILIES
 from fizgig.families.lora import FamilyLoRA
 from fizgig.qwen_image21.model import QwenImage21DiT

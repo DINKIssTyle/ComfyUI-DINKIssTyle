@@ -2,6 +2,7 @@
 // Interactive Multi-Image Grid Widget for DINKI_Create_Image_Ref (DKST PS)
 
 import { app } from "../../scripts/app.js";
+import { bindScrollWheel, createScrollControls } from "./dinki_scroll.js";
 
 function createElement(tag, styles = {}, attrs = {}) {
     const el = document.createElement(tag);
@@ -41,6 +42,7 @@ app.registerExtension({
                 const root = createElement("div", {
                     boxSizing: "border-box",
                     width: "100%",
+                    minWidth: "0",
                     minHeight: "140px",
                     padding: "8px",
                     display: "flex",
@@ -241,15 +243,23 @@ app.registerExtension({
                     gridTemplateColumns: `repeat(auto-fill, minmax(${thumbSize}px, 1fr))`,
                     gap: "6px",
                     maxHeight: "320px",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    flex: "0 1 auto",
                     overflowY: "auto",
                     minHeight: "0",
                     overscrollBehavior: "contain",
                     padding: "4px",
                 });
-                // Keep native scrolling inside the widget instead of zooming the graph.
-                gridContainer.addEventListener("wheel", e => e.stopPropagation(), { passive: true });
-                gridContainer.addEventListener("pointerdown", e => e.stopPropagation());
+                gridContainer.className = "dkst-ref-viewport";
+                const gridScroll = createScrollControls(gridContainer, "y", "Source images");
                 root.appendChild(gridContainer);
+                root.appendChild(gridScroll.element);
+                const oldRemoved = node.onRemoved;
+                node.onRemoved = function (...args) {
+                    gridScroll.dispose();
+                    return oldRemoved?.apply(this, args);
+                };
 
                 function updateGridSizing() {
                     gridContainer.style.gridTemplateColumns = `repeat(auto-fill, minmax(${thumbSize}px, 1fr))`;
@@ -257,9 +267,11 @@ app.registerExtension({
                         card.style.height = `${thumbSize + (captions ? 62 : 0)}px`;
                         if (captions) card.children[0].style.height = `${thumbSize}px`;
                     });
+                    requestAnimationFrame(gridScroll.refresh);
                 }
 
                 function render() {
+                    const scrollTop = gridContainer.scrollTop || 0;
                     gridContainer.replaceChildren();
 
                     if (items.length === 0) {
@@ -274,6 +286,7 @@ app.registerExtension({
                         });
                         emptyNotice.innerHTML = "📸 Drop images here or click <b>+ Add Images</b>";
                         gridContainer.appendChild(emptyNotice);
+                        requestAnimationFrame(gridScroll.refresh);
                         return;
                     }
 
@@ -372,8 +385,7 @@ app.registerExtension({
                             caption.value = item.caption || "";
                             captionInputs.set(item, caption);
                             caption.addEventListener("click", e => e.stopPropagation());
-                            caption.addEventListener("pointerdown", e => e.stopPropagation());
-                            caption.addEventListener("wheel", e => e.stopPropagation(), { passive: true });
+                            bindScrollWheel(caption, "y", gridContainer);
                             caption.addEventListener("input", () => {
                                 item.caption = caption.value;
                                 // Keep the textarea mounted and focused while typing.
@@ -383,6 +395,8 @@ app.registerExtension({
                         }
                         gridContainer.appendChild(card);
                     });
+                    gridContainer.scrollTop = scrollTop;
+                    requestAnimationFrame(gridScroll.refresh);
                 }
 
                 // Initial render

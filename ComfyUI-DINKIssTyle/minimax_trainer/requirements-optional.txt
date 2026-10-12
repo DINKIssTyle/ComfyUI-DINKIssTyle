@@ -1,0 +1,2 @@
+# Optional ConvRot kernels; install explicitly after the base runtime works.
+-r ../qwen21_trainer/requirements-optional.txt

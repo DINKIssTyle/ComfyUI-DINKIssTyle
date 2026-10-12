@@ -32,7 +32,10 @@ aiohttp.web = types.SimpleNamespace(json_response=lambda data, status=200: {"bod
 with patch.dict(sys.modules, {"dkst_qwen_route_tests": package, "folder_paths": folder_paths,
                               "server": server, "aiohttp": aiohttp}):
     module = importlib.import_module("dkst_qwen_route_tests.dinki_qwen_train")
-    config_module = importlib.import_module("dkst_qwen_route_tests.qwen21_trainer.config")
+    config_module = importlib.import_module("dkst_qwen_route_tests.lora_trainer.config")
+    h3 = importlib.import_module("dkst_qwen_route_tests.dinki_minimax_train")
+    shared = importlib.import_module("dkst_qwen_route_tests.dinki_training_shared")
+    guard = importlib.import_module("dkst_qwen_route_tests.training_guard")
 
 
 class Request:
@@ -50,12 +53,18 @@ class Request:
 
 
 class TestTrainingRoutes(unittest.TestCase):
+    def setUp(self):
+        # These routes mock their own manager; cross-family reservations are tested below.
+        reservation = patch.dict(guard.SERVICES, {}, clear=True)
+        reservation.start()
+        self.addCleanup(reservation.stop)
+
     def test_model_dropdown_uses_registered_paths_aliases_and_skips_missing_files(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("model.safetensors", "vae.safetensors", "encoder.safetensors", "adapter.safetensors"):
                 (root / name).touch()
-            runtime = root / "qwen21_trainer/.venv/Scripts/python.exe"
+            runtime = root / "lora_trainer/.venv/Scripts/python.exe"
             runtime.parent.mkdir(parents=True)
             runtime.touch()
             names = {"diffusion_models": ["sub/model.safetensors", "missing.safetensors"],
@@ -184,6 +193,99 @@ class TestTrainingRoutes(unittest.TestCase):
             with patch.object(module, "manager", return_value=service):
                 result = asyncio.run(module.sample(Request({}, {"id": "a" * 32, "file": "../secret.png"})))
             self.assertEqual(result["status"], 404)
+
+
+class TestMinimaxRoutes(unittest.TestCase):
+    def test_h3_schema_workflow_and_queue_report_are_independent(self):
+        with patch.object(module, "caption_aliases", return_value=[module.CAPTION_NONE]):
+            inputs = h3.DINKI_Minimax_H3_LoRA_Trainer.INPUT_TYPES()
+        required = inputs["required"]
+        self.assertEqual(required["epochs"][1]["default"], 50)
+        self.assertEqual(required["resolution"][1]["step"], 32)
+        self.assertEqual(required["training_base"][0], ["fl2va", "ref2va"])
+        self.assertEqual(h3.DINKI_Minimax_H3_LoRA_Trainer.RETURN_TYPES, ("STRING", "STRING"))
+        workflow = json.loads((NODE_DIR.parent / "sample_workflows/Minimax_H3_LoRA_Trainer.json").read_text())
+        self.assertEqual(len(workflow["nodes"][0]["widgets_values"]), len(required) + len(inputs["optional"]))
+        service = types.SimpleNamespace(history=lambda _: [{"status": "completed", "lora_path": "/h3/person.safetensors"}])
+        with patch.object(h3, "manager", return_value=service):
+            self.assertEqual(h3.DINKI_Minimax_H3_LoRA_Trainer().report("person")["result"][0], "/h3/person.safetensors")
+
+    def test_all_status_blocks_generation_for_either_family(self):
+        for family in ("qwen21", "minimax_h3"):
+            with self.subTest(family=family), patch.dict(guard.SERVICES,
+                {family: lambda: types.SimpleNamespace(active=lambda: "a" * 32)}, clear=True):
+                result = asyncio.run(shared.all_training(Request({})))
+                self.assertEqual(result["body"]["active"]["family"], family)
+
+    def test_parallel_qwen_and_h3_starts_share_one_reservation(self):
+        import threading
+        entered, release = threading.Event(), threading.Event()
+        active = {"qwen21": None, "minimax_h3": None}
+        outcomes = []
+        def start_qwen(data, unload):
+            entered.set()
+            self.assertTrue(release.wait(3))
+            unload()
+            active["qwen21"] = "a" * 32
+            return {"id": active["qwen21"]}
+        qwen = types.SimpleNamespace(active=lambda: active["qwen21"], start=start_qwen)
+        minimax = types.SimpleNamespace(active=lambda: active["minimax_h3"], start=lambda *_: self.fail("Second trainer must not start"))
+        comfy = types.ModuleType("comfy")
+        management = types.ModuleType("comfy.model_management")
+        management.unload_all_models = lambda: None
+        management.soft_empty_cache = lambda: None
+        comfy.model_management = management
+        def work(name, service):
+            try: outcomes.append(shared.start_exclusive(name, lambda: service, {}))
+            except ValueError as error: outcomes.append(str(error))
+        with patch.dict(guard.SERVICES, {"qwen21": lambda:qwen, "minimax_h3":lambda:minimax}, clear=True), \
+             patch.dict(sys.modules, {"comfy":comfy, "comfy.model_management":management}):
+            first = threading.Thread(target=work, args=("qwen21", qwen))
+            second = threading.Thread(target=work, args=("minimax_h3", minimax))
+            first.start()
+            self.assertTrue(entered.wait(3))
+            second.start()
+            release.set()
+            first.join(3); second.join(3)
+            self.assertFalse(first.is_alive() or second.is_alive())
+        self.assertEqual(len(outcomes), 2)
+        self.assertTrue(any(isinstance(x, str) and "qwen21" in x for x in outcomes))
+
+    def test_qwen_start_rejects_active_h3_before_preparing(self):
+        with patch.dict(guard.SERVICES, {"minimax_h3":lambda:types.SimpleNamespace(active=lambda:"a"*32)}, clear=True), \
+             patch.object(module, "_start_job") as start:
+            with self.assertRaisesRegex(ValueError, "minimax_h3"):
+                module.start_job({})
+            start.assert_not_called()
+
+    def test_h3_resume_requires_id_before_calling_any_service(self):
+        with patch.object(shared, "start_exclusive") as start:
+            response = asyncio.run(registered["post", "/dinki/minimax_h3/training"](Request({"action":"resume"})))
+        self.assertEqual(response["status"], 400)
+        start.assert_not_called()
+
+    def test_h3_caption_without_runtime_and_training_conflicts(self):
+        service = types.SimpleNamespace(active=lambda:None)
+        with patch.dict(guard.SERVICES, {}, clear=True), patch.object(h3, "manager", return_value=service):
+            response = asyncio.run(registered["post", "/dinki/minimax_h3/caption"](Request({})))
+            self.assertEqual(response["status"], 400)
+            self.assertIn("LLM alias", response["body"]["error"])
+        with patch.dict(guard.SERVICES, {"qwen21":lambda:types.SimpleNamespace(active=lambda:"a"*32)}, clear=True):
+            response = asyncio.run(registered["post", "/dinki/minimax_h3/caption"](Request({})))
+            self.assertIn("active training", response["body"]["error"])
+
+    def test_h3_logs_and_samples_stay_inside_the_job(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); output = root / "output"; output.mkdir()
+            job = root / "job.json"; job.write_text(json.dumps({"output_dir":str(output)}))
+            (root / "train.log").write_text("H3 traceback header\n" + "weight\n"*3000)
+            service = types.SimpleNamespace(job_file=lambda _:job)
+            with patch.object(h3, "manager", return_value=service):
+                result = asyncio.run(registered["get", "/dinki/minimax_h3/log"](Request({}, {"id":"a"*32,"download":"1"})))
+                self.assertTrue(result["path"].read_text().startswith("H3 traceback header"))
+                self.assertIn("minimax_h3", result["headers"]["Content-Disposition"])
+                result = asyncio.run(registered["get", "/dinki/minimax_h3/sample"](Request({}, {"id":"a"*32,"file":"../secret.png"})))
+                self.assertEqual(result["status"],404)
 
 
 if __name__ == "__main__":

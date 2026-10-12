@@ -5,19 +5,23 @@ const { join } = require('node:path');
 const vm = require('node:vm');
 
 const source = readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_qwen_train.js'), 'utf8');
+const scrollSource = readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_scroll.js'), 'utf8').replace(/^export /gm, '');
+const uiSource = readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_training_ui.js'), 'utf8')
+    .replace(/^export /gm, '').replace(/^import .*;\r?\n/gm, '');
 
 class Element {
     constructor(tag) { this.tag = tag; this.children = []; this.style = {}; this.dataset = {}; this.listeners = {}; }
     append(...children) { this.children.push(...children); }
     replaceChildren(...children) { this.children = children; }
     addEventListener(name, fn) { this.listeners[name] = fn; }
+    setAttribute(name, value) { this[name] = value; }
     showModal() { this.open = true; }
     close() { this.open = false; this.listeners.close?.(); }
     remove() { this.removed = true; }
     get firstChild() { return this.children[0]; }
 }
 
-function fixture(handler) {
+function fixture(handler, family = 'qwen') {
     let extension, setting;
     const requests = [], intervals = new Map();
     let cleared = false;
@@ -33,13 +37,15 @@ function fixture(handler) {
         },
     };
     const body = new Element('body');
-    vm.runInNewContext(source.replace(/^import .*;\r?\n/gm, ''), { app, api,
+    const wrapper = family === 'qwen' ? source : readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_minimax_train.js'), 'utf8');
+    vm.runInNewContext(scrollSource + '\n' + uiSource + '\n' + wrapper.replace(/^import .*;\r?\n/gm, ''), { app, api,
         document: { createElement: tag => new Element(tag), body },
         setTimeout() {}, setInterval(fn) { intervals.set(1, fn); return 1; },
         clearInterval(id) { intervals.delete(id); cleared = true; }, console,
+        requestAnimationFrame: cb => cb(),
     });
     extension.setup();
-    const node = { comfyClass: 'DINKI_Qwen21_LoRA_Trainer', properties: {}, size: [400, 700],
+    const node = { comfyClass: family === 'qwen' ? 'DINKI_Qwen21_LoRA_Trainer' : 'DINKI_Minimax_H3_LoRA_Trainer', properties: {}, size: [400, 700],
         widgets: [{ name: 'project_name', value: 'person' },
             { name: 'image_gallery', value: '[{"filename":"face.png","caption":"side profile"}]' },
             { name: 'trigger_word', value: 'person_xyz' }, { name: 'preset', value: 'Fast' },
@@ -82,15 +88,54 @@ test('Full log opens from its first line and offers worker selection and a downl
     assert.equal(dialog.removed, true);
 });
 
-test('Scrollable log and status keep default wheel behavior and allow text selection', () => {
+test('Logs and status scroll despite a cancelled canvas wheel and allow text selection', () => {
     const f = fixture(async () => ({}));
     for (const element of f.widget.root.children.filter(child => child.style.overflow === 'auto')) {
         let stopped = false;
-        element.listeners.wheel({ stopPropagation() { stopped = true; },
-            preventDefault() { assert.fail('Default scrolling must remain enabled'); } });
+        element.scrollTop = 0;
+        element.clientHeight = 100;
+        element.scrollHeight = 1000;
+        element.listeners.wheel({ deltaY: 60, defaultPrevented: true, stopPropagation() { stopped = true; },
+            preventDefault() {} });
         assert.equal(stopped, true);
+        assert.equal(element.scrollTop, 60);
         assert.equal(element.style.userSelect, 'text');
     }
+});
+
+test('Samples support arrows, position slider and wheel; polling preserves the viewed position', async () => {
+    let samples = ['one.png', 'two.png'];
+    const f = fixture(async () => ({ ...state, samples }));
+    f.node.properties.dkst_qwen21_job_id = state.id;
+    await f.intervals.get(1)();
+    const panel = f.widget.root.children[3];
+    const [viewport, controls] = panel.children;
+    const [left, slider, right] = controls.children;
+    assert.equal(panel.hidden, false);
+    viewport.clientWidth = 200;
+    viewport.scrollWidth = 800;
+    viewport.scrollLeft = 0;
+    viewport.listeners.scroll();
+    right.listeners.click();
+    assert.equal(viewport.scrollLeft, 160);
+    viewport.listeners.wheel({ deltaY: 40, stopPropagation() {}, preventDefault() {} });
+    assert.equal(viewport.scrollLeft, 200);
+    const originalImage = viewport.children[0];
+    samples = [...samples, 'three.png'];
+    await f.intervals.get(1)();
+    assert.equal(viewport.scrollLeft, 200);
+    assert.equal(viewport.children[0], originalImage);
+    assert.equal(originalImage.style.flex, '0 0 auto');
+    slider.value = '1000';
+    slider.listeners.input();
+    assert.equal(viewport.scrollLeft, 600);
+    assert.equal(right.disabled, true);
+    left.listeners.click();
+    assert.equal(viewport.scrollLeft, 440);
+    f.node.properties.dkst_qwen21_job_id = 'b'.repeat(32);
+    samples = [];
+    await f.intervals.get(1)();
+    assert.equal(panel.hidden, true);
 });
 
 test('Only Start Training submits a job; its ID survives workflow serialization', async () => {
@@ -273,4 +318,30 @@ test('Caption failures retain completed captions; removed nodes discard late res
     finish({ caption: 'late text' });
     await running;
     assert.equal(changed, false);
+});
+
+test('H3 UI uses separate endpoints and job IDs with the common optional caption controls', async () => {
+    const f = fixture(async () => ({ ...state }), 'h3');
+    assert.equal(f.setting.id, 'DKST.Training.MinimaxH3.Models');
+    assert.equal(f.requests.length, 0);
+    await f.buttons.find(b => b.textContent === 'Start Training').onclick();
+    assert.equal(f.requests[0].path, '/dinki/minimax_h3/training');
+    assert.equal(f.node.properties.dkst_minimax_h3_job_id, state.id);
+    assert.equal(f.node.properties.dkst_qwen21_job_id, undefined);
+    assert.equal(f.widget.serialize, false);
+    captionOptions(f);
+    await f.buttons.find(b => b.textContent === 'Auto Caption (Empty)').onclick();
+    assert.equal(f.requests.length, 1, 'caption requests stay blocked during training');
+});
+
+test('H3 configuration has a reference DiT and optional adapters, and generation checks both trainers', async () => {
+    const f = fixture(async (path, data) => path === '/dinki/training' ? {active:{family:'qwen21',id:state.id}} :
+        path.endsWith('/models') ? {choices:{}} : {}, 'h3');
+    await assert.rejects(f.app.queuePrompt(0,1), /Pause or finish LoRA training/);
+    assert.equal(f.requests[0].path, '/dinki/training');
+    await f.buttons.find(b => b.textContent === 'Configure Models').onclick();
+    const rows = f.body.firstChild.children.filter(c => c.tag === 'label');
+    assert.equal(rows.length, 7);
+    assert.match(rows[2].textContent, /ref2va/);
+    for (const index of [2,5,6]) assert.equal(rows[index].firstChild.firstChild.textContent, 'None (optional)');
 });

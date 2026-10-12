@@ -102,6 +102,7 @@ from .dinki_photo_studio import DINKI_Photo_Studio, DINKI_Photo_Studio_Source
 from .dinki_multi_lora import DINKI_Multi_LoRA_Loader
 from .dinki_ref import DINKI_Create_Image_Ref
 from .dinki_qwen_train import DINKI_Qwen21_LoRA_Trainer
+from .dinki_minimax_train import DINKI_Minimax_H3_LoRA_Trainer
 from .dinki_overlay import DINKI_Overlay
 from .dinki_comparer import DINKI_Image_Comparer_MOV
 from .dinki_grid import DINKI_Grid
@@ -159,6 +160,7 @@ NODE_CLASS_MAPPINGS = {
     "DINKI_Multi_LoRA_Loader": DINKI_Multi_LoRA_Loader,
     "DINKI_Create_Image_Ref": DINKI_Create_Image_Ref,
     "DINKI_Qwen21_LoRA_Trainer": DINKI_Qwen21_LoRA_Trainer,
+    "DINKI_Minimax_H3_LoRA_Trainer": DINKI_Minimax_H3_LoRA_Trainer,
 
     # Viewer
     "DINKI_Video_Player": DINKI_Video_Player,
@@ -244,6 +246,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Multi_LoRA_Loader": "DKST PS (Multi LoRA Loader)",
     "DINKI_Create_Image_Ref": "DKST PS (Image Ref Creator)",
     "DINKI_Qwen21_LoRA_Trainer": "DKST PS (Qwen 2.1 LoRA Trainer)",
+    "DINKI_Minimax_H3_LoRA_Trainer": "DKST PS (Minimax H3 LoRA Trainer)",
 
     # Viewer
     "DINKI_Video_Player": "DKST Video (Sequence Player)",

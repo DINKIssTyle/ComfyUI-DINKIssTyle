@@ -12,6 +12,8 @@ from server import PromptServer
 from .qwen21_trainer.config import ACTIVE
 from .qwen21_trainer.jobs import Jobs
 from .dinki_qwen_caption import NONE as CAPTION_NONE, caption_aliases, generate_caption
+from .training_guard import GPU_LOCK, active_training, register_trainer, require_other_trainers_idle
+from . import dinki_training_shared  # Combined generation/training status endpoint.
 
 MANAGER = None
 MANAGER_LOCK = threading.Lock()
@@ -27,6 +29,9 @@ def manager():
                                            "output": folder_paths.get_output_directory(),
                                            "temp": folder_paths.get_temp_directory()})
     return MANAGER
+
+
+register_trainer("qwen21", lambda: manager())
 
 
 class DINKI_Qwen21_LoRA_Trainer:
@@ -97,6 +102,14 @@ def busy_generation():
 
 
 def start_job(data, resume_id=None):
+    with GPU_LOCK:
+        if busy_generation():
+            raise ValueError("Finish or clear the ComfyUI generation queue before starting training.")
+        require_other_trainers_idle("qwen21")
+        return _start_job(data, resume_id)
+
+
+def _start_job(data, resume_id=None):
     if busy_generation():
         raise ValueError("Finish or clear the ComfyUI generation queue before starting training.")
     service = manager()
@@ -145,7 +158,7 @@ async def caption(request):
     try:
         data = await payload(request)
         service = manager()
-        if service.active():
+        if service.active() or active_training(exclude="qwen21"):
             raise ValueError("Finish or pause the active training job before generating photo captions.")
         return web.json_response(await asyncio.to_thread(generate_caption, service, data))
     except (ValueError, TypeError, OSError) as error:
