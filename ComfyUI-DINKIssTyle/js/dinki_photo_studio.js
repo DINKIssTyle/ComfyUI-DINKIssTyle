@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { NODE_CLASS, isSetting, settingsOf, setNodeValue, openPhotoStudio, request, selectedImageCandidate, inputSignature } from "./dinki_photo_studio_editor.js";
+import { NODE_CLASS, isSetting, settingsOf, setNodeValue, openPhotoStudio, request, selectedImageCandidate, inputSignature, imageUrl, photoImageActions, showPhotoImageMenu } from "./dinki_photo_studio_editor.js";
 
 const LEGACY_DEFAULTS = { lens_blur_aperture_blades: 9, lens_blur_depth_blur_radius: 5, lens_blur_depth_sigma: 2.0 };
 function report(error) {
@@ -18,7 +18,11 @@ app.registerExtension({
         nodeType.prototype.getExtraMenuOptions = function (_, options) {
             const result = originalMenu?.apply(this, arguments);
             const candidate = selectedImageCandidate(this);
-            if (nodeData.name === NODE_CLASS) options.push({ content: "Open Photo Studio", callback: () => openPhotoStudio(this).catch(report) });
+            if (nodeData.name === NODE_CLASS) {
+                options.push({ content: "Open Photo Studio", callback: () => openPhotoStudio(this).catch(report) });
+                if (this.dkstPhotoStudioImageUrl?.()) options.push(...photoImageActions(() => this.dkstPhotoStudioImageUrl(),
+                    () => this.dkstPhotoStudioImage?.filename || "DKST_Photo_Studio_Preview.png"));
+            }
             else if (candidate) options.push({ content: "Open in Photo Studio", callback: () => openPhotoStudio(null, candidate).catch(report) });
             return result;
         };
@@ -92,6 +96,7 @@ app.registerExtension({
                 // and promoted inputs, but remove their graph-canvas rows.
                 if (!String(control.type).startsWith("converted")) control.type = "hidden";
                 control.computeSize = () => [0, -4];
+                control.computeLayoutSize = () => ({ minWidth: 0, minHeight: 0, maxHeight: 0 });
             }
             let presets = {}, defaults = {};
             const options = () => {
@@ -116,7 +121,7 @@ app.registerExtension({
             open.serialize = false;
             if (node.addDOMWidget) {
                 const box = document.createElement("div");
-                Object.assign(box.style, { width: "100%", height: "100%", minHeight: "100px", display: "flex", alignItems: "center", justifyContent: "center", background: "#171b20", overflow: "hidden", borderRadius: "6px" });
+                Object.assign(box.style, { width: "100%", height: "100%", minHeight: "0", contain: "size layout paint", display: "flex", alignItems: "center", justifyContent: "center", background: "#171b20", overflow: "hidden", borderRadius: "6px" });
                 const image = document.createElement("img");
                 image.alt = "Photo Studio preview";
                 Object.assign(image.style, { width: "100%", height: "100%", objectFit: "contain", display: "none" });
@@ -130,11 +135,18 @@ app.registerExtension({
                 });
                 preview.serialize = false;
                 node.dkstPhotoStudioThumbnail = image;
+                node.dkstPhotoStudioImageUrl = () => node.dkstPhotoStudioImage ? imageUrl(node.dkstPhotoStudioImage) : image.getAttribute("src");
+                for (const name of ["pointerdown", "mousedown"]) box.addEventListener(name, e => { if (e.button === 2) e.stopPropagation(); });
+                box.addEventListener("contextmenu", event => showPhotoImageMenu(event, [
+                    ...photoImageActions(() => node.dkstPhotoStudioImageUrl(), () => node.dkstPhotoStudioImage?.filename || "DKST_Photo_Studio_Preview.png"),
+                    { content: "Open Photo Studio", callback: () => openPhotoStudio(node).catch(report) },
+                ]));
             }
             const compute = node.computeSize;
             if (compute) node.computeSize = function () {
                 const size = compute.apply(this, arguments);
-                return [Math.max(280, size[0]), Math.max(280, (this.inputs?.length || 2) * 22 + 190)];
+                const rows = (this.inputs ?? []).filter(input => !input.widget).length;
+                return [Math.max(280, size[0]), Math.max(280, rows * 22 + 190)];
             };
             node.dkstPhotoStudioCompact = () => {
                 const size = node.computeSize?.() || [300, 280];
@@ -145,6 +157,16 @@ app.registerExtension({
                 if (data?.photo_studio_preview_error) delete node.dkstPhotoStudioSource;
                 if (Array.isArray(data?.photo_studio_source)) { node.dkstPhotoStudioSource = data.photo_studio_source[0]; node.dkstPhotoStudioInputSignature = inputSignature(node); }
                 if (data?.photo_studio_preview?.[0] && node.dkstPhotoStudioThumbnail) node.dkstPhotoStudioThumbnail.src = data.photo_studio_preview[0];
+                if (data?.photo_studio_image?.[0]) {
+                    node.dkstPhotoStudioImage = data.photo_studio_image[0];
+                    node.properties ??= {};
+                    node.properties.dkstPhotoStudioPreview = node.dkstPhotoStudioImage;
+                }
+            };
+            node.dkstPhotoStudioSetPreview = url => {
+                delete node.dkstPhotoStudioImage;
+                delete node.properties?.dkstPhotoStudioPreview;
+                if (node.dkstPhotoStudioThumbnail) node.dkstPhotoStudioThumbnail.src = url;
             };
             node.dkstPhotoStudioOutput = output;
             const handler = ({ detail }) => { if (String(detail?.node) === String(node.id)) output(detail.output); };
@@ -156,6 +178,12 @@ app.registerExtension({
                 return removed?.apply(this, args);
             };
             node.dkstPhotoStudioCompact();
+            const added = node.onAdded;
+            node.onAdded = function (...args) {
+                const result = added?.apply(this, args);
+                queueMicrotask(() => { if (node.graph) node.dkstPhotoStudioCompact(); });
+                return result;
+            };
             request("presets").then(data => { presets = data.presets; defaults = data.defaults; options(); }).catch(report);
             return result;
         };
@@ -168,6 +196,13 @@ app.registerExtension({
     },
     loadedGraphNode(node) {
         if (node.comfyClass !== NODE_CLASS) return;
-        queueMicrotask(() => { node.dkstPhotoStudioCompact?.(); node.dkstPhotoStudioOutput?.(app.nodeOutputs?.[node.id]); });
+        queueMicrotask(() => {
+            node.dkstPhotoStudioCompact?.();
+            const saved = node.properties?.dkstPhotoStudioPreview;
+            if (saved && node.dkstPhotoStudioThumbnail) {
+                node.dkstPhotoStudioImage = saved; node.dkstPhotoStudioThumbnail.src = imageUrl(saved);
+            }
+            node.dkstPhotoStudioOutput?.(app.nodeOutputs?.[node.id]);
+        });
     },
 });

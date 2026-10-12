@@ -114,6 +114,25 @@ Lock/Unlock, source Copy, workflow save/reload, resizing, text selection, scroll
 gestures, and canvas zoom. Include a Korean note, wide table, long code line and
 an image when checking layout.
 
+Photo Studio editing, layout and full-resolution image exports:
+
+```sh
+python3 -m unittest discover -s tests -p test_photo_studio.py
+node --experimental-vm-modules --test tests/dinki_photo_studio.test.cjs tests/dinki_photo_studio_editor.test.cjs
+```
+
+Python checks require Torch, NumPy, Pillow and aiohttp. They cover adjustments,
+depth, session ownership, RGBA preservation and exports beyond the preview size
+limit. UI checks exercise the actual modules with jsdom: compact node creation
+after native size expansion, promoted setting rows, image context menus, draft
+exports without workflow execution, centered zoom, minimap navigation and aligned
+Slide/Difference comparison. Apply stores settings and connections; the node's
+full-resolution context-menu image is produced by workflow execution. Before
+execution its image menu uses the displayed draft preview.
+`tests/photo_studio_browser.py` provides an isolated browser harness with the
+real Python preview/export routes. Confirm node layout in regular ComfyUI and
+Nodes 2.0 on the target machine as well.
+
 Image Viewer background updates and preview restoration:
 
 ```sh

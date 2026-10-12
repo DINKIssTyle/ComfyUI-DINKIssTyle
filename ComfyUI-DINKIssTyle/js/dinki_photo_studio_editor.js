@@ -7,6 +7,68 @@ export const isSetting = name => /^(light_|color_|effects_|detail_|optics_|lens_
 export const settingsOf = node => Object.fromEntries((node?.widgets ?? []).filter(w => isSetting(w.name)).map(w => [w.name, w.value]));
 const widget = (node, name) => node?.widgets?.find(w => w.name === name);
 let currentEditor = null;
+let closeImageMenu;
+
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = filename;
+    document.body.appendChild(link);
+    try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); }
+}
+
+export function photoImageActions(getUrl, getFilename = () => "DKST_Photo_Studio.png") {
+    return [
+        { content: "Open Image", disabled: !getUrl(), callback: async () => {
+            const url = getUrl();
+            if (!url) return;
+            if (!url.startsWith("data:")) return window.open(url, "_blank", "noopener,noreferrer");
+            const popup = window.open("", "_blank");
+            if (popup) popup.opener = null;
+            try {
+                const objectUrl = URL.createObjectURL(await (await fetch(url)).blob());
+                if (popup) popup.location.href = objectUrl;
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+            } catch (error) { popup?.close(); throw error; }
+        } },
+        { content: "Save Image", disabled: !getUrl(), callback: async () => {
+            const url = getUrl();
+            if (!url) return;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Image download failed (${response.status})`);
+            downloadBlob(await response.blob(), getFilename());
+        } },
+    ];
+}
+
+export function showPhotoImageMenu(event, actions) {
+    event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.();
+    closeImageMenu?.();
+    const menu = document.createElement("div");
+    menu.className = "dkst-photo-context-menu";
+    Object.assign(menu.style, { position: "fixed", zIndex: "100001", background: "#252b33", color: "#eee",
+        border: "1px solid #63748a", borderRadius: "6px", padding: "5px",
+        left: `${Math.max(0, Math.min(event.clientX, window.innerWidth - 200))}px`,
+        top: `${Math.max(0, Math.min(event.clientY, window.innerHeight - 150))}px` });
+    const dismiss = e => { if (!menu.contains(e.target)) close(); };
+    const escape = e => { if (e.key === "Escape") { e.stopPropagation(); close(); } };
+    const close = () => {
+        menu.remove(); document.removeEventListener("pointerdown", dismiss, true);
+        document.removeEventListener("keydown", escape, true);
+        if (closeImageMenu === close) closeImageMenu = null;
+    };
+    closeImageMenu = close;
+    for (const action of actions) {
+        const item = document.createElement("button");
+        item.textContent = action.content; item.type = "button"; item.disabled = !!action.disabled;
+        Object.assign(item.style, { display: "block", width: "100%", background: "transparent", color: "inherit",
+            border: "0", textAlign: "left", padding: "9px 12px", cursor: "pointer" });
+        item.onclick = async () => { close(); try { await action.callback(); } catch (error) { window.alert(error.message); } };
+        menu.appendChild(item);
+    }
+    document.body.appendChild(menu);
+    document.addEventListener("pointerdown", dismiss, true); document.addEventListener("keydown", escape, true);
+}
 
 export function setNodeValue(node, name, value, invokeCallback = true) {
     const w = widget(node, name);
@@ -49,6 +111,10 @@ export function linkedImage(node, name = "image") {
 }
 
 export function previewImages(node) {
+    if (node.comfyClass === NODE_CLASS || node.type === NODE_CLASS) {
+        const image = node.dkstPhotoStudioImage ?? node.properties?.dkstPhotoStudioPreview;
+        return image ? [image] : app.nodeOutputs?.[node.id]?.photo_studio_image ?? [];
+    }
     if (node.comfyClass === "DINKI_Preview_Image" || node.type === "DINKI_Preview_Image") {
         // The DOM Viewer restores its own saved preview before the output cache.
         // Prefer the descriptors actually displayed, including a restored batch.
@@ -158,6 +224,8 @@ function createNode(graph, type, position) {
     if (!node) throw new Error(`Node type ${type} is unavailable`);
     node.pos = position;
     graph.add(node);
+    node.dkstPhotoStudioCompact?.();
+    queueMicrotask(() => { if (node.graph === graph) node.dkstPhotoStudioCompact?.(); });
     return node;
 }
 
@@ -206,6 +274,8 @@ export class PhotoStudioEditor {
         this.history = [];
         this.redoHistory = [];
         this.controls = new Map();
+        this.zoomValue = "fit";
+        this.comparisonPosition = 50;
         this.previousFocus = document.activeElement;
         this.root = element("div", "dkst-photo-overlay", null, document.body);
         this.root.tabIndex = -1;
@@ -214,7 +284,7 @@ export class PhotoStudioEditor {
         this.root.setAttribute("aria-label", "DKST Photo Studio");
         this.root.innerHTML = `<section class="dkst-photo-editor">
             <header><div class="dkst-photo-title">DKST <strong>Photo Studio</strong><small>Non-destructive adjustments</small></div><div class="dkst-photo-actions"></div></header>
-            <div class="dkst-photo-body"><main><div class="dkst-photo-image-tools"></div><div class="dkst-photo-viewport"><div class="dkst-photo-pair"><img class="dkst-photo-before" alt="Original image"><img class="dkst-photo-after" alt="Adjusted image"><img class="dkst-photo-depth" alt="Focus depth map"></div><div class="dkst-photo-empty">Choose an image from your workflow or import a file.</div></div><div class="dkst-photo-view-tools"></div></main><aside><div class="dkst-photo-histogram"><canvas width="256" height="66" aria-label="RGB histogram"></canvas></div><div class="dkst-photo-depth-tools"></div><div class="dkst-photo-panels"></div></aside></div>
+            <div class="dkst-photo-body"><main><div class="dkst-photo-image-tools"></div><div class="dkst-photo-view-frame"><div class="dkst-photo-viewport"><div class="dkst-photo-pan-area"><div class="dkst-photo-pair"><img class="dkst-photo-before" alt="Original image"><img class="dkst-photo-after" alt="Adjusted image"><img class="dkst-photo-depth" alt="Focus depth map"><div class="dkst-photo-divider"></div><span class="dkst-photo-before-label">Before</span><span class="dkst-photo-after-label">After</span></div></div><div class="dkst-photo-empty">Choose an image from your workflow or import a file.</div></div><div class="dkst-photo-minimap" hidden><div class="dkst-photo-map" tabindex="0" role="group" aria-label="Photo Studio minimap. Click or drag to navigate; arrow keys to pan."><img alt="Image overview"><div class="dkst-photo-map-window"></div></div></div></div><div class="dkst-photo-view-tools"></div></main><aside><div class="dkst-photo-histogram"><canvas width="256" height="66" aria-label="RGB histogram"></canvas></div><div class="dkst-photo-depth-tools"></div><div class="dkst-photo-panels"></div></aside></div>
             <footer><div class="dkst-photo-status" role="status" aria-live="polite"></div><div class="dkst-photo-footer-actions"></div></footer>
         </section>`;
         const query = selector => this.root.querySelector(selector);
@@ -223,6 +293,13 @@ export class PhotoStudioEditor {
         this.after = query(".dkst-photo-after");
         this.depth = query(".dkst-photo-depth");
         this.pair = query(".dkst-photo-pair");
+        this.viewport = query(".dkst-photo-viewport");
+        this.panArea = query(".dkst-photo-pan-area");
+        this.divider = query(".dkst-photo-divider");
+        this.minimap = query(".dkst-photo-minimap");
+        this.map = query(".dkst-photo-map");
+        this.mapImage = this.map.querySelector("img");
+        this.mapWindow = query(".dkst-photo-map-window");
         this.empty = query(".dkst-photo-empty");
         this.histogram = query("canvas");
         this.focusMarker = element("span", "dkst-photo-focus-marker", null, query(".dkst-photo-viewport"));
@@ -246,6 +323,13 @@ export class PhotoStudioEditor {
             this.loadSource();
         });
         this.imageLabel = element("span", "dkst-photo-source-label", "", imageTools);
+        this.exportTarget = element("select", "", null, imageTools);
+        this.exportTarget.setAttribute("aria-label", "Image to open or save");
+        this.exportTarget.innerHTML = '<option value="adjusted">Adjusted image</option><option value="original">Original image</option>';
+        this.openImageButton = button("Open Image", imageTools, () => this.exportImage(false));
+        this.saveImageButton = button("Save Image", imageTools, () => this.exportImage(true));
+        this.openImageButton.disabled = this.saveImageButton.disabled = true;
+        this.saveImageButton.title = "Save a PNG at the original image resolution";
         const depthTools = query(".dkst-photo-depth-tools");
         element("strong", "", "Depth map", depthTools);
         const depthButtons = element("div", "", null, depthTools);
@@ -254,18 +338,36 @@ export class PhotoStudioEditor {
         button("Clear", depthButtons, () => this.select(null, "depth"));
         this.depthLabel = element("small", "", "Optional · required for Lens Blur", depthTools);
         const viewTools = query(".dkst-photo-view-tools");
-        this.compare = button("Before / After", viewTools, () => { this.pair.classList.toggle("compare"); this.updateFocusMarker(); });
-        this.showDepth = button("Show depth", viewTools, () => { this.pair.classList.toggle("show-depth"); this.updateFocusMarker(); });
+        this.compare = button("Before / After", viewTools, () => {
+            this.pair.classList.toggle("compare");
+            this.compare.classList.toggle("selected", this.pair.classList.contains("compare"));
+            this.updateComparison(); this.updateFocusMarker();
+        });
+        this.comparisonMode = element("select", "", null, viewTools);
+        this.comparisonMode.setAttribute("aria-label", "Comparison mode");
+        this.comparisonMode.innerHTML = '<option value="Slide">Slide</option><option value="Difference">Difference</option>';
+        this.comparisonMode.addEventListener("change", () => {
+            this.pair.classList.add("compare"); this.compare.classList.add("selected"); this.updateComparison();
+        });
+        this.showDepth = button("Show depth", viewTools, () => { this.pair.classList.toggle("show-depth"); this.updateComparison(); this.updateMinimap(); this.updateFocusMarker(); });
         this.focusButton = button("Pick focus", viewTools, () => { this.pickFocus = !this.pickFocus; this.focusButton.classList.toggle("selected", this.pickFocus); this.pair.classList.toggle("pick-focus", this.pickFocus); });
         this.quality = element("select", "", null, viewTools);
         this.quality.setAttribute("aria-label", "Preview quality");
         this.quality.innerHTML = '<option value="fast">Fast preview</option><option value="original">Original resolution processing</option>';
         this.quality.addEventListener("change", () => this.schedule());
-        const zoom = element("select", "", null, viewTools);
-        zoom.setAttribute("aria-label", "Preview zoom");
-        zoom.innerHTML = '<option value="100">Fit</option><option value="150">150%</option><option value="200">200%</option><option value="300">300%</option>';
-        zoom.addEventListener("change", () => { this.pair.style.width = `${zoom.value}%`; this.pair.style.height = `${zoom.value}%`; this.updateFocusMarker(); });
+        this.zoom = element("select", "", null, viewTools);
+        this.zoom.setAttribute("aria-label", "Preview zoom");
+        this.zoom.innerHTML = '<option value="fit">Fit</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option><option value="3">300%</option><option value="4">400%</option>';
+        this.zoom.addEventListener("change", () => this.setZoom(this.zoom.value));
         this.pair.addEventListener("click", e => this.focusAt(e));
+        this.pair.addEventListener("pointermove", event => {
+            if (this.pickFocus || !this.pair.classList.contains("compare") || this.comparisonMode.value !== "Slide") return;
+            const bounds = this.pair.getBoundingClientRect();
+            if (bounds.width) this.comparisonPosition = Math.max(0, Math.min(100, (event.clientX - bounds.left) / bounds.width * 100));
+            this.updateComparison();
+        });
+        this.viewport.addEventListener("scroll", () => { this.updateMinimap(); this.updateFocusMarker(); });
+        this.installMinimap();
         const footer = query(".dkst-photo-footer-actions");
         button("Cancel", footer, () => this.close());
         this.applyButton = button("Apply", footer, () => this.apply());
@@ -285,8 +387,11 @@ export class PhotoStudioEditor {
         this.root.addEventListener("keydown", this.keyHandler);
         this.root.addEventListener("wheel", e => e.stopPropagation(), { passive: true });
         this.root.focus();
-        this.resized = () => this.updateFocusMarker();
+        this.resized = () => this.setZoom(this.zoomValue);
         window.addEventListener("resize", this.resized);
+        this.resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(this.resized) : null;
+        this.resizeObserver?.observe(this.viewport);
+        for (const image of [this.before, this.after, this.depth]) image.addEventListener("load", () => { this.updateMinimap(); this.updateFocusMarker(); });
         this.watchGraph = setInterval(() => {
             if (app.graph !== this.appGraph || (this.node && this.graph.getNodeById(this.node.id) !== this.node)) this.close();
         }, 1000);
@@ -300,6 +405,133 @@ export class PhotoStudioEditor {
         if (this.closed) return;
         this.status.textContent = text;
         this.status.classList.toggle("error", error);
+    }
+
+    async exportImage(save) {
+        if (!this.session || this.closed || this.exporting) return;
+        const popup = save ? null : window.open("", "_blank");
+        if (popup) popup.opener = null;
+        this.exporting = true;
+        this.openImageButton.disabled = this.saveImageButton.disabled = true;
+        const session = this.session;
+        this.message("Preparing image at original resolution…");
+        try {
+            const response = await api.fetchApi(`${ROOT}/export`, { method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ session, settings: { ...this.draft }, original: this.exportTarget.value === "original" }),
+            });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || `Image export failed (${response.status})`);
+            }
+            const blob = await response.blob();
+            if (this.closed || session !== this.session) { popup?.close(); return; }
+            if (save) downloadBlob(blob, "DKST_Photo_Studio.png");
+            else {
+                if (!popup) throw new Error("Allow pop-ups to open the image, or use Save Image.");
+                const url = URL.createObjectURL(blob);
+                popup.location.href = url;
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+            }
+            this.message("Original-resolution image ready.");
+        } catch (error) { popup?.close(); this.message(error.message, true); }
+        finally {
+            this.exporting = false;
+            if (!this.closed) this.openImageButton.disabled = this.saveImageButton.disabled = !this.session;
+        }
+    }
+
+    visibleArea() {
+        const bounds = this.pair.getBoundingClientRect(), view = this.viewport.getBoundingClientRect();
+        if (!bounds.width || !bounds.height || !view.width || !view.height) return null;
+        const clamp = value => Math.max(0, Math.min(1, value));
+        return { left: clamp((view.left - bounds.left) / bounds.width), top: clamp((view.top - bounds.top) / bounds.height),
+            right: clamp((view.left + this.viewport.clientWidth - bounds.left) / bounds.width),
+            bottom: clamp((view.top + this.viewport.clientHeight - bounds.top) / bounds.height) };
+    }
+
+    setZoom(value) {
+        const area = this.visibleArea();
+        this.zoomValue = value === "fit" ? "fit" : Math.max(.25, Math.min(4, Number(value) || 1));
+        const { clientWidth: w, clientHeight: h } = this.viewport;
+        if (!w || !h || !this.width || !this.height) return;
+        const scale = this.zoomValue === "fit" ? Math.min(w / this.width, h / this.height) : this.zoomValue;
+        this.pair.style.width = `${Math.max(1, this.width * scale)}px`;
+        this.pair.style.height = `${Math.max(1, this.height * scale)}px`;
+        this.panArea.style.width = this.zoomValue === "fit" ? "100%" : "max-content";
+        this.panArea.style.height = this.zoomValue === "fit" ? "100%" : "max-content";
+        this.viewport.style.overflow = this.zoomValue === "fit" ? "hidden" : "auto";
+        this.navigate(area ? (area.left + area.right) / 2 : .5, area ? (area.top + area.bottom) / 2 : .5);
+        this.updateFocusMarker();
+    }
+
+    navigate(x, y) {
+        const w = this.pair.clientWidth, h = this.pair.clientHeight;
+        this.viewport.scrollLeft = Math.max(0, Math.min(w - this.viewport.clientWidth, x * w - this.viewport.clientWidth / 2));
+        this.viewport.scrollTop = Math.max(0, Math.min(h - this.viewport.clientHeight, y * h - this.viewport.clientHeight / 2));
+        this.updateMinimap(); this.updateFocusMarker();
+    }
+
+    updateComparison() {
+        const compare = this.pair.classList.contains("compare") && !this.pair.classList.contains("show-depth");
+        const difference = compare && this.comparisonMode.value === "Difference";
+        this.pair.classList.toggle("difference", difference);
+        this.after.style.clipPath = compare && !difference ? `inset(0 ${100 - this.comparisonPosition}% 0 0)` : "none";
+        this.divider.style.left = `${this.comparisonPosition}%`;
+        this.divider.hidden = !compare || difference;
+        this.compare.setAttribute("aria-pressed", String(this.pair.classList.contains("compare")));
+        this.updateMinimap();
+    }
+
+    updateMinimap() {
+        const w = this.pair.clientWidth, h = this.pair.clientHeight;
+        const active = this.session && this.zoomValue !== "fit" && w && h &&
+            (w > this.viewport.clientWidth || h > this.viewport.clientHeight);
+        this.minimap.hidden = !active;
+        if (!active) return;
+        const scale = Math.min(Math.min(150, this.viewport.clientWidth * .3) / w, Math.min(110, this.viewport.clientHeight * .3) / h);
+        this.map.style.width = `${w * scale}px`; this.map.style.height = `${h * scale}px`;
+        const source = this.pair.classList.contains("show-depth") ? this.depth : this.after;
+        if (source.getAttribute("src") && this.mapImage.getAttribute("src") !== source.getAttribute("src")) this.mapImage.src = source.src;
+        const area = this.visibleArea();
+        if (area) Object.assign(this.mapWindow.style, { left: `${area.left * 100}%`, top: `${area.top * 100}%`,
+            width: `${(area.right - area.left) * 100}%`, height: `${(area.bottom - area.top) * 100}%` });
+    }
+
+    installMinimap() {
+        const point = event => {
+            const rect = this.map.getBoundingClientRect();
+            return rect.width && rect.height ? { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height } : null;
+        };
+        this.map.addEventListener("pointerdown", event => {
+            if (event.button !== 0 || this.minimap.hidden) return;
+            const p = point(event), area = this.visibleArea();
+            if (!p || !area) return;
+            event.preventDefault(); event.stopPropagation();
+            const inside = p.x >= area.left && p.x <= area.right && p.y >= area.top && p.y <= area.bottom;
+            this.mapDrag = { id: event.pointerId, x: inside ? p.x - (area.left + area.right) / 2 : 0, y: inside ? p.y - (area.top + area.bottom) / 2 : 0 };
+            this.map.setPointerCapture(event.pointerId);
+            this.navigate(p.x - this.mapDrag.x, p.y - this.mapDrag.y);
+        });
+        this.map.addEventListener("pointermove", event => {
+            if (this.mapDrag?.id !== event.pointerId) return;
+            const p = point(event); if (p) this.navigate(p.x - this.mapDrag.x, p.y - this.mapDrag.y);
+        });
+        const end = event => {
+            if (this.mapDrag?.id !== event.pointerId) return;
+            if (this.map.hasPointerCapture(event.pointerId)) this.map.releasePointerCapture(event.pointerId);
+            this.mapDrag = null;
+        };
+        this.map.addEventListener("pointerup", end); this.map.addEventListener("pointercancel", end);
+        this.map.addEventListener("lostpointercapture", () => { this.mapDrag = null; });
+        this.map.addEventListener("keydown", event => {
+            const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+            if (!direction) return;
+            event.preventDefault(); event.stopPropagation();
+            const area = this.visibleArea();
+            if (area) this.navigate((area.left + area.right) / 2 + direction[0] * (area.right - area.left) * .25,
+                (area.top + area.bottom) / 2 + direction[1] * (area.bottom - area.top) * .25);
+        });
     }
 
     async start() {
@@ -495,6 +727,7 @@ export class PhotoStudioEditor {
         const generation = ++this.sourceSequence;
         this.sequence++;
         this.applyButton.disabled = true;
+        this.openImageButton.disabled = this.saveImageButton.disabled = true;
         this.showDepth.disabled = this.focusButton.disabled = true;
         const old = this.session; this.session = null;
         if (old) request("release", { session: old }).catch(() => {});
@@ -515,9 +748,12 @@ export class PhotoStudioEditor {
             this.empty.hidden = true;
             this.pair.classList.remove("show-depth");
             this.applyButton.disabled = false;
+            this.openImageButton.disabled = this.saveImageButton.disabled = !!this.exporting;
             this.showDepth.disabled = this.focusButton.disabled = !data.has_depth;
             this.imageLabel.textContent = `${this.capture ? "Captured node input" : this.imageCandidate?.label || "Image file"} · ${data.width} × ${data.height} · first frame`;
             this.depthLabel.textContent = data.has_depth ? this.depthCandidate?.label || "Connected depth input" : "No depth map · Lens Blur requires one";
+            this.viewport.scrollLeft = this.viewport.scrollTop = 0;
+            this.setZoom(this.zoomValue); this.navigate(.5, .5); this.updateComparison();
             this.schedule(0);
         } catch (error) {
             if (generation !== this.sourceSequence || this.closed) return;
@@ -544,6 +780,7 @@ export class PhotoStudioEditor {
             const data = await request("preview", { session, settings: { ...this.draft }, quality: this.quality.value });
             if (this.closed || sequence !== this.sequence || session !== this.session) return;
             this.after.src = data.preview;
+            this.updateMinimap();
             this.renderedSequence = sequence;
             if (data.depth_preview) this.depth.src = data.depth_preview;
             this.drawHistogram(data.histogram);
@@ -633,7 +870,8 @@ export class PhotoStudioEditor {
             node.dkstPhotoStudioPresetData?.(this.presets);
             setNodeValue(node, "preset", this.preset.value, false);
             node.graph?.incrementVersion?.(); node.setDirtyCanvas?.(true, true);
-            if (node.dkstPhotoStudioThumbnail) node.dkstPhotoStudioThumbnail.src = this.after.src;
+            node.dkstPhotoStudioSetPreview?.(this.after.src);
+            node.dkstPhotoStudioCompact?.();
             this.close();
         } catch (error) {
             for (const added of created.reverse()) graph.remove(added);
@@ -660,6 +898,8 @@ export class PhotoStudioEditor {
         clearTimeout(this.timer);
         clearInterval(this.watchGraph);
         window.removeEventListener("resize", this.resized);
+        this.resizeObserver?.disconnect();
+        closeImageMenu?.();
         api.removeEventListener("executed", this.executed);
         if (this.session) request("release", { session: this.session }).catch(() => {});
         this.root.remove();

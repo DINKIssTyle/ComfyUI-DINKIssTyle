@@ -23,6 +23,12 @@ async function fixture() {
     dom.window.HTMLCanvasElement.prototype.getContext = () => null;
     dom.window.prompt = () => 'My Look';
     const calls = [], queueCalls = [], listeners = new Map();
+    const opened = [], downloads = [];
+    dom.window.open = url => { const popup={location:{href:url},close(){this.closed=true;}}; opened.push(popup); return popup; };
+    dom.window.URL.createObjectURL = () => `blob:photo-${downloads.length + opened.length}`;
+    dom.window.URL.revokeObjectURL = () => {};
+    dom.window.HTMLAnchorElement.prototype.click = function() { downloads.push({href:this.href,filename:this.download}); };
+    dom.window.fetch = async () => ({ok:true,blob:async()=>new dom.window.Blob(['png'],{type:'image/png'})});
     let extension, previewHandler;
     const extensions = new Map();
     let nextId = 1, nextLink = 1, sessionId = 1;
@@ -63,7 +69,7 @@ async function fixture() {
             else if (path.endsWith('/focus')) data={focus:.712345};
             else if (path.endsWith('/materialize')) data={filename:'persistent.png',subfolder:'dkst_photo_studio',type:'input'};
             else data={ok:true};
-            return {ok:true,status:200,json:async()=>data};
+            return {ok:true,status:200,json:async()=>data,blob:async()=>new dom.window.Blob(['export png'],{type:'image/png'})};
         },
     };
     context.LiteGraph={createNode:type=>new Node(type)};
@@ -85,7 +91,7 @@ async function fixture() {
     const photo=add('LoadImage'), depth=add('LoadImage'); depth.title='Depth';depth.widgets[0].value='depth.png';
     const node=add('DINKI_Photo_Studio');photo.connect(0,node,0);
     await settle();
-    return {dom,graph,app,api,node,photo,depth,add,editorModule,calls,queueCalls,Node,extension,
+    return {dom,graph,app,api,node,photo,depth,add,editorModule,calls,queueCalls,Node,extension,opened,downloads,
         async addViewer(properties = {}) {
             const module = await load(join(root,'dinki_nodes.js')); await module.evaluate();
             class Viewer {
@@ -119,6 +125,94 @@ test('Viewer images are discoverable from output cache, saved workflow and live 
         assert.equal(f.editorModule.selectedImageCandidate(viewer).descriptor.filename,'live.png');
         viewer.dkstPreviewImages=[];
         assert.equal(f.editorModule.selectedImageCandidate(viewer),null);
+    } finally {f.cleanup();}
+});
+
+test('node image context menu opens and downloads the full result, and Apply clears an older result',async()=>{
+    const f=await fixture();
+    try {
+        f.node.onExecuted({photo_studio_preview:[tiny],photo_studio_image:[{filename:'full.png',subfolder:'dkst_photo_studio',type:'temp'}]});
+        assert.equal(f.editorModule.workflowImages(f.graph).find(c=>c.nodeId===f.node.id).descriptor.filename,'full.png');
+        const image=f.node.dkstPhotoStudioThumbnail;
+        const event=new f.dom.window.MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:15,clientY:15});
+        image.dispatchEvent(event);
+        assert.equal(event.defaultPrevented,true);
+        const menu=f.dom.window.document.querySelector('.dkst-photo-context-menu');
+        assert.deepEqual([...menu.querySelectorAll('button')].map(b=>b.textContent),['Open Image','Save Image','Open Photo Studio']);
+        await menu.querySelector('button').onclick();
+        assert.match(f.opened[0].location.href,/filename=full.png/);
+        const options=[];f.node.getExtraMenuOptions(null,options);
+        await options.find(o=>o.content==='Save Image').callback();
+        assert.equal(f.downloads[0].filename,'full.png');
+        const editor=await f.editorModule.openPhotoStudio(f.node);
+        await editor.apply();
+        assert.equal(f.node.dkstPhotoStudioImage,undefined);
+        assert.equal(f.node.properties.dkstPhotoStudioPreview,undefined);
+        assert.equal(f.node.dkstPhotoStudioImageUrl(),tiny);
+        assert.ok(f.node.size[1]<=300);
+    } finally {f.cleanup();}
+});
+
+test('editor Open/Save exports current adjustments at source resolution without running the workflow',async()=>{
+    const f=await fixture();
+    try {
+        const editor=await f.editorModule.openPhotoStudio(f.node);
+        editor.controlChange('light_exposure',1.25,true);
+        await editor.exportImage(true);
+        const payload=f.calls.find(c=>c.path.endsWith('/export')).payload;
+        assert.equal(payload.session,editor.session);assert.equal(payload.settings.light_exposure,1.25);
+        assert.equal(payload.original,false);
+        assert.equal(f.downloads[0].filename,'DKST_Photo_Studio.png');
+        editor.exportTarget.value='original';await editor.exportImage(false);
+        assert.equal(f.calls.filter(c=>c.path.endsWith('/export')).at(-1).payload.original,true);
+        assert.match(f.opened[0].location.href,/^blob:/);
+        assert.equal(f.opened[0].opener,null);
+        assert.equal(f.queueCalls.length,0);
+        editor.close();
+    } finally {f.cleanup();}
+});
+
+test('center zoom, minimap navigation and comparison use the same aligned image coordinates',async()=>{
+    const f=await fixture();
+    try {
+        const editor=await f.editorModule.openPhotoStudio(f.node);
+        Object.defineProperties(editor.viewport,{clientWidth:{get:()=>600},clientHeight:{get:()=>400}});
+        editor.viewport.getBoundingClientRect=()=>({left:0,top:0,width:600,height:400});
+        Object.defineProperties(editor.pair,{clientWidth:{get:()=>parseFloat(editor.pair.style.width)||600},clientHeight:{get:()=>parseFloat(editor.pair.style.height)||400}});
+        editor.pair.getBoundingClientRect=()=>({left:Math.max(0,(600-editor.pair.clientWidth)/2)-editor.viewport.scrollLeft,top:Math.max(0,(400-editor.pair.clientHeight)/2)-editor.viewport.scrollTop,width:editor.pair.clientWidth,height:editor.pair.clientHeight});
+        editor.setZoom('fit');editor.setZoom('2');
+        const area=editor.visibleArea();
+        assert.ok(Math.abs((area.left+area.right)/2-.5)<.001);
+        assert.ok(Math.abs((area.top+area.bottom)/2-.5)<.001);
+        assert.equal(editor.minimap.hidden,false);
+        editor.map.dispatchEvent(new f.dom.window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
+        assert.ok(editor.viewport.scrollLeft>340);
+        editor.compare.click();
+        assert.equal(editor.after.style.clipPath,'inset(0 50% 0 0)');
+        const bounds=editor.pair.getBoundingClientRect();
+        editor.pair.dispatchEvent(new f.dom.window.MouseEvent('pointermove',{clientX:bounds.left+bounds.width*.75,bubbles:true}));
+        assert.equal(editor.after.style.clipPath,'inset(0 25% 0 0)');
+        editor.comparisonMode.value='Difference';editor.comparisonMode.dispatchEvent(new f.dom.window.Event('change'));
+        assert.equal(editor.pair.classList.contains('difference'),true);assert.equal(editor.divider.hidden,true);
+        editor.setZoom('fit');assert.equal(editor.minimap.hidden,true);
+        editor.close();
+    } finally {f.cleanup();}
+});
+
+test('hidden promoted setting rows do not make a newly created Studio node tall',async()=>{
+    const f=await fixture();
+    try {
+        f.node.inputs.push(...Object.keys(defaults).map(name=>({name,widget:{name},link:null})));
+        f.node.dkstPhotoStudioCompact();
+        assert.ok(f.node.size[1]<=300);
+        const editor=await f.editorModule.openPhotoStudio(null,{descriptor:{filename:'photo.png',type:'input'},nodeId:f.photo.id,slot:0,direct:true});
+        // Reproduce native graph.add growing a just-created node after onNodeCreated.
+        const add=f.graph.add;
+        f.graph.add=function(node){add.call(this,node);node.size=[320,1800];};
+        await editor.apply();await settle();
+        const created=f.graph._nodes.filter(n=>n.type==='DINKI_Photo_Studio').at(-1);
+        assert.ok(created.size[1]<=300);
+        assert.equal(f.graph.links[created.inputs[0].link].origin_id,f.photo.id);
     } finally {f.cleanup();}
 });
 

@@ -597,7 +597,8 @@ class DINKI_Photo_Studio:
         try:
             ui["photo_studio_source"] = [_store_source(image, depth_image)]
             ui["photo_studio_preview"] = [_png_uri(result[0][:1].detach().float().cpu(), 320)]
-        except ValueError as error:
+            ui["photo_studio_image"] = [_write_node_image(result[0][:1].detach().float().cpu())]
+        except (ValueError, OSError) as error:
             ui["photo_studio_preview_error"] = [str(error)]
         return {"ui": ui, "result": result}
 
@@ -853,13 +854,31 @@ def _proxy(image, edge):
                          mode="area").permute(0, 2, 3, 1)
 
 
-def _png_uri(image, edge=1400):
+def _png_bytes(image, edge=1400):
     pixels = (_proxy(image, edge)[0].clamp(0, 1) * 255).round().byte().numpy()
     if pixels.shape[-1] == 1:
         pixels = pixels[..., 0]
     stream = io.BytesIO()
     Image.fromarray(pixels).save(stream, format="PNG", compress_level=2)
-    return "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode("ascii")
+    return stream.getvalue()
+
+
+def _png_uri(image, edge=1400):
+    return "data:image/png;base64," + base64.b64encode(_png_bytes(image, edge)).decode("ascii")
+
+
+def _write_node_image(image):
+    import folder_paths
+    directory = Path(folder_paths.get_directory_by_type("temp")) / "dkst_photo_studio"
+    directory.mkdir(parents=True, exist_ok=True)
+    fd, filename = tempfile.mkstemp(prefix="DKST_Photo_Studio_", suffix=".png", dir=directory)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(_png_bytes(image, max(image.shape[1:3])))
+    except BaseException:
+        Path(filename).unlink(missing_ok=True)
+        raise
+    return {"filename": Path(filename).name, "subfolder": "dkst_photo_studio", "type": "temp"}
 
 
 def _preview_depth(item, settings):
@@ -947,6 +966,27 @@ async def photo_studio_preview(request):
         payload = await _preview_payload(request)
         item = _get_source(payload.get("session"), _preview_owner(request))
         return web.json_response(await _preview_work(_render_preview, item, payload))
+    except LookupError as error:
+        return web.json_response({"error": str(error)}, status=410)
+    except (ValueError, OSError, TypeError, AttributeError, Image.DecompressionBombError, json.JSONDecodeError) as error:
+        return web.json_response({"error": str(error)}, status=400)
+
+
+@PromptServer.instance.routes.post("/dinki/photo-studio/export")
+async def photo_studio_export(request):
+    """Export the first frame at source resolution, independent of preview quality."""
+    try:
+        payload = await _preview_payload(request)
+        item = _get_source(payload.get("session"), _preview_owner(request))
+        settings = _validate_settings(payload.get("settings", {}))
+        def render():
+            with _RENDER_LOCK, torch.inference_mode():
+                image = item["image"]
+                result = image if payload.get("original") is True else DINKI_Photo_Studio().apply(
+                    image, depth_image=item["depth"], **settings)[0]
+                return _png_bytes(result, max(image.shape[1:3]))
+        return web.Response(body=await _preview_work(render), content_type="image/png",
+                            headers={"Content-Disposition": 'inline; filename="DKST_Photo_Studio.png"'})
     except LookupError as error:
         return web.json_response({"error": str(error)}, status=410)
     except (ValueError, OSError, TypeError, AttributeError, Image.DecompressionBombError, json.JSONDecodeError) as error:

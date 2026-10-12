@@ -20,6 +20,10 @@ class PhotoStudioTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()
+        folders = MagicMock()
+        folders.get_directory_by_type.return_value = cls.temp.name
+        cls.folder_patch = patch.dict(sys.modules, {"folder_paths": folders})
+        cls.folder_patch.start()
         server = MagicMock()
         server.PromptServer.instance.routes.get.side_effect = lambda path: lambda function: function
         server.PromptServer.instance.routes.post.side_effect = lambda path: lambda function: function
@@ -32,6 +36,7 @@ class PhotoStudioTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        cls.folder_patch.stop()
         cls.temp.cleanup()
 
     def apply(self, image, depth=None, **changes):
@@ -420,6 +425,30 @@ class PhotoStudioTests(unittest.TestCase):
         self.assertEqual(self.preview_request("photo_studio_preview", {"session": data["session"]}).status, 200)
         self.preview_request("photo_studio_release", {"session": data["session"]})
         self.assertEqual(self.preview_request("photo_studio_preview", {"session": data["session"]}).status, 410)
+
+    def test_node_image_and_editor_export_keep_original_size_alpha_and_adjustments(self):
+        image = torch.full((1, 8, 1608, 4), .25)
+        image[..., 3] = .5
+        executed = self.node.execute(image, light_exposure=1)
+        descriptor = executed["ui"]["photo_studio_image"][0]
+        self.assertEqual(descriptor["type"], "temp")
+        saved = Image.open(Path(self.temp.name) / descriptor["subfolder"] / descriptor["filename"])
+        self.assertEqual(saved.size, (1608, 8))
+        self.assertEqual(saved.mode, "RGBA")
+        capture = executed["ui"]["photo_studio_source"][0]
+        opened = self.preview_request("photo_studio_session", {"source_session": capture})
+        session = json.loads(opened.text)["session"]
+        response = self.preview_request("photo_studio_export", {"session": session, "settings": {"light_exposure": 1}})
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.content_type, "image/png")
+        exported = Image.open(io.BytesIO(response.body))
+        self.assertEqual(exported.size, (1608, 8))
+        self.assertEqual(exported.tobytes(), saved.tobytes())
+        original = self.preview_request("photo_studio_export", {"session": session, "original": True})
+        self.assertEqual(Image.open(io.BytesIO(original.body)).getpixel((0, 0)), (64, 64, 64, 128))
+        denied = self.preview_request("photo_studio_export", {"session": session}, "other-user")
+        self.assertEqual(denied.status, 410)
+        self.assertEqual(self.preview_request("photo_studio_export", {"session": session, "settings": {"light_exposure": 99}}).status, 400)
 
     def test_focus_samples_float_depth_with_polarity_and_distortion(self):
         image = torch.rand((1, 12, 16, 3))
