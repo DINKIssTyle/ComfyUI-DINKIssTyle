@@ -1,5 +1,56 @@
 # Tests
 
+Qwen 2.1 LoRA training engine, project/worker control and UI tests:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_qwen_training*.py'
+python3 -m unittest discover -s tests -p 'test_qwen_caption.py'
+python3 -m unittest discover -s tests -p 'test_qwen_vae.py'
+python3 -m unittest discover -s tests -p 'test_qwen_text_weights.py'
+node --test tests/dinki_qwen_train.test.cjs tests/dinki_ref_grid.test.cjs
+```
+
+Python tests need `torch`, `numpy`, `Pillow`, `einops` and `safetensors`. They run
+the real Qwen driver/DiT on a tiny CPU model, check finite flow-matching gradients,
+LoRA-only updates, frozen-adapter exclusion and save/reload. Project tests cover
+aspect-preserving snapshots, caption/encoder cache invalidation, path validation,
+single-job controls, complete-state selection and real subprocess failure,
+pause/cancellation and final-artifact validation. Worker lifecycle tests substitute
+small subprocesses for GPU training; they do not generate full-model person LoRAs.
+UI tests cover caption persistence without focus loss, job ID serialization,
+button actions, model dropdown saving/refresh and manual paths, generation blocking
+and polling cleanup. Route tests cover registered model aliases, missing files and
+training Python discovery. Caption tests use real photo resizing and saved connection
+profiles with a mocked HTTP transport, covering optional use, manual model names,
+server-side authentication and error redaction. UI tests also cover sequential captioning,
+partial results, cancellation and preservation of captions edited during requests.
+VAE checks cover ComfyUI key conversion, singleton temporal kernels, strict
+checkpoint validation and real CPU safetensors loading/encode/decode. Log tests
+cover complete-log retrieval and download, restricted job paths, native scrolling
+and fragmented JSON requests.
+Text-encoder checks load real INT8 safetensors through the encoder constructor
+with a tiny substituted HF model, compare restored embedding/linear numerics and
+reject malformed or unsupported quantization metadata without dropping scales.
+Validate full CUDA
+training, ComfyUI loading and identity quality on the target machine.
+
+Image Ref Creator import, latent refinement and safetensors storage tests:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_ref_nodes.py'
+node --test tests/dinki_ref_grid.test.cjs
+```
+
+Run the Python tests in an environment with `torch`, `numpy`, `Pillow` and
+`safetensors` (for example, ComfyUI's Python environment). They load Creator and
+its storage helpers without importing the entire plugin, stub ComfyUI paths,
+and cover refinement inside ComfyUI's inference mode, temporal channel/frame
+ordering, independent photo encoding with video VAEs, token estimates and saved
+tensor/metadata roundtrips. The JavaScript tests cover the retained gallery widget.
+On a running ComfyUI instance, check Add Images, selection/removal, thumbnail
+sizing and workflow save/reload. These checks do not measure generation quality
+or demonstrate that stored references replace an identity LoRA.
+
 LLM connection profiles, alias dropdown, legacy migration and credential exclusion:
 
 ```sh

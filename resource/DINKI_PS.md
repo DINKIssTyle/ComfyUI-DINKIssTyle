@@ -15,6 +15,41 @@ For image enlargement without a diffusion redraw, use ComfyUI's built-in **Load 
 
 For diffusion refinement of an enlarged image, consider [Ultimate SD Upscale](https://github.com/ssitu/ComfyUI_UltimateSDUpscale) or [Tiled Diffusion & VAE](https://github.com/comfyorg/comfyui-tiled-diffusion). These use different sampling strategies; verify compatibility with the model and conditioning in your workflow. Tiled Diffusion's documented support lists SD1.x, SD2.x, SDXL, SD3 and FLUX, but does not list Qwen Image.
 
+### DKST PS (Qwen 2.1 LoRA Trainer)
+
+Train a Qwen Image 2.1 person LoRA from original photos with editable gallery
+captions. Configure a separate training Python environment and model paths,
+then use **Start Training**. Queueing the node reports status without starting
+another job. The panel shows cache/training stages, logs, checkpoints and previews,
+with pause/resume and stop controls. The Fast preset starts at rank 8 and 0.5 MP;
+Standard uses rank 16 and lower learning rates. Output files go into ComfyUI's
+`loras/DKST_Qwen21` directory for use with the regular or Multi LoRA Loader.
+
+Optional **Auto Caption (Empty)** uses an existing DKST LLM connection alias and
+a manually entered vision-model name. It fills blank gallery descriptions for
+review, preserving existing captions. Users without an LLM can enter descriptions
+manually and train normally.
+
+See [installation, model requirements and controls](../ComfyUI-DINKIssTyle/qwen21_trainer/README.md)
+and the [empty-gallery starter workflow](../sample_workflows/Qwen21_LoRA_Trainer.json).
+This is actual LoRA training; Image Ref Creator remains a separate retained node.
+
+### DKST PS (Image Ref Creator)
+
+Creator is retained for future use, including its multi-image gallery layout:
+**Add Images**, **Remove Selected**, **Clear**, thumbnail selection and size control.
+It also accepts an optional `IMAGE` batch and saves VAE-encoded image tensors to
+`input/ref/<ref_name>.safetensors` when `save_to_disk` is enabled.
+
+**Full Reference (encode)** stores each image's VAE latent separately.
+**Compressed (training)** is the existing mode label for spatial pooling and
+optional latent reconstruction refinement; it does not train model weights or
+create a LoRA. `refinement_steps` and `pool_grid` apply only to compression.
+
+Loader, Apply, Inspect and Encode Qwen have been removed, along with their model
+reference injection code and generation samples. Creator alone does not apply
+references to a sampler. Existing saved reference files are left in place.
+
 ### 🗂️ DKST Util (Sampler Preset)
 
 This node simplifies the often confusing task of selecting the correct **Sampler** and **Scheduler** pairs for different diffusion models. Instead of manually selecting them every time, this node reads from a customizable CSV database to provide "Golden Settings" or recommended presets for models like SDXL, Flux, Pony, and more.

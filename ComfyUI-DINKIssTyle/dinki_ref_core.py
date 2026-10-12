@@ -1,72 +1,33 @@
-"""Core logic for DKST PS Image Ref nodes (No-training reference latent extraction & application)."""
+"""VAE encoding, latent refinement and storage helpers for Image Ref Creator."""
 
 from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from safetensors import safe_open
-from safetensors.torch import load_file, save_file
+from safetensors.torch import save_file
 
 import folder_paths
 
 META_KEY = "refmod_meta"
+REF_FOLDER_NAME = "ref"
 
 
 def get_ref_dir() -> str:
     """Return default directory path (input/ref) for saving ref files."""
     input_dir = folder_paths.get_input_directory()
-    ref_dir = os.path.join(input_dir, "ref")
+    ref_dir = os.path.join(input_dir, REF_FOLDER_NAME)
     os.makedirs(ref_dir, exist_ok=True)
     return ref_dir
-
-
-def list_ref_files() -> List[str]:
-    """Return list of available ref .safetensors files in input/ref."""
-    ref_dir = get_ref_dir()
-    if not os.path.isdir(ref_dir):
-        return []
-    files = [
-        f for f in os.listdir(ref_dir)
-        if f.endswith(".safetensors") and os.path.isfile(os.path.join(ref_dir, f))
-    ]
-    return sorted(files)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Latent Processing & Optimization
 # ═══════════════════════════════════════════════════════════════════════════
-
-def blur_latent(z: torch.Tensor, factor: int = 8) -> torch.Tensor:
-    """Heavy spatial low-pass (downsample then upsample) used for strength < 1.0.
-
-    Preserves the latent manifold smoothly without introducing high-frequency noise textures.
-    """
-    if z.device.type == "mps":
-        return blur_latent(z.cpu(), factor).to(z.device)
-
-    # 4D: [B, C, H, W]
-    if z.dim() == 4:
-        b, c, h, w = z.shape
-        sh, sw = max(1, h // factor), max(1, w // factor)
-        down = F.adaptive_avg_pool2d(z.float(), (sh, sw))
-        up = F.interpolate(down, size=(h, w), mode="bilinear", align_corners=False)
-        return up.to(z.dtype)
-
-    # 5D: [B, C, T, H, W] (e.g. video / temporal latent)
-    if z.dim() == 5:
-        b, c, t, h, w = z.shape
-        sh, sw = max(1, h // factor), max(1, w // factor)
-        down = F.adaptive_avg_pool3d(z.float(), (t, sh, sw))
-        up = F.interpolate(down, size=(t, h, w), mode="trilinear", align_corners=False)
-        return up.to(z.dtype)
-
-    return z
-
 
 def pool_latent_2d(z: torch.Tensor, grid_h: int, grid_w: int) -> torch.Tensor:
     """Average-pool latent [B, C, H, W] to a compact grid [B, C, grid_h, grid_w]."""
@@ -90,13 +51,14 @@ def optimize_latent_2d(
     if steps <= 0:
         return z_small
 
-    device = z_full.device
-    target = z_full.clone().float().to(device)
-    param = nn.Parameter(z_small.clone().float().to(device))
-    opt = torch.optim.Adam([param], lr=lr)
-    target_size = (target.shape[2], target.shape[3])
-
     with torch.inference_mode(False), torch.set_grad_enabled(True):
+        # ComfyUI executes nodes in inference_mode. Allocate ordinary tensors
+        # here as well as enabling gradients, so backward can save its inputs.
+        device = z_full.device
+        target = z_full.detach().to(device=device, dtype=torch.float32).clone()
+        param = nn.Parameter(z_small.detach().to(device=device, dtype=torch.float32).clone())
+        opt = torch.optim.Adam([param], lr=lr)
+        target_size = (target.shape[2], target.shape[3])
         for _ in range(steps):
             opt.zero_grad()
             up = F.interpolate(param, size=target_size, mode="bilinear", align_corners=False)
@@ -107,16 +69,23 @@ def optimize_latent_2d(
     return param.detach().to(device=z_small.device, dtype=z_small.dtype)
 
 
-def calculate_token_count(latent: torch.Tensor) -> int:
-    """Calculate effective patch token count (e.g., 2x2 spatial patch per token)."""
-    if latent.dim() == 4:
-        # [B, C, H, W] -> (H/2) * (W/2) * B
-        b, _, h, w = latent.shape
-        return b * max(1, (h // 2)) * max(1, (w // 2))
-    elif latent.dim() == 5:
-        # [B, C, T, H, W]
-        b, _, t, h, w = latent.shape
-        return b * t * max(1, (h // 2)) * max(1, (w // 2))
+def calculate_token_count(latent: torch.Tensor, patch_size=None) -> int:
+    """Estimate tokens for the supported reference families, or an explicit patch.
+
+    Qwen 2.1 (64 channels) and FLUX.2 (128) use one spatial latent cell
+    per token. Other VAEs are estimated using 2x2 patches. The channel-based
+    estimate does not verify the compatibility of a saved file with a model.
+    """
+    if latent.dim() in (4, 5):
+        if patch_size is None:
+            patch_size = 1 if latent.shape[1] in (64, 128) else 2
+        ph, pw = (patch_size, patch_size) if isinstance(patch_size, int) else patch_size[-2:]
+        if ph <= 0 or pw <= 0:
+            raise ValueError("Reference patch size must be positive.")
+        b = latent.shape[0]
+        t = latent.shape[2] if latent.dim() == 5 else 1
+        h, w = latent.shape[-2:]
+        return b * t * ((h + ph - 1) // ph) * ((w + pw - 1) // pw)
     return int(latent.numel() / 64)
 
 
@@ -138,32 +107,3 @@ def save_ref_safetensors(
     }
     save_file(tensors, filepath, metadata=encoded_meta)
     return filepath
-
-
-def load_ref_safetensors(filepath: str) -> Tuple[torch.Tensor, Dict[str, Any]]:
-    """Load latent and metadata from .safetensors file."""
-    if not os.path.isabs(filepath):
-        cand = os.path.join(get_ref_dir(), filepath)
-        if os.path.isfile(cand):
-            filepath = cand
-        elif not os.path.isfile(filepath):
-            annotated = folder_paths.get_annotated_filepath(filepath)
-            if annotated and os.path.isfile(annotated):
-                filepath = annotated
-            else:
-                raise FileNotFoundError(f"Reference file not found: {filepath} (checked in {get_ref_dir()})")
-    elif not os.path.isfile(filepath):
-        raise FileNotFoundError(f"Reference file not found: {filepath}")
-
-    metadata: Dict[str, Any] = {}
-    with safe_open(filepath, framework="pt") as f:
-        meta_dict = f.metadata()
-        if meta_dict and META_KEY in meta_dict:
-            try:
-                metadata = json.loads(meta_dict[META_KEY])
-            except Exception:
-                pass
-    loaded = load_file(filepath)
-    if "latent" not in loaded:
-        raise KeyError(f"File {filepath} does not contain 'latent' tensor.")
-    return loaded["latent"], metadata

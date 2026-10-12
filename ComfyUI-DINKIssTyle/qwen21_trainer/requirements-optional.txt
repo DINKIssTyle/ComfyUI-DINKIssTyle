@@ -1,0 +1,5 @@
+# Optional accelerated ConvRot / torch.compile paths.
+# Install only after the base runtime works. Compilation on Windows also
+# requires compatible MSVC C++ build tools. BF16 + compile=off needs neither.
+comfy-kitchen==0.2.31
+triton-windows>=3.5.1,<3.7 ; sys_platform == 'win32'

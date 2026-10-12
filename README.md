@@ -5,7 +5,7 @@ These nodes are primarily designed for my own workflow using **Qwen-Image**, **Z
 Using them with other models may cause unexpected issues.
 
 
-- [All Nodes (62)](resource/Node_Catalog.md)
+- [All Nodes (64)](resource/Node_Catalog.md)
 - [Comparison Video Tools](resource/DINKI_Video_Tools.md)
 - [Image](resource/DINKI_Image.md)
 - [Color Nodes](resource/DINKI_Color_Nodes.md)
@@ -14,6 +14,7 @@ Using them with other models may cause unexpected issues.
 - [Node Utilities](resource/DINKI_Node_Utils.md)
 - [System Monitor (Windows / NVIDIA)](resource/DKST_System_Monitor.md)
 - [Internal Processing](resource/DINKI_PS.md)
+- [Qwen Image 2.1 LoRA Trainer — setup and usage](ComfyUI-DINKIssTyle/qwen21_trainer/README.md)
 
 
 ---

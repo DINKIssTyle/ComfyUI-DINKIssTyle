@@ -1,11 +1,11 @@
-"""ComfyUI-DINKIssTyle Image Ref Nodes (DKST PS)."""
+"""ComfyUI-DINKIssTyle Image Ref Creator (DKST PS)."""
 
 from __future__ import annotations
 
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from PIL import Image, ImageOps
@@ -13,12 +13,8 @@ import torch
 
 import folder_paths
 from .dinki_ref_core import (
-    REF_FOLDER_NAME,
-    blur_latent,
     calculate_token_count,
     get_ref_dir,
-    list_ref_files,
-    load_ref_safetensors,
     optimize_latent_2d,
     pool_latent_2d,
     save_ref_safetensors,
@@ -89,15 +85,15 @@ class DINKI_Create_Image_Ref:
                         "Compressed (training)",
                         "Full Reference (encode)",
                     ],
-                    {"default": "Compressed (training)"},
+                    {"default": "Full Reference (encode)", "tooltip": "Full Reference saves VAE-encoded images. Legacy Compressed mode pools latents without training model weights or a LoRA and can discard face detail."},
                 ),
                 "refinement_steps": (
                     "INT",
-                    {"default": 150, "min": 0, "max": 1000, "step": 10},
+                    {"default": 150, "min": 0, "max": 1000, "step": 10, "tooltip": "Latent reconstruction refinement steps; ignored in Full Reference mode."},
                 ),
                 "pool_grid": (
                     "INT",
-                    {"default": 4, "min": 2, "max": 32, "step": 2},
+                    {"default": 4, "min": 2, "max": 32, "step": 2, "tooltip": "Compressed latent grid size. Small grids discard face detail; ignored in Full Reference mode."},
                 ),
                 "save_to_disk": ("BOOLEAN", {"default": True}),
             },
@@ -111,7 +107,7 @@ class DINKI_Create_Image_Ref:
     FUNCTION = "create_ref"
     CATEGORY = "DINKIssTyle/PS"
     TITLE = "DKST PS (Image Ref Creator)"
-    DESCRIPTION = "Extract and compress reference latents from multiple images with an interactive grid gallery."
+    DESCRIPTION = "Save VAE image references from a gallery. Retained for future use with the gallery layout; legacy compression refines latent reconstruction without training model weights or a LoRA."
 
     def create_ref(
         self,
@@ -147,7 +143,7 @@ class DINKI_Create_Image_Ref:
         if not collected:
             raise ValueError("No images provided! Please upload images in the gallery or connect the 'images' input.")
 
-        # Ensure uniform sizing for batch VAE encoding
+        # Ensure uniform sizing for a single stored latent tensor.
         target_h, target_w = collected[0].shape[1], collected[0].shape[2]
         aligned_images = []
         for img in collected:
@@ -161,18 +157,17 @@ class DINKI_Create_Image_Ref:
             else:
                 aligned_images.append(img)
 
-        batched_pixels = torch.cat(aligned_images, dim=0)  # [B, H, W, 3]
-
-        # 2. VAE Encode
-        # ComfyUI vae.encode accepts [B, H, W, C]
-        encoded = vae.encode(batched_pixels[:, :, :, :3])
-        # Handle dict or tensor output
-        if isinstance(encoded, dict) and "samples" in encoded:
-            latent = encoded["samples"]
-        elif isinstance(encoded, torch.Tensor):
-            latent = encoded
-        else:
-            raise TypeError(f"Unexpected VAE output type: {type(encoded)}")
+        # 2. Encode each still image independently. Video VAEs such as H3
+        # interpret an IMAGE batch as consecutive frames, not separate refs.
+        encoded_images = []
+        for pixels in aligned_images:
+            encoded = vae.encode(pixels[:, :, :, :3])
+            if isinstance(encoded, dict):
+                encoded = encoded.get("samples")
+            if not isinstance(encoded, torch.Tensor) or encoded.dim() not in (4, 5) or encoded.shape[0] != 1:
+                raise ValueError("The VAE must encode each reference image to one 4D or 5D latent.")
+            encoded_images.append(encoded)
+        latent = torch.cat(encoded_images, dim=0)
 
         # Ensure 4D [B, C, H, W]
         is_5d = False
@@ -181,7 +176,7 @@ class DINKI_Create_Image_Ref:
             # [B, C, T, H, W] -> collapse or treat as 5D
             is_5d = True
             b, c, t, h, w = latent.shape
-            latent_4d = latent.view(b * t, c, h, w)
+            latent_4d = latent.permute(0, 2, 1, 3, 4).reshape(b * t, c, h, w)
         else:
             latent_4d = latent
 
@@ -199,7 +194,7 @@ class DINKI_Create_Image_Ref:
             final_latent = latent_4d
 
         if is_5d:
-            final_latent = final_latent.view(b, c, t, final_latent.shape[-2], final_latent.shape[-1])
+            final_latent = final_latent.reshape(b, t, c, final_latent.shape[-2], final_latent.shape[-1]).permute(0, 2, 1, 3, 4)
 
         token_count = calculate_token_count(final_latent)
         clean_name = ref_name.strip() or "image_ref"
@@ -213,6 +208,8 @@ class DINKI_Create_Image_Ref:
             "token_count": token_count,
             "original_shape": original_shape,
             "latent_shape": list(final_latent.shape),
+            "reference_layout": "independent_images",
+            "vae_class": type(getattr(vae, "first_stage_model", vae)).__name__,
         }
 
         # 4. Save to disk if requested
@@ -240,184 +237,3 @@ class DINKI_Create_Image_Ref:
         }
 
         return (image_ref, "\n".join(info_lines))
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 2. DINKI_Load_Image_Ref (Loader)
-# ═══════════════════════════════════════════════════════════════════════════
-
-class DINKI_Load_Image_Ref:
-    """Load previously saved reference latents (.safetensors)."""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        files = list_ref_files()
-        if not files:
-            files = ["None"]
-        return {
-            "required": {
-                "ref_name": (files, {"default": files[0]}),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE_REF", "STRING")
-    RETURN_NAMES = ("image_ref", "info")
-    FUNCTION = "load_ref"
-    CATEGORY = "DINKIssTyle/PS"
-    TITLE = "DKST PS (Image Ref Loader)"
-    DESCRIPTION = "Load saved reference files (.safetensors) from input/ref."
-
-    def load_ref(self, ref_name: str):
-        if ref_name in ("None", "", None):
-            raise ValueError("No reference file selected or available in input/ref.")
-
-        latent, meta = load_ref_safetensors(ref_name)
-        token_count = meta.get("token_count", calculate_token_count(latent))
-        name = meta.get("name", os.path.splitext(os.path.basename(ref_name))[0])
-
-        info_lines = [
-            f"📂 Loaded: {ref_name}",
-            f"🏷️ Name: {name}",
-            f"⚙️ Mode: {meta.get('mode', 'Unknown')}",
-            f"📸 Images: {meta.get('num_images', '?')}",
-            f"📐 Shape: {tuple(latent.shape)}",
-            f"🪙 Est. Tokens: {token_count}",
-        ]
-
-        image_ref = {
-            "name": name,
-            "latent": latent,
-            "meta": meta,
-        }
-        return (image_ref, "\n".join(info_lines))
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 3. DINKI_Apply_Image_Ref (Applier)
-# ═══════════════════════════════════════════════════════════════════════════
-
-class DINKI_Apply_Image_Ref:
-    """Inject reference latents into model attention/reference pathways."""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "model": ("MODEL",),
-                "image_ref": ("IMAGE_REF",),
-                "strength": (
-                    "FLOAT",
-                    {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05},
-                ),
-            }
-        }
-
-    RETURN_TYPES = ("MODEL",)
-    RETURN_NAMES = ("model",)
-    FUNCTION = "apply_ref"
-    CATEGORY = "DINKIssTyle/PS"
-    TITLE = "DKST PS (Image Ref Apply)"
-    DESCRIPTION = "Inject image reference tokens into the model with clean spatial-blur strength attenuation."
-
-    def apply_ref(self, model, image_ref: Dict[str, Any], strength: float):
-        if not isinstance(image_ref, dict) or "latent" not in image_ref:
-            raise ValueError("Invalid IMAGE_REF provided.")
-
-        latent: torch.Tensor = image_ref["latent"]
-
-        # Apply strength attenuation
-        if strength <= 0.0:
-            # No-op if strength is 0
-            return (model,)
-
-        working_latent = latent
-        if strength < 1.0:
-            # Blend smoothly towards spatially blurred latent (preserves latent manifold)
-            blurred = blur_latent(working_latent, factor=8)
-            alpha = max(0.0, min(1.0, strength))
-            working_latent = alpha * working_latent + (1.0 - alpha) * blurred
-        elif strength > 1.0:
-            # Scale slightly
-            working_latent = working_latent * strength
-
-        # Clone model to avoid mutating original
-        patched_model = model.clone()
-
-        # Attach to model's transformer/reference options
-        opts = patched_model.model_options.setdefault("transformer_options", {})
-        ref_list = opts.setdefault("ref_latents", [])
-        ref_list.append(working_latent)
-
-        # Support native MiniMax H3 / ref2video payload structure if present
-        if hasattr(patched_model.model, "diffusion_model"):
-            dm = patched_model.model.diffusion_model
-            if hasattr(dm, "refs") or "refs" in opts:
-                opts.setdefault("refs", []).append(working_latent)
-
-        return (patched_model,)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 4. DINKI_Inspect_Image_Ref (Inspector & Preview)
-# ═══════════════════════════════════════════════════════════════════════════
-
-class DINKI_Inspect_Image_Ref:
-    """Inspect reference metadata, token count, and optionally decode back to images for visual verification."""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image_ref": ("IMAGE_REF",),
-            },
-            "optional": {
-                "vae": ("VAE",),
-            },
-        }
-
-    RETURN_TYPES = ("IMAGE", "INT", "STRING")
-    RETURN_NAMES = ("preview_images", "token_count", "info")
-    FUNCTION = "inspect_ref"
-    CATEGORY = "DINKIssTyle/PS"
-    TITLE = "DKST PS (Image Ref Inspect)"
-    DESCRIPTION = "Inspect reference tokens and decode latents back to images with VAE to inspect quality."
-
-    def inspect_ref(self, image_ref: Dict[str, Any], vae=None):
-        if not isinstance(image_ref, dict) or "latent" not in image_ref:
-            raise ValueError("Invalid IMAGE_REF provided.")
-
-        latent: torch.Tensor = image_ref["latent"]
-        meta: Dict[str, Any] = image_ref.get("meta", {})
-        token_count = meta.get("token_count", calculate_token_count(latent))
-
-        info_lines = [
-            f"🔍 Name: {image_ref.get('name', 'Unnamed')}",
-            f"⚙️ Mode: {meta.get('mode', 'Unknown')}",
-            f"📐 Stored Latent Shape: {tuple(latent.shape)}",
-            f"🪙 Est. Tokens: {token_count}",
-            f"📊 Parameters/Values: {latent.numel():,} floats",
-        ]
-        for k, v in meta.items():
-            if k not in ("name", "mode", "token_count", "latent_shape"):
-                info_lines.append(f"  • {k}: {v}")
-
-        # VAE decoding for visual verification
-        preview_image = torch.zeros((1, 64, 64, 3), dtype=torch.float32)
-        if vae is not None:
-            try:
-                # If 5D [B, C, T, H, W], collapse to 4D for decoding
-                dec_latent = latent
-                if dec_latent.dim() == 5:
-                    b, c, t, h, w = dec_latent.shape
-                    dec_latent = dec_latent.permute(0, 2, 1, 3, 4).reshape(b * t, c, h, w)
-
-                decoded = vae.decode(dec_latent)
-                if isinstance(decoded, torch.Tensor):
-                    preview_image = decoded
-                elif isinstance(decoded, dict) and "samples" in decoded:
-                    preview_image = decoded["samples"]
-                info_lines.append(f"✨ Decoded Preview Size: {preview_image.shape[1]}x{preview_image.shape[2]} ({preview_image.shape[0]} frame(s))")
-            except Exception as e:
-                info_lines.append(f"⚠️ VAE Decode failed: {e}")
-
-        return (preview_image, token_count, "\n".join(info_lines))

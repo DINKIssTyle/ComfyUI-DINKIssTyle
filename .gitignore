@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 node_modules/
+ComfyUI-DINKIssTyle/qwen21_trainer/.venv/
 dkst_llm/
 ComfyUI-DINKIssTyle/csv/Cinema_Prompt.csv
 ComfyUI-DINKIssTyle_VoxCPM2/model/*

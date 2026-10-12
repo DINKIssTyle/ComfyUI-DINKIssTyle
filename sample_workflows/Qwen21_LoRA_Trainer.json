@@ -1,0 +1,57 @@
+{
+  "last_node_id": 1,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "DINKI_Qwen21_LoRA_Trainer",
+      "pos": [
+        160,
+        100
+      ],
+      "size": [
+        560,
+        1100
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "lora_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "info",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DINKI_Qwen21_LoRA_Trainer"
+      },
+      "widgets_values": [
+        "my_person",
+        "[]",
+        "dkst_person",
+        "Fast",
+        30,
+        704,
+        "auto",
+        "off",
+        5,
+        "Portrait of {trigger}, waving hello, natural light",
+        42,
+        "-- Select connection --",
+        ""
+      ]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

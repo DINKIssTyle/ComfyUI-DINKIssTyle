@@ -33,8 +33,10 @@ app.registerExtension({
         return {
             DKST_IMAGE_REF_GRID(node, inputName, inputData) {
                 let items = parseItems(inputData?.[1]?.default || "[]");
+                const captions = inputData?.[1]?.captions === true;
                 let thumbSize = 80; // default 80px
                 let widget;
+                const captionInputs = new WeakMap();
 
                 const root = createElement("div", {
                     boxSizing: "border-box",
@@ -62,13 +64,14 @@ app.registerExtension({
                 root.appendChild(fileInput);
 
                 // --- Helper Functions ---
-                function syncValue() {
+                function syncValue(skipAssignment = false) {
                     const jsonStr = JSON.stringify(items.map(it => ({
                         filename: it.filename,
                         subfolder: it.subfolder || "",
                         type: it.type || "input",
+                        ...(captions ? { caption: typeof it.caption === "string" ? it.caption : "" } : {}),
                     })));
-                    if (widget) {
+                    if (widget && !skipAssignment) {
                         widget.value = jsonStr;
                     }
                     node.onWidgetChanged?.(inputName, jsonStr, null, widget);
@@ -239,14 +242,20 @@ app.registerExtension({
                     gap: "6px",
                     maxHeight: "320px",
                     overflowY: "auto",
+                    minHeight: "0",
+                    overscrollBehavior: "contain",
                     padding: "4px",
                 });
+                // Keep native scrolling inside the widget instead of zooming the graph.
+                gridContainer.addEventListener("wheel", e => e.stopPropagation(), { passive: true });
+                gridContainer.addEventListener("pointerdown", e => e.stopPropagation());
                 root.appendChild(gridContainer);
 
                 function updateGridSizing() {
                     gridContainer.style.gridTemplateColumns = `repeat(auto-fill, minmax(${thumbSize}px, 1fr))`;
                     gridContainer.querySelectorAll(".dkst-ref-card").forEach(card => {
-                        card.style.height = `${thumbSize}px`;
+                        card.style.height = `${thumbSize + (captions ? 62 : 0)}px`;
+                        if (captions) card.children[0].style.height = `${thumbSize}px`;
                     });
                 }
 
@@ -272,7 +281,7 @@ app.registerExtension({
                         const card = createElement("div", {
                             position: "relative",
                             width: "100%",
-                            height: `${thumbSize}px`,
+                            height: `${thumbSize + (captions ? 62 : 0)}px`,
                             borderRadius: "6px",
                             overflow: "hidden",
                             border: item.selected ? "2px solid #3b82f6" : "1px solid rgba(255, 255, 255, 0.15)",
@@ -286,7 +295,7 @@ app.registerExtension({
                         const imgUrl = `/view?filename=${encodeURIComponent(item.filename)}&subfolder=${encodeURIComponent(item.subfolder || "")}&type=${item.type || "input"}`;
                         const img = createElement("img", {
                             width: "100%",
-                            height: "100%",
+                            height: captions ? `${thumbSize}px` : "100%",
                             objectFit: "cover",
                             display: "block",
                             userSelect: "none",
@@ -353,6 +362,25 @@ app.registerExtension({
                         });
 
                         card.append(img, checkIndicator, delBtn);
+                        if (captions) {
+                            const caption = createElement("textarea", {
+                                width: "100%", height: "60px", boxSizing: "border-box",
+                                resize: "none", background: "#202024", color: "inherit",
+                                fontSize: "11px", border: "none", padding: "4px",
+                                overflowY: "auto", userSelect: "text",
+                            }, { placeholder: "Describe pose, clothes, background…", maxlength: "4000" });
+                            caption.value = item.caption || "";
+                            captionInputs.set(item, caption);
+                            caption.addEventListener("click", e => e.stopPropagation());
+                            caption.addEventListener("pointerdown", e => e.stopPropagation());
+                            caption.addEventListener("wheel", e => e.stopPropagation(), { passive: true });
+                            caption.addEventListener("input", () => {
+                                item.caption = caption.value;
+                                // Keep the textarea mounted and focused while typing.
+                                syncValue(true);
+                            });
+                            card.appendChild(caption);
+                        }
                         gridContainer.appendChild(card);
                     });
                 }
@@ -366,6 +394,7 @@ app.registerExtension({
                             filename: it.filename,
                             subfolder: it.subfolder || "",
                             type: it.type || "input",
+                            ...(captions ? { caption: typeof it.caption === "string" ? it.caption : "" } : {}),
                         })));
                     },
                     setValue(val) {
@@ -374,6 +403,22 @@ app.registerExtension({
                         ensureFits();
                     },
                 });
+
+                if (captions) {
+                    // Snapshot object identities; a removed/replaced photo or a newly
+                    // edited caption must never receive a stale LLM result.
+                    widget.dkstCaptionTargets = () => items.filter(item => !String(item.caption || "").trim()).map(item => ({
+                        image: { filename: item.filename, subfolder: item.subfolder || "", type: item.type || "input" },
+                        apply(caption) {
+                            if (!items.includes(item) || String(item.caption || "").trim()) return false;
+                            item.caption = caption;
+                            const input = captionInputs.get(item);
+                            if (input) input.value = caption;
+                            syncValue(true);
+                            return true;
+                        },
+                    }));
+                }
 
                 return { widget };
             },
