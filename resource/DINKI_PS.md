@@ -34,6 +34,19 @@ See [installation, model requirements and controls](../ComfyUI-DINKIssTyle/qwen2
 and the [empty-gallery starter workflow](../sample_workflows/Qwen21_LoRA_Trainer.json).
 This is actual LoRA training; Image Ref Creator remains a separate retained node.
 
+### DKST PS (Face Crop Export)
+
+Add photos to the existing gallery and click **Execute** to export padded face
+crops into a new folder under ComfyUI's output directory. CPU-only YuNet is
+bundled, with all/largest-face selection, optional square crops, longest-edge
+limits without upscaling, and independent detection inside 4×4 contact-sheet cells.
+Sources remain unchanged. Results have wheel scrolling, arrows and a position
+slider; a manifest records detection/crop boxes and skipped images. Queue/Run
+outputs the saved images as a list, plus the folder path and summary.
+
+See [setup and controls](../ComfyUI-DINKIssTyle/face_crop/README.md) and the
+[starter workflow](../sample_workflows/Face_Crop_Export.json).
+
 ### DKST PS (Image Ref Creator)
 
 Creator is retained for future use, including its multi-image gallery layout:

@@ -1,0 +1,2 @@
+# Install in ComfyUI's own Python, only if cv2/FaceDetectorYN is unavailable.
+opencv-python>=4.8.0

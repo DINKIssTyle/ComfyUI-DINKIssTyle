@@ -1,0 +1,60 @@
+{
+  "last_node_id": 1,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "DINKI_Face_Crop_Export",
+      "pos": [
+        160,
+        100
+      ],
+      "size": [
+        620,
+        1400
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "folder",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "info",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DINKI_Face_Crop_Export"
+      },
+      "widgets_values": [
+        "[]",
+        "DKST_FaceCrops/my_person",
+        "face",
+        "All faces",
+        "BBox ratio",
+        30,
+        true,
+        1024,
+        "Off",
+        0.8,
+        ""
+      ]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

@@ -1,5 +1,22 @@
 # Tests
 
+Face crop geometry, disk exports, background control, ComfyUI outputs and UI:
+
+```sh
+python3 -m unittest discover -s tests -p test_face_crop.py
+node --test tests/dinki_face_crop.test.cjs tests/dinki_ref_grid.test.cjs
+```
+
+Python tests require NumPy and Pillow. OpenCV enables the real bundled YuNet
+inference check against the local 4×4 photo fixture (otherwise that check skips).
+Tests cover padding and square boundaries, no upscaling, EXIF orientation, clean
+PNG metadata, independent cells, variable image sizes, missing/corrupt sources,
+path containment, unique folders, manifests, cancellation and restart behavior.
+Routes use a stubbed ComfyUI server; fragmented/oversized JSON and image-list
+outputs are verified. UI tests cover result restoration, option submission,
+progress/cancellation, stale responses, polling cleanup and canceled-canvas-wheel
+scrolling, arrows and sliders. Confirm loading on a running ComfyUI server.
+
 Qwen 2.1 LoRA training engine, project/worker control and UI tests:
 
 ```sh
