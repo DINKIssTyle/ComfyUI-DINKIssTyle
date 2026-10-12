@@ -12,3 +12,4 @@ ComfyUI-DINKIssTyle_VoxCPM2/model/*
 ComfyUI-DINKIssTyle_VoxCPM2/voice/*
 !ComfyUI-DINKIssTyle_VoxCPM2/voice/.gitkeep
 ComfyUI-DINKIssTyle/output/*
+ComfyUI-DINKIssTyle/fonts/*
