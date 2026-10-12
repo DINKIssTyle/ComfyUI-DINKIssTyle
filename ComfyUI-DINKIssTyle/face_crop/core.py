@@ -14,6 +14,7 @@ import uuid
 
 import numpy as np
 from PIL import Image, ImageOps
+from .archive import Archives
 
 MODELS = Path(__file__).parent / "models"
 ACTIVE = {"queued", "processing", "cancel_requested"}
@@ -168,6 +169,7 @@ class FaceCropService:
         self.thread = None
         self.current_id = None
         self.cancel_event = threading.Event()
+        self.archives = Archives(self)
 
     def source_path(self, item):
         if not isinstance(item, dict):

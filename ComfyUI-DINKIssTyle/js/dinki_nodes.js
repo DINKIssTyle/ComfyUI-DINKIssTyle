@@ -2324,8 +2324,59 @@ app.registerExtension({
 // ============================================================
 // 13. DKST Image (Viewer) resolution overlay
 // ============================================================
+function visitPreviewNodes(callback) {
+    const visited = new Set();
+    const visit = (graph, path = []) => {
+        if (!graph || visited.has(graph)) return;
+        visited.add(graph);
+        for (const node of graph.nodes ?? graph._nodes ?? []) {
+            const executionId = [...path, String(node.id)].join(":");
+            if (node.comfyClass === "DINKI_Preview_Image") callback(node, executionId);
+            if (node.subgraph) visit(node.subgraph, [...path, String(node.id)]);
+        }
+    };
+    visit(app.rootGraph ?? app.graph);
+}
+
+function previewNodeOutput(node) {
+    const root = app.rootGraph ?? app.graph;
+    if (!root) return app.nodeOutputs?.[node.id];
+    if (node.graph === root) return app.nodeOutputs?.[node.id];
+    let output;
+    visitPreviewNodes(candidate => {
+        if (candidate === node) output = app.nodeOutputs?.[`${node.graph.id}:${node.id}`];
+    });
+    return output;
+}
+
+const refreshPreviewNodes = (retry = false) => {
+    if (app.configuringGraph || document.visibilityState === "hidden") return;
+    visitPreviewNodes(node => node.dkstSyncPreview?.(retry));
+};
+
 app.registerExtension({
     name: "DINKI.PreviewImage.Resolution",
+    setup() {
+        // Receive results independently of the canvas/DOM widget's visibility.
+        api.addEventListener("executed", ({ detail }) => {
+            if (!detail?.output || app.configuringGraph) return;
+            const id = String(detail.display_node ?? detail.node);
+            visitPreviewNodes((node, executionId) => {
+                if (executionId !== id || (node.dkstLastPreviewMessage === detail.output && !detail.merge)) return;
+                // ComfyUI has already stored the merged output before this listener.
+                if (!node.dkstSyncPreview?.(false, !!detail.merge)) node.dkstUpdatePreview?.(detail.output);
+                node.dkstLastPreviewMessage = detail.output;
+            });
+        });
+        document.addEventListener("visibilitychange", () => refreshPreviewNodes(true));
+        window.addEventListener("focus", () => refreshPreviewNodes(true));
+        window.addEventListener("pageshow", () => refreshPreviewNodes(true));
+    },
+    onNodeOutputsUpdated() {
+        // History loading and workflow tab restoration replace the output store
+        // without replaying onExecuted. These outputs belong to the active graph.
+        if (!app.configuringGraph) visitPreviewNodes(node => node.dkstSyncPreview?.(false, true));
+    },
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== "DINKI_Preview_Image") return;
         const created = nodeType.prototype.onNodeCreated;
@@ -2357,6 +2408,8 @@ app.registerExtension({
             widget.options.serialize = false;
             let descriptors = [];
             let previewGeneration = 0;
+            let lastOutput;
+            let removed = false;
             const selected = () => descriptors[Number(selector.value) || 0];
             const extraMenu = this.getExtraMenuOptions;
             this.getExtraMenuOptions = function(canvas, options) {
@@ -2413,8 +2466,11 @@ app.registerExtension({
                 }
             });
             this.dkstUpdatePreview = (message, persist = true) => {
+                if (removed || !Array.isArray(message?.dkst_images ?? message?.images)) return;
                 descriptors = message?.dkst_images || message?.images || [];
                 if (persist) {
+                    this.dkstLastPreviewMessage = message;
+                    lastOutput = previewNodeOutput(this);
                     this.properties ??= {};
                     this.properties.dkstPreview = {
                         dkst_images: descriptors,
@@ -2437,16 +2493,49 @@ app.registerExtension({
             };
             this.dkstRestorePreview = () => {
                 const stored = this.properties?.dkstPreview;
-                const output = app.nodeOutputs?.[this.id];
+                const output = previewNodeOutput(this);
+                // During graph configuration the store may still belong to the
+                // previous workflow. Treat it as a baseline, not a newer result.
+                lastOutput = output;
                 if (stored?.dkst_images?.length) {
                     this.dkstUpdatePreview(stored, false);
                 } else if (output?.dkst_images?.length || output?.images?.length) {
                     this.dkstUpdatePreview(output, false);
                 }
             };
+            this.dkstSyncPreview = (retry = false, restoredOutput = false) => {
+                if (removed || app.configuringGraph) return false;
+                const output = previewNodeOutput(this);
+                const changed = output !== lastOutput || (restoredOutput && output !== this.dkstLastPreviewMessage);
+                if (changed && Array.isArray(output?.dkst_images ?? output?.images)) {
+                    this.dkstUpdatePreview(output);
+                    return true;
+                }
+                // An image request deferred/failed while hidden gets a fresh URL
+                // when the tab/widget returns. Loaded images keep their selection.
+                if (retry && selected() && image.complete && !image.naturalWidth) display();
+                return false;
+            };
+            const draw = this.onDrawBackground;
+            this.onDrawBackground = function() {
+                this.dkstSyncPreview?.();
+                return draw?.apply(this, arguments);
+            };
+            const observer = typeof IntersectionObserver === "function" ? new IntersectionObserver(entries => {
+                if (entries.some(entry => entry.isIntersecting)) this.dkstSyncPreview?.(true);
+            }) : null;
+            observer?.observe(container);
+            const remove = this.onRemoved;
+            this.onRemoved = function() {
+                removed = true;
+                observer?.disconnect();
+                image.onload = image.onerror = null;
+                return remove?.apply(this, arguments);
+            };
             const configured = this.onConfigure;
             this.onConfigure = function() {
                 const configuredResult = configured?.apply(this, arguments);
+                lastOutput = previewNodeOutput(this);
                 queueMicrotask(() => this.dkstRestorePreview?.());
                 return configuredResult;
             };

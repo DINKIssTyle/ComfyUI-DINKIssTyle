@@ -16,6 +16,11 @@ Routes use a stubbed ComfyUI server; fragmented/oversized JSON and image-list
 outputs are verified. UI tests cover result restoration, option submission,
 progress/cancellation, stale responses, polling cleanup and canceled-canvas-wheel
 scrolling, arrows and sliders. Confirm loading on a running ComfyUI server.
+ZIP checks cover archive contents/CRC, portable manifests, original-image
+exclusion, cache reuse/invalidation, failed-write cleanup, concurrent preparation,
+missing crops, completed-export gating, fragmented requests and Unicode attachment
+headers. UI checks cover duplicate-click prevention, native base-aware download
+links, error retry and suppression of stale downloads after removal/reconfiguration.
 
 Qwen 2.1 LoRA training engine, project/worker control and UI tests:
 
@@ -108,6 +113,18 @@ In ComfyUI, check both the regular node renderer and Nodes 2.0: Edit/Preview,
 Lock/Unlock, source Copy, workflow save/reload, resizing, text selection, scroll
 gestures, and canvas zoom. Include a Korean note, wide table, long code line and
 an image when checking layout.
+
+Image Viewer background updates and preview restoration:
+
+```sh
+node --test tests/dinki_preview_viewer.test.cjs tests/dinki_preview_menu.test.cjs
+```
+
+These tests cover results received while hidden, browser focus/visibility return,
+offscreen canvas refresh, workflow output restoration, subgraph output keys,
+failed image retries, removed nodes, merged batches, repeated filenames and
+preservation of the selected batch image. Also verify returning from another
+browser tab after generation in ComfyUI, with regular nodes and Nodes 2.0.
 
 Video Load & Crop tests (real PyAV codecs and Torch tensors):
 

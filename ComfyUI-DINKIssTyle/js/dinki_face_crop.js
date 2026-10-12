@@ -47,6 +47,10 @@ app.registerExtension({
         const manifest = element("a", { color: "#9cc6ff", alignSelf: "center" }, "Download Manifest");
         manifest.target = "_blank"; manifest.rel = "noopener"; manifest.style.display = "none";
         toolbar.append(manifest);
+        const download = button("Download ZIP");
+        const readyLink = element("a", { color: "#9cc6ff", alignSelf: "center", display: "none" }, "ZIP ready — download again");
+        readyLink.target = "_blank"; readyLink.rel = "noopener";
+        toolbar.append(readyLink);
         const status = element("div", { whiteSpace: "pre-wrap", overflowWrap: "anywhere", userSelect: "text", maxHeight: "100px", overflowY: "auto", flexShrink: "0" },
             "Add photos, set options, then Execute. Queue/Run outputs the most recent export.");
         bindScrollWheel(status);
@@ -62,13 +66,15 @@ app.registerExtension({
         });
         widget.serialize = false;
         node.setSize?.([Math.max(520, node.size?.[0] || 520), Math.max(1200, node.size?.[1] || 1200)]);
-        let state = null, busy = false, polling = false, disposed = false, renderedJob = "";
+        let state = null, busy = false, zipBusy = false, polling = false, disposed = false, renderedJob = "";
         const rendered = new Set();
         const controls = () => {
             const matching = state?.id === jobWidget.value;
-            execute.disabled = busy || (matching && ACTIVE.has(state.status));
+            execute.disabled = busy || zipBusy || (matching && ACTIVE.has(state.status));
             cancel.disabled = busy || !matching || !ACTIVE.has(state.status) || state.status === "cancel_requested";
-            refresh.disabled = busy || !jobWidget.value;
+            refresh.disabled = busy || zipBusy || !jobWidget.value;
+            download.disabled = busy || zipBusy || !matching || state.status !== "completed" || !state.results.length;
+            download.textContent = zipBusy ? "Preparing ZIP…" : "Download ZIP";
         };
         function setJob(id) {
             jobWidget.value = id;
@@ -90,6 +96,7 @@ app.registerExtension({
             manifest.style.display = "inline";
             if (renderedJob !== next.id) {
                 gallery.replaceChildren(); rendered.clear(); renderedJob = next.id; viewport.scrollTop = 0;
+                readyLink.style.display = "none";
             }
             for (const crop of next.results) {
                 if (rendered.has(crop.filename)) continue;
@@ -106,7 +113,7 @@ app.registerExtension({
         }
         async function update(force = false) {
             const id = jobWidget.value;
-            if (disposed || polling || busy || !id || (!force && state?.id === id && !ACTIVE.has(state.status))) return;
+            if (disposed || polling || busy || zipBusy || !id || (!force && state?.id === id && !ACTIVE.has(state.status))) return;
             polling = true;
             try { render(await request(`/jobs?id=${encodeURIComponent(id)}`)); }
             catch (error) { if (!disposed && id === jobWidget.value) status.textContent = error.message; }
@@ -133,11 +140,35 @@ app.registerExtension({
             finally { busy = false; controls(); }
         });
         refresh.addEventListener("click", () => update(true));
+        download.addEventListener("click", async () => {
+            if (disposed || download.disabled || zipBusy) return;
+            const id = jobWidget.value;
+            zipBusy = true; controls();
+            readyLink.style.display = "none";
+            status.textContent += "\nPreparing ZIP…";
+            try {
+                const bundle = await request("/zip", { id });
+                if (disposed || jobWidget.value !== id || state?.id !== id || bundle.id !== id) return;
+                readyLink.href = api.apiURL(bundle.url);
+                readyLink.download = bundle.filename;
+                readyLink.style.display = "inline";
+                render(state);
+                status.textContent += `\nDownload started: ${bundle.filename} (${(bundle.size / 1024 / 1024).toFixed(1)} MB)`;
+                // Let the browser stream the file to disk rather than fetch a ZIP blob.
+                // The visible link also allows a manual retry if automatic downloads are blocked.
+                readyLink.click();
+            } catch (error) {
+                if (!disposed && jobWidget.value === id) {
+                    if (state?.id === id) render(state);
+                    status.textContent += `\n${error.message}`;
+                }
+            } finally { zipBusy = false; controls(); }
+        });
         const timer = setInterval(() => update(), 1000);
         const previousConfigure = node.onConfigure;
         node.onConfigure = function (...args) {
             const result = previousConfigure?.apply(this, args);
-            state = null; controls(); update(true); return result;
+            state = null; readyLink.style.display = "none"; controls(); update(true); return result;
         };
         const previousRemoved = node.onRemoved;
         node.onRemoved = function (...args) {

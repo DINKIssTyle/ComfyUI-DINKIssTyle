@@ -17,6 +17,157 @@ function element(tag) {
     };
 }
 
+async function runtime() {
+    let extension;
+    const events = new Map();
+    const document = { createElement: element, visibilityState: 'visible',
+        addEventListener(name, handler) { events.set(`document:${name}`, handler); } };
+    const app = { nodeOutputs: {}, rootGraph: { _nodes: [] }, registerExtension(ext) {
+        if (ext.name === 'DINKI.PreviewImage.Resolution') extension = ext;
+    } };
+    const api = { apiURL: path => path,
+        addEventListener(name, handler) { events.set(`api:${name}`, handler); } };
+    vm.runInNewContext(source.replace(/^import .*;\r?\n/gm, ''), {
+        app, api, document, queueMicrotask, URLSearchParams,
+        window: { addEventListener(name, handler) { events.set(`window:${name}`, handler); } },
+    });
+    class Viewer {
+        constructor(id = 7, properties = {}, graph = app.rootGraph) {
+            this.id = id; this.comfyClass = 'DINKI_Preview_Image'; this.properties = properties;
+            this.graph = graph; graph._nodes.push(this); this.onNodeCreated();
+        }
+        addDOMWidget(name, type, container, options) {
+            this.container = container; this.previewWidget = { options }; return this.previewWidget;
+        }
+        setDirtyCanvas() {}
+    }
+    await extension.beforeRegisterNodeDef(Viewer, { name: 'DINKI_Preview_Image' });
+    extension.setup?.();
+    const emit = (name, detail) => events.get(name)?.({ detail });
+    return { app, extension, Viewer, document, emit };
+}
+
+const output = filename => ({ dkst_images: [{ filename, type: 'temp' }] });
+
+test('returning to a browser tab replaces an old preview with the latest stored output', async () => {
+    const { app, Viewer, document, emit } = await runtime();
+    const viewer = new Viewer();
+    viewer.onExecuted(output('old.png'));
+    document.visibilityState = 'hidden';
+    // Native output storage can advance without calling the custom DOM handler.
+    app.nodeOutputs[7] = output('latest.png');
+    emit('document:visibilitychange');
+    assert.match(viewer.container.children[0].src, /old.png/);
+    document.visibilityState = 'visible';
+    emit('document:visibilitychange');
+    assert.match(viewer.container.children[0].src, /latest.png/);
+    assert.equal(viewer.properties.dkstPreview.dkst_images[0].filename, 'latest.png');
+});
+
+test('an offscreen Viewer catches up when drawn without resetting batch selection every frame', async () => {
+    const { app, Viewer } = await runtime();
+    const viewer = new Viewer();
+    viewer.onExecuted(output('old.png'));
+    app.nodeOutputs[7] = { dkst_images: [
+        { filename: 'new-one.png', type: 'temp' }, { filename: 'new-two.png', type: 'temp' },
+    ] };
+    viewer.onDrawBackground();
+    assert.match(viewer.container.children[0].src, /new-one.png/);
+    const selector = viewer.container.children[2];
+    selector.value = '1'; selector.onchange();
+    const selectedURL = viewer.container.children[0].src;
+    viewer.onDrawBackground(); viewer.onDrawBackground();
+    assert.equal(viewer.container.children[0].src, selectedURL);
+    assert.equal(selector.value, '1');
+});
+
+test('direct execution events refresh hidden Viewers once and honor merged batches', async () => {
+    const { app, Viewer, document, emit } = await runtime();
+    const viewer = new Viewer();
+    document.visibilityState = 'hidden';
+    const message = output('hidden.png');
+    app.nodeOutputs[7] = message;
+    emit('api:executed', { node: '7', output: message });
+    assert.match(viewer.container.children[0].src, /hidden.png/);
+    const next = output('last.png');
+    app.nodeOutputs[7] = { dkst_images: [...message.dkst_images, ...next.dkst_images] };
+    viewer.onExecuted(next);
+    emit('api:executed', { node: '7', output: next, merge: true });
+    assert.equal(viewer.dkstPreviewImages.length, 2);
+    const final = output('final.png');
+    app.nodeOutputs[7] = final;
+    viewer.onExecuted(final);
+    const finalURL = viewer.container.children[0].src;
+    emit('api:executed', { node: '7', output: final });
+    assert.equal(viewer.container.children[0].src, finalURL);
+});
+
+test('workflow output restoration supersedes saved properties after configuration', async () => {
+    const { app, extension, Viewer } = await runtime();
+    app.nodeOutputs[7] = output('other-workflow.png');
+    const viewer = new Viewer(7, { dkstPreview: output('saved.png') });
+    extension.loadedGraphNode(viewer); viewer.onConfigure(); await Promise.resolve();
+    viewer.onDrawBackground();
+    assert.match(viewer.container.children[0].src, /saved.png/);
+    app.nodeOutputs = { 7: output('completed-in-background.png') };
+    extension.onNodeOutputsUpdated(app.nodeOutputs);
+    assert.match(viewer.container.children[0].src, /completed-in-background.png/);
+});
+
+test('restoring native outputs while hidden overrides the configuration baseline', async () => {
+    const { app, extension, Viewer, document } = await runtime();
+    const completed = output('completed.png');
+    app.nodeOutputs[7] = completed;
+    const viewer = new Viewer(7, { dkstPreview: output('saved.png') });
+    extension.loadedGraphNode(viewer);
+    assert.match(viewer.container.children[0].src, /saved.png/);
+    document.visibilityState = 'hidden';
+    extension.onNodeOutputsUpdated(app.nodeOutputs);
+    assert.match(viewer.container.children[0].src, /completed.png/);
+    const url = viewer.container.children[0].src;
+    extension.onNodeOutputsUpdated(app.nodeOutputs);
+    assert.equal(viewer.container.children[0].src, url);
+});
+
+test('focus retries a failed image request and removed nodes ignore late callbacks', async () => {
+    const { app, Viewer, emit } = await runtime();
+    const viewer = new Viewer();
+    const message = output('latest.png');
+    app.nodeOutputs[7] = message; viewer.onExecuted(message);
+    const image = viewer.container.children[0];
+    image.complete = true; image.naturalWidth = 0;
+    image.onerror();
+    const failedURL = image.src;
+    emit('window:focus');
+    assert.notEqual(image.src, failedURL);
+    assert.match(image.src, /latest.png/);
+    const currentURL = image.src;
+    viewer.onRemoved();
+    app.nodeOutputs[7] = output('late.png');
+    emit('api:executed', { node: '7', output: app.nodeOutputs[7] });
+    emit('window:pageshow'); viewer.onDrawBackground();
+    assert.equal(image.src, currentURL);
+    assert.equal(image.onload, null);
+});
+
+test('subgraph output keys and execution paths do not collide with root node IDs', async () => {
+    const { app, Viewer, emit } = await runtime();
+    const root = new Viewer();
+    const graph = { id: 'subgraph-uuid', _nodes: [] };
+    app.rootGraph._nodes.push({ id: 20, subgraph: graph });
+    const nested = new Viewer(7, {}, graph);
+    app.nodeOutputs[7] = output('root.png');
+    app.nodeOutputs['subgraph-uuid:7'] = output('nested.png');
+    nested.onDrawBackground(); root.onDrawBackground();
+    assert.match(nested.container.children[0].src, /nested.png/);
+    assert.match(root.container.children[0].src, /root.png/);
+    const message = output('nested-new.png');
+    app.nodeOutputs['subgraph-uuid:7'] = message;
+    emit('api:executed', { node: '20:7', output: message });
+    assert.match(nested.container.children[0].src, /nested-new.png/);
+    assert.match(root.container.children[0].src, /root.png/);
+});
+
 test('Viewer continues updating after an upstream execution handler throws', async () => {
     let extension;
     const app = { registerExtension(ext) {

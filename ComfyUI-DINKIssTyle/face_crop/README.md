@@ -23,6 +23,10 @@ required. Original photos remain unchanged.
    **Download Manifest** provides all detection boxes, crop boxes, source names,
    confidence scores, options and skipped-image reasons. **Refresh Results**
    reloads a saved result. The result job is retained with the workflow.
+   After a completed export with at least one crop, **Download ZIP** bundles its
+   PNGs and a portable manifest and downloads them to the computer running the
+   browser. No Queue/Run is needed. The panel displays **Preparing ZIP…** until
+   ready; if automatic downloading is blocked, click **ZIP ready — download again**.
 7. If downstream nodes need the crops, connect `images` and use normal **Queue/Run**
    after export finishes. It outputs the saved crops without exporting again.
    `images` is a ComfyUI image list: every item is a one-image RGB tensor with its
@@ -41,6 +45,39 @@ ComfyUI/output/DKST_FaceCrops/my_person/20261012-113000_<job-id>/
 
 The first number is the source image index; the second is the face index within
 that source. In 4×4 mode cells are processed top to bottom, left to right.
+
+## Downloading crops
+
+**Download ZIP** becomes available only when extraction is completed and the
+export contains crops. ZIP names use the folder name, export time and a short
+job ID, for example `my_person_20261012-113000_a1b2c3d4.zip`. Inside is one folder:
+
+```text
+my_person/
+    face_00001_01.png
+    face_00001_02.png
+    manifest.json
+```
+
+Only recorded crops are included; original photos and unrelated files in the
+output folder are excluded. The ZIP manifest preserves crop/detection coordinates,
+settings and source filenames, but drops source directories and server paths.
+Detailed worker errors that may contain server paths are replaced with a general
+failure reason. **Download Manifest** remains available for the complete original
+processing record.
+
+ZIP preparation runs outside ComfyUI's event loop. PNGs are already compressed,
+so the ZIP stores them without additional compression for speed. Files are copied
+incrementally into a temporary archive, then the completed archive is downloaded
+directly by the browser, without holding the entire ZIP in browser memory.
+ZIP64 supports large bundles. Cached ZIPs live in
+`ComfyUI/temp/dkst_face_crop_zips` and are reused for unchanged exports; ComfyUI's
+temp cleanup may remove them, in which case Download ZIP prepares a fresh copy.
+If a crop is edited, prepare the ZIP again. If a crop has been deleted, restore it
+or run extraction again; an incomplete ZIP is not silently downloaded.
+
+Cancelled, failed or interrupted exports do not enable ZIP download. Their
+already-saved PNG files remain in the output folder.
 
 ## Options
 

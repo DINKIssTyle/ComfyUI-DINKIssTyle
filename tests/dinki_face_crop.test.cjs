@@ -10,6 +10,7 @@ class Element {
     replaceChildren(...items) { this.children = items; }
     addEventListener(name, handler) { this.listeners[name] = handler; }
     setAttribute(name, value) { this[name] = value; }
+    click() { this.clickCount = (this.clickCount || 0) + 1; }
 }
 function fixture(handler, savedId = '') {
     let extension, tick, cleared = false, queued = 0;
@@ -121,4 +122,60 @@ test('Result wheel, arrows and slider work despite a canceled canvas event', asy
     controls[2].listeners.click(); assert.ok(f.viewport.scrollTop > 120);
     controls[1].value = '1000'; controls[1].listeners.input(); assert.equal(f.viewport.scrollTop, 1000);
     f.node.onRemoved();
+});
+
+test('ZIP download is enabled only for a completed export containing crops', async () => {
+    for (const [status, count, enabled] of [['processing', 1, false], ['cancelled', 1, false], ['completed', 0, false], ['completed', 1, true]]) {
+        const f = fixture(() => job(status, Array.from({ length: count }, () => ({ filename: 'face.png' }))), id);
+        await flush(); assert.equal(f.buttons[4].disabled, !enabled); f.node.onRemoved();
+    }
+});
+
+test('ZIP preparation prevents duplicate clicks and starts a native base-aware download', async () => {
+    let release;
+    const f = fixture((path, data) => path.endsWith('/zip') ? new Promise(resolve => release = resolve) : job('completed', [{ filename: 'face.png' }]), id);
+    await flush();
+    const pending = f.buttons[4].listeners.click();
+    assert.equal(f.buttons[4].disabled, true);
+    assert.equal(f.buttons[0].disabled, true);
+    assert.match(f.buttons[4].textContent, /Preparing ZIP/);
+    assert.match(f.status.textContent, /Preparing ZIP/);
+    await f.buttons[4].listeners.click();
+    assert.equal(f.requests.filter(r => r.path.endsWith('/zip')).length, 1);
+    release({ id, filename: '인물_20261012.zip', url: '/dinki/face_crop/zip?id=' + id + '&token=abc', size: 1048576 });
+    await pending;
+    const link = f.buttons[5];
+    assert.equal(link.clickCount, 1);
+    assert.equal(link.download, '인물_20261012.zip');
+    assert.match(link.href, /^\/base\/dinki\/face_crop\/zip/);
+    assert.equal(link.style.display, 'inline');
+    assert.match(f.status.textContent, /1.0 MB/);
+    assert.equal(f.buttons[4].disabled, false);
+    assert.equal(f.queued, 0);
+    f.node.onRemoved();
+});
+
+test('ZIP server errors preserve the selected export and allow retry', async () => {
+    const f = fixture(path => path.endsWith('/zip') ? { error: 'A crop file is missing' } : job('completed', [{ filename: 'face.png' }]), id);
+    await flush(); await f.buttons[4].listeners.click();
+    assert.match(f.status.textContent, /completed/);
+    assert.match(f.status.textContent, /A crop file is missing/);
+    assert.equal(f.buttons[4].disabled, false);
+    assert.equal(f.buttons[5].clickCount, undefined);
+    assert.equal(f.node.widgets.find(w => w.name === 'result_job_id').value, id);
+    f.node.onRemoved();
+});
+
+test('ZIP completion cannot download after removal or a workflow selects another export', async () => {
+    for (const remove of [true, false]) {
+        let release;
+        const f = fixture(path => path.endsWith('/zip') ? new Promise(resolve => release = resolve) : job('completed', [{ filename: 'face.png' }]), id);
+        await flush(); const pending = f.buttons[4].listeners.click();
+        if (remove) f.node.onRemoved();
+        else f.node.widgets.find(w => w.name === 'result_job_id').value = 'b'.repeat(32);
+        release({ id, filename: 'old.zip', url: '/zip', size: 10 }); await pending;
+        assert.equal(f.buttons[5].clickCount, undefined);
+        assert.equal(f.buttons[5].style.display, 'none');
+        f.node.onRemoved();
+    }
 });

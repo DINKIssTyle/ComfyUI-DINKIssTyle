@@ -8,6 +8,9 @@ import tempfile
 import threading
 import types
 import unittest
+import os
+import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 from PIL import Image
@@ -135,6 +138,72 @@ class TestCrops(unittest.TestCase):
         done["status"] = "processing"; saved.write_text(json.dumps(done))
         self.assertEqual(restarted.status(done["id"])["status"], "interrupted")
 
+    def test_zip_contains_only_crops_and_portable_manifest_and_reuses_cache(self):
+        state = self.export(output_folder="DKST_FaceCrops/인물")
+        state["sources"][0].update(filename="C:\\PrivateServer\\photos\\photo.png", subfolder="/private/server/input")
+        state["skipped"] = [{"source_index": 2, "reason": "Cannot open /private/server/input/bad.png"}]
+        self.service.save(state)
+        (self.service.output_dir(state) / "unrelated.txt").write_text("do not include")
+        bundle = self.service.archives.prepare(state["id"])
+        path, filename = self.service.archives.download(state["id"], bundle["token"])
+        self.assertTrue(filename.startswith("인물_"))
+        self.assertEqual(path.stat().st_size, bundle["size"])
+        with zipfile.ZipFile(path) as archive:
+            self.assertEqual(set(archive.namelist()), {"인물/manifest.json", *["인물/" + r["filename"] for r in state["results"]]})
+            self.assertIsNone(archive.testzip())
+            manifest = json.loads(archive.read("인물/manifest.json"))
+            self.assertEqual(manifest["sources"], [{"source_index": 1, "filename": "photo.png"}])
+            self.assertNotIn("PrivateServer", json.dumps(manifest))
+            self.assertNotIn("/private/server", json.dumps(manifest))
+            self.assertNotIn("output_dir", manifest)
+            self.assertTrue(all(i.compress_type == zipfile.ZIP_STORED for i in archive.infolist()))
+            for result in state["results"]:
+                self.assertEqual(archive.read("인물/" + result["filename"]), self.service.result_path(state, result["filename"]).read_bytes())
+        stamp = path.stat().st_mtime_ns
+        with patch("face_crop.archive.zipfile.ZipFile", side_effect=AssertionError("cached ZIP was rebuilt")):
+            self.assertEqual(self.service.archives.prepare(state["id"]), bundle)
+        self.assertEqual(path.stat().st_mtime_ns, stamp)
+
+    def test_zip_changes_invalidate_cache_and_missing_crops_are_rejected(self):
+        state = self.export()
+        first = self.service.archives.prepare(state["id"])
+        crop = self.service.result_path(state, state["results"][0]["filename"])
+        stamp = crop.stat().st_mtime_ns + 1_000_000_000
+        os.utime(crop, ns=(stamp, stamp))
+        with self.assertRaisesRegex(ValueError, "changed"):
+            self.service.archives.download(state["id"], first["token"])
+        second = self.service.archives.prepare(state["id"])
+        self.assertNotEqual(second["token"], first["token"])
+        crop.unlink()
+        with self.assertRaisesRegex(ValueError, "missing"):
+            self.service.archives.prepare(state["id"])
+
+    def test_zip_rejects_unfinished_empty_traversal_and_duplicate_files(self):
+        state = self.export()
+        for status in ("queued", "processing", "cancelled", "interrupted", "failed"):
+            state["status"] = status; self.service.save(state)
+            with self.assertRaises(ValueError): self.service.archives.prepare(state["id"])
+        state["status"] = "completed"
+        original = state["results"][:]
+        for results in ([], [original[0], original[0]], [{**original[0], "filename": "../photo.png"}],
+                        [{**original[0], "filename": "C:\\photo.png"}]):
+            state["results"] = results; self.service.save(state)
+            with self.assertRaises(ValueError): self.service.archives.prepare(state["id"])
+        state["results"] = original; self.service.save(state)
+        with self.assertRaises(ValueError): self.service.archives.download(state["id"], "../secret")
+
+    def test_zip_failure_leaves_no_partial_file_and_parallel_requests_share_bundle(self):
+        state = self.export()
+        with patch("face_crop.archive.zipfile.ZipFile.write", side_effect=OSError("Disk full")):
+            with self.assertRaisesRegex(OSError, "Disk full"): self.service.archives.prepare(state["id"])
+        cache = self.root / "temp/dkst_face_crop_zips"
+        self.assertEqual(list(cache.iterdir()), [])
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            results = list(workers.map(self.service.archives.prepare, [state["id"], state["id"]]))
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(len(list(cache.glob("*.zip"))), 1)
+        self.assertEqual(list(cache.glob("*.tmp")), [])
+
 
 class TestRealYuNet(unittest.TestCase):
     def test_bundled_model_detects_each_cell(self):
@@ -163,7 +232,7 @@ class TestComfyNode(unittest.TestCase):
             def get(self, path): return self.register("get", path)
             def post(self, path): return self.register("post", path)
         server = types.SimpleNamespace(PromptServer=types.SimpleNamespace(instance=types.SimpleNamespace(routes=Routes())))
-        web = types.SimpleNamespace(json_response=lambda data, status=200, **kw: {"body": data, "status": status, **kw}, FileResponse=lambda path: {"path": path})
+        web = types.SimpleNamespace(json_response=lambda data, status=200, **kw: {"body": data, "status": status, **kw}, FileResponse=lambda path, **kw: {"path": path, **kw})
         with patch.dict(sys.modules, {"dkst_face_test": package, "folder_paths": types.ModuleType("folder_paths"),
                                       "server": server, "aiohttp": types.SimpleNamespace(web=web)}):
             cls.module = importlib.import_module("dkst_face_test.dinki_face_crop")
@@ -216,5 +285,28 @@ class TestComfyNode(unittest.TestCase):
         with patch.object(self.module, "service", lambda: fake):
             result = asyncio.run(self.module.get_crop(request))
         self.assertEqual(result["status"], 404)
+
+    def test_zip_routes_fragmented_request_file_response_and_errors(self):
+        bundle = {"id": "a" * 32, "token": "b" * 64, "filename": "인물_20261012.zip", "size": 1000}
+        class Request:
+            query = {"id": bundle["id"], "token": bundle["token"]}
+            def __init__(self, data): self.data = data; self.content = self
+            async def iter_chunked(self, size):
+                for i in range(0, len(self.data), 3): yield self.data[i:i + 3]
+        archives = types.SimpleNamespace(prepare=lambda id: bundle, download=lambda id, token: (Path("/temp/test.zip"), bundle["filename"]))
+        with patch.object(self.module, "service", lambda: types.SimpleNamespace(archives=archives)):
+            response = asyncio.run(self.module.prepare_zip(Request(json.dumps({"id": bundle["id"]}).encode())))
+            self.assertEqual(response["status"], 200)
+            self.assertIn(bundle["token"], response["body"]["url"])
+            response = asyncio.run(self.module.download_zip(Request(b"")))
+            self.assertEqual(response["path"], Path("/temp/test.zip"))
+            self.assertEqual(response["headers"]["Content-Type"], "application/zip")
+            self.assertIn("filename*=UTF-8''%EC%9D%B8%EB%AC%BC", response["headers"]["Content-Disposition"])
+            for payload in (b"null", b"[1]", b"{bad", b" " * 4097):
+                self.assertEqual(asyncio.run(self.module.prepare_zip(Request(payload)))["status"], 400)
+            def reject(*args): raise ValueError("Finish face extraction")
+            archives.prepare = archives.download = reject
+            self.assertEqual(asyncio.run(self.module.prepare_zip(Request(b'{"id":"bad"}')))["status"], 400)
+            self.assertEqual(asyncio.run(self.module.download_zip(Request(b"")))["status"], 404)
 
 if __name__ == "__main__": unittest.main()

@@ -3,6 +3,7 @@ import asyncio
 import json
 from pathlib import Path
 import threading
+from urllib.parse import quote
 
 from aiohttp import web
 import folder_paths
@@ -125,5 +126,35 @@ async def get_manifest(request):
     try:
         state = service().status(request.query.get("id"))
         return web.json_response(state, headers={"Content-Disposition": 'attachment; filename="manifest.json"'})
+    except (ValueError, OSError) as error:
+        return web.json_response({"error": str(error)}, status=404)
+
+
+@PromptServer.instance.routes.post("/dinki/face_crop/zip")
+async def prepare_zip(request):
+    try:
+        raw = bytearray()
+        async for chunk in request.content.iter_chunked(1024):
+            raw.extend(chunk)
+            if len(raw) > 4096:
+                raise ValueError("ZIP request is too large.")
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("Expected a JSON object.")
+        bundle = await asyncio.to_thread(service().archives.prepare, data.get("id"))
+        return web.json_response({**bundle, "url": f'/dinki/face_crop/zip?id={bundle["id"]}&token={bundle["token"]}'})
+    except (ValueError, OSError) as error:
+        return web.json_response({"error": str(error)}, status=400)
+
+
+@PromptServer.instance.routes.get("/dinki/face_crop/zip")
+async def download_zip(request):
+    try:
+        path, filename = await asyncio.to_thread(service().archives.download, request.query.get("id"), request.query.get("token"))
+        return web.FileResponse(path, headers={
+            "Content-Type": "application/zip",
+            "Content-Disposition": f'attachment; filename="face-crops.zip"; filename*=UTF-8\'\'{quote(filename, safe="")}',
+            "Cache-Control": "no-store",
+        })
     except (ValueError, OSError) as error:
         return web.json_response({"error": str(error)}, status=404)
