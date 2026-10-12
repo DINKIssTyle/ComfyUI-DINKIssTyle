@@ -6,6 +6,7 @@ ComfyUI-DINKIssTyle/qwen21_trainer/.venv/
 ComfyUI-DINKIssTyle/minimax_trainer/.venv/
 dkst_llm/
 ComfyUI-DINKIssTyle/csv/Cinema_Prompt.csv
+ComfyUI-DINKIssTyle/csv/DINKI_Prompt_List.csv
 ComfyUI-DINKIssTyle_VoxCPM2/model/*
 !ComfyUI-DINKIssTyle_VoxCPM2/model/.gitkeep
 ComfyUI-DINKIssTyle_VoxCPM2/voice/*
