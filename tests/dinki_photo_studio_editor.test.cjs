@@ -342,8 +342,27 @@ test('Undo/Redo and Auto operate on draft, connected controls remain locked',asy
         editor.redo();assert.equal(editor.draft.light_exposure,1);
         [...editor.root.querySelectorAll('button')].find(b=>b.textContent==='Auto').click();
         assert.equal(editor.draft.light_exposure,.75);
-        assert.equal(editor.draft.color_white_balance,'Auto');
+        assert.equal(editor.draft.color_white_balance,'Off');
         assert.equal(f.node.widgets.find(w=>w.name==='light_exposure').value,0);
+        editor.close();
+    } finally {f.cleanup();}
+});
+
+test('Auto preserves custom white balance and creative settings and is undoable',async()=>{
+    const f=await fixture();
+    try {
+        const editor=await f.editorModule.openPhotoStudio(f.node);
+        editor.change({...editor.draft,color_white_balance:'Custom',color_temperature:24,color_tint:8,effects_vignette:-20});
+        const before={...editor.draft};
+        const auto=[...editor.root.querySelectorAll('button')].find(b=>b.textContent==='Auto');
+        auto.click();
+        assert.equal(editor.draft.light_exposure,.75);
+        for(const name of ['color_white_balance','color_temperature','color_tint','effects_vignette']) assert.equal(editor.draft[name],before[name]);
+        const after={...editor.draft};
+        auto.click();assert.deepEqual({...editor.draft},after);
+        editor.undo();editor.undo();assert.deepEqual({...editor.draft},before);
+        editor.redo();assert.deepEqual({...editor.draft},after);
+        assert.equal(f.node.widgets.find(w=>w.name==='color_white_balance').value,'Off');
         editor.close();
     } finally {f.cleanup();}
 });

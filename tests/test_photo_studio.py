@@ -254,6 +254,10 @@ class PhotoStudioTests(unittest.TestCase):
         bright_auto = self.module["_auto_light_controls"](bright)
         self.assertGreater(dark_auto["light_exposure"], 0)
         self.assertLess(bright_auto["light_exposure"], 0)
+        dark_result = self.apply(dark, **dark_auto)
+        self.assertGreater(float(dark_result.mean()), float(dark.mean()))
+        self.assertLessEqual(abs(dark_auto["light_exposure"]), .75)
+        self.assertLessEqual(abs(bright_auto["light_exposure"]), .75)
         for name in dark_auto:
             self.assertIn(name, required)
             self.assertGreaterEqual(dark_auto[name], required[name][1]["min"])
@@ -268,6 +272,50 @@ class PhotoStudioTests(unittest.TestCase):
         self.assertTrue(torch.allclose(response["result"][0], expected))
         self.assertIsNone(response["ui"]["depth_preview"][0])
         self.assertEqual(len(response["result"]), 1)
+
+    def test_auto_preserves_balanced_tones_and_warm_lighting(self):
+        balanced = torch.linspace(.04, .94, 128).reshape(1, 1, 128, 1).expand(1, 32, 128, 3).clone()
+        auto = self.module["_auto_light_controls"](balanced)
+        self.assertEqual(auto["light_exposure"], 0)
+        self.assertGreaterEqual(auto["light_contrast"], 0)
+        self.assertLess(float((self.apply(balanced, **auto) - balanced).abs().mean()), .015)
+        warm = balanced * torch.tensor([1., .88, .70])
+        result = self.apply(warm, **self.module["_auto_light_controls"](warm))
+        before_cast = float((warm[..., 0] - warm[..., 2]).mean())
+        after_cast = float((result[..., 0] - result[..., 2]).mean())
+        self.assertGreater(after_cast, before_cast * .95)
+
+    def test_auto_backlit_scene_keeps_bright_clothes_and_window_detail(self):
+        image = torch.linspace(.02, .35, 100).reshape(1, 1, 100, 1).expand(1, 100, 100, 3).clone()
+        image[:, :10] = torch.linspace(.90, .98, 100).reshape(1, 1, 100, 1)
+        auto = self.module["_auto_light_controls"](image)
+        result = self.apply(image, **auto)
+        new_clipping = ((result >= .995) & (image < .995)).any(-1).float().mean()
+        self.assertLessEqual(float(new_clipping), .001)
+        self.assertGreater(float(result[:, :10].std()), .01)
+        self.assertLessEqual(auto["light_exposure"], .05)
+        self.assertGreater(float(result[:, 10:].mean()), float(image[:, 10:].mean()))
+        self.assertGreaterEqual(auto["light_contrast"], 0)
+
+    def test_auto_protects_saturated_channels_and_existing_clipped_highlights(self):
+        image = torch.linspace(.02, .32, 100).reshape(1, 1, 100, 1).expand(1, 100, 100, 3).clone()
+        image[:, :5] = torch.tensor([.98, .30, .10])
+        image[:, 5:10] = 1
+        result = self.apply(image, **self.module["_auto_light_controls"](image))
+        self.assertLessEqual(float(((result >= .995) & (image < .995)).any(-1).float().mean()), .001)
+        self.assertTrue(torch.isfinite(result).all())
+
+    def test_auto_ignores_transparent_pixels_and_leaves_flat_images_alone(self):
+        visible = torch.linspace(.08, .55, 32).reshape(1, 1, 32, 1).expand(1, 32, 32, 3).clone()
+        padded = torch.zeros((1, 64, 32, 4))
+        padded[:, :32, :, :3] = visible
+        padded[:, :32, :, 3] = 1
+        auto = self.module["_auto_light_controls"]
+        self.assertEqual(auto(padded), auto(visible))
+        result = self.apply(padded, **auto(padded))
+        self.assertTrue(torch.equal(result[..., 3], padded[..., 3]))
+        for image in (torch.zeros_like(padded), torch.full_like(visible, .2), torch.ones_like(visible)):
+            self.assertTrue(all(value == 0 for value in auto(image).values()))
 
     def test_depth_preview_uses_input_depth_values_even_when_blur_is_off(self):
         image = torch.zeros((1, 2, 2, 3))

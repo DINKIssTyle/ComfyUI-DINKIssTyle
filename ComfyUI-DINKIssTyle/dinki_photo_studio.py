@@ -413,46 +413,81 @@ def _lens_blur(rgb, depth, settings, depth_was_upsampled=False):
 
 
 def _auto_light_controls(image):
-    """Derive conservative rendered-image tone controls from robust percentiles."""
+    """Suggest a small tone correction while preserving the scene's light.
+
+    A rendered photo has no reliable neutral-gray reference. Keep its white
+    balance and allow a broad midtone range instead of normalizing every scene
+    to the same median. Check the real tone pipeline before returning controls.
+    """
     if not isinstance(image, torch.Tensor) or image.ndim != 4 or image.shape[-1] not in (3, 4):
         raise ValueError("image must be a BHWC RGB or RGBA IMAGE")
     if not torch.isfinite(image).all():
         raise ValueError("image contains non-finite values")
-    rgb = image[..., :3].detach().float().clamp(0, 1).permute(0, 3, 1, 2)
-    height, width = rgb.shape[-2:]
-    if max(height, width) > 256:
-        scale = 256 / max(height, width)
-        rgb = F.interpolate(rgb, size=(max(1, round(height * scale)),
-                                       max(1, round(width * scale))), mode="area")
-    luminance = _luminance(rgb).flatten().to("cpu")
-    p01, p05, median, p95, p99 = (float(value) for value in
-                                   torch.quantile(luminance, torch.tensor([0.01, 0.05, 0.5, 0.95, 0.99])))
     values = {name: 0.0 for name in (
         "light_exposure", "light_contrast", "light_highlights",
         "light_shadows", "light_whites", "light_blacks")}
-    if p99 < 0.005 or p01 > 0.995:
+    # Sample actual pixels: averaging a small bright source with its surroundings
+    # would hide the very highlight clipping we need to detect.
+    height, width = image.shape[1:3]
+    stride = max(1, math.ceil(max(height, width) / 256))
+    sample = image[:, ::stride, ::stride].detach().float().cpu().reshape(-1, image.shape[-1])
+    if image.shape[-1] == 4:
+        sample = sample[sample[:, 3] > 0.5]
+    if not len(sample):
+        return values
+    sample = sample[:, :3].clamp(0, 1).reshape(1, 1, -1, 3)
+    luminance = _luminance(sample.permute(0, 3, 1, 2)).flatten()
+    p01, p05, median, p95, p99 = (float(value) for value in
+                                   torch.quantile(luminance, torch.tensor([0.01, 0.05, 0.5, 0.95, 0.99])))
+    if p99 < 0.005 or p01 > 0.995 or p95 - p05 < 0.08:
         return values
 
     def linear(x):
         return x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4
 
-    def encoded(x):
-        return x * 12.92 if x <= 0.0031308 else 1.055 * x ** (1 / 2.4) - 0.055
-
-    exposure = max(-2.5, min(2.5, math.log2(linear(0.45) / max(linear(median), 1e-5))))
+    target = max(0.32, min(0.62, median))
+    exposure = max(-0.75, min(0.75, 0.5 * math.log2(linear(target) / max(linear(median), 1e-5))))
     exposure = round(exposure * 20) / 20
+    original_high = sample >= 0.995
+    original_low = sample <= 0.005
+
+    def loses_detail(result):
+        # Check each channel, so saturated colors are protected too. Existing
+        # clipped pixels do not give permission to clip different pixels.
+        return (float(((result >= 0.995) & ~original_high).any(-1).float().mean()) > 0.001 or
+                float(((result <= 0.005) & ~original_low).any(-1).float().mean()) > 0.001)
+
+    # Exposure precedes the tone sliders. Do not rely on lowering Whites later
+    # to reconstruct values already pushed beyond the display range.
+    while exposure > 0:
+        exposed = _linear_to_srgb(_srgb_to_linear(sample) * (2 ** exposure))
+        if not loses_detail(exposed):
+            break
+        exposure = round(max(0, exposure - 0.05), 2)
     values["light_exposure"] = exposure
-    factor = 2 ** exposure
-    p01, p05, p95, p99 = (min(1.0, encoded(linear(value) * factor))
-                           for value in (p01, p05, p95, p99))
+    exposed = _linear_to_srgb(_srgb_to_linear(sample) * (2 ** exposure)) if exposure else sample
+    p01, p05, median, p95, p99 = (float(value) for value in torch.quantile(
+        _luminance(exposed.permute(0, 3, 1, 2)).flatten(), torch.tensor([0.01, 0.05, 0.5, 0.95, 0.99])))
     span = p95 - p05
-    if span > 0.08:
-        values["light_contrast"] = float(round(max(-35, min(35, (0.7 / span - 1) * 40))))
-        values["light_highlights"] = float(round(max(-60, min(0, (0.88 - p99) * 400))))
-        values["light_shadows"] = float(round(max(-35, min(45, (0.15 - p05) * 250))))
-        values["light_whites"] = float(round(max(-35, min(35, (0.96 - p99) * 200))))
-        values["light_blacks"] = float(round(max(-35, min(35, (0.02 - p01) * 250))))
-    return values
+    # Expand a faded photo gently; a naturally wide range does not need to be
+    # flattened. Leave the white point alone rather than forcing it to 96%.
+    if 0.12 < span < 0.5:
+        values["light_contrast"] = float(round(min(12, (0.5 - span) * 35)))
+    if median > 0.12:
+        values["light_shadows"] = float(round(min(12, max(0, (0.10 - p05) * 120))))
+    values["light_highlights"] = float(round(max(-15, min(0, (0.90 - p95) * 120))))
+    if span > 0.2 and median < 0.65:
+        values["light_blacks"] = float(round(max(-6, min(0, (0.06 - p01) * 60))))
+
+    defaults = _defaults()
+    for strength in (1.0, 0.75, 0.5, 0.25, 0.0):
+        candidate = {name: (value if name == "light_exposure" else float(round(value * strength)))
+                     for name, value in values.items()}
+        if not loses_detail(_process(sample, None, {**defaults, **candidate})):
+            return candidate
+    # Negative exposure can also crush a colored channel; no correction is
+    # preferable to damaging an already rendered image.
+    return {name: 0.0 for name in values}
 
 
 def _process(image, depth_image, settings):

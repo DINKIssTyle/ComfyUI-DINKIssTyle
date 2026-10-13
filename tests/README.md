@@ -123,7 +123,11 @@ node --experimental-vm-modules --test tests/dinki_photo_studio.test.cjs tests/di
 
 Python checks require Torch, NumPy, Pillow and aiohttp. They cover adjustments,
 depth, session ownership, RGBA preservation and exports beyond the preview size
-limit. UI checks exercise the actual modules with jsdom: compact node creation
+limit. Auto checks include balanced and warm scenes, backlit highlights, saturated
+channels, existing clipping, transparent pixels and flat images. Auto preserves
+the current white balance and creative controls; explicit White Balance Auto
+remains available in the Color panel. UI checks exercise the actual modules with
+jsdom: compact node creation
 after native size expansion, promoted setting rows, image context menus, draft
 exports without workflow execution, centered zoom, minimap navigation and aligned
 Slide/Difference comparison. Apply stores settings and connections; the node's

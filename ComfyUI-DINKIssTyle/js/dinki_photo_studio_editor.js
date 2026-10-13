@@ -311,7 +311,7 @@ export class PhotoStudioEditor {
         this.preset.addEventListener("change", () => this.change({ ...this.defaults, ...(this.preset.value === "Default" ? {} : this.presets[this.preset.value]) }, this.preset.value));
         button("Save preset", actions, () => this.savePreset());
         button("Save as…", actions, () => this.savePreset(true));
-        button("Auto", actions, () => { if (this.auto) this.change({ ...this.draft, ...this.auto, color_white_balance: "Auto" }); else this.message("Choose an image first.", true); });
+        button("Auto", actions, () => { if (this.auto) this.change({ ...this.draft, ...this.auto }); else this.message("Choose an image first.", true); }).title = "Adjust tone gently while preserving white balance and highlight detail.";
         button("Reset", actions, () => this.change({ ...this.defaults }, "Default"));
         this.undoButton = button("Undo", actions, () => this.undo());
         this.redoButton = button("Redo", actions, () => this.redo());
