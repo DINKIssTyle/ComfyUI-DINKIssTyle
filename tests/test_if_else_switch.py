@@ -25,6 +25,7 @@ with patch.dict(sys.modules, {"comfy_execution": types.ModuleType("comfy_executi
     Switch = nodes["DINKI_IfElseSwitch"]
     ImageSwitch = nodes["DINKI_IfElseImageSwitch"]
     Branch = nodes["DINKI_IfElseBranch"]
+    NodeSwitch = nodes["DINKI_Node_Switch"]
     NodeChange = nodes["DINKI_Node_Change"]
     AutoNodeChange = nodes["DINKI_Auto_Node_Change"]
 
@@ -39,6 +40,16 @@ class FakeExecutionList:
 
 
 class IfElseSwitchTests(unittest.TestCase):
+    def test_node_switch_disable_mode_is_advanced_and_defaults_to_bypass(self):
+        modes, options = NodeSwitch.INPUT_TYPES()["required"]["disable_mode"]
+        self.assertEqual(modes, ["Bypass", "Mute"])
+        self.assertTrue(options["advanced"])
+        self.assertEqual(options["default"], "Bypass")
+        self.assertEqual(NodeSwitch().do_nothing("1,2", False), ())
+        for mode in modes:
+            with self.subTest(mode=mode):
+                self.assertEqual(NodeSwitch().do_nothing("1,2", False, mode), ())
+
     def test_text_cache_receives_new_text_then_keeps_it_when_the_selected_branch_is_empty(self):
         cached_text = ""
         for active, incoming, expected in [(True, "first\nprompt", "first\nprompt"),

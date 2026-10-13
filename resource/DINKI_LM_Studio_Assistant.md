@@ -42,6 +42,16 @@ By setting `assistant_enabled` to **False**, the node bypasses the LLM entirely 
 
 ![Preview](DINKI_LM_Studio_Assistant_03.png)
 
+### Generation mode
+
+Choose **Always Generate** (default) to call the LLM on every workflow execution, including with a fixed seed. Choose **Generate on Change** to reuse the last successful **AI Answer Text** when the actual `user_prompt`, `system_prompt`, and image contents are unchanged. Changing the seed or using randomize does not trigger regeneration in this mode.
+
+Image comparison uses pixel contents, dimensions, batch count and order, rather than tensor identity or the source node ID. Connecting or removing images counts as a change. Changes to `model_key`, `connection_alias`, the saved connection profile, `temperature`, or `max_tokens` also require a new answer. Timeout and unload settings do not invalidate the answer.
+
+On a cache hit, the node sends no HTTP requests and skips image encoding and the automatic unload delay. Upstream nodes may still execute to supply the current inputs for comparison. The cache retains only the last successful answer: A → B → A generates three times. Failed or incomplete requests do not replace it and will be retried on the next execution. Passthrough mode preserves the cache.
+
+The last answer and an input fingerprint are stored internally in the workflow; save after generation to retain them across reloads and server restarts. Original image data, connection addresses and API keys are not stored in the response cache. API clients can retain the `dkst_llm_response` UI value and submit it as `cached_response` with the same node ID to restore a saved answer; without it, the first run after a restart generates again.
+
 
 ### 🛠️ Prerequisites & Setup
 
@@ -71,6 +81,7 @@ Connection errors report status and configuration guidance without returning req
 | Parameter | Description |
 | :--- | :--- |
 | **assistant_enabled** | Master toggle. If `False`, passes input text directly to output without calling the LLM. |
+| **generation_mode** | `Always Generate` calls the LLM every run. `Generate on Change` reuses the last successful answer when prompts, images and generation settings are unchanged, ignoring seed changes. |
 | **connection_alias** | Registered connection selected from a dropdown. Manage addresses, ports and API keys in Settings → DKST → LLM. Authentication applies to generation and automatic unloading. |
 | **model_key** | The model identifier string (e.g., `qwen/qwen3-vl-8b`). Can often be left generic depending on LM Studio version. |
 | **seed** | Generation seed; `-1` chooses a time-based seed (default). |

@@ -129,13 +129,17 @@ class ConnectionTests(unittest.TestCase):
         response.status_code = 200
         response.headers = {"Content-Type": "application/json"}
         response.json.return_value = {"choices": [{"message": {"content": "answer"}}]}
-        self.assertEqual(node_type().run(connection_alias="Work"), ("answer",))
+        node = node_type()
+        self.assertEqual(node.run(connection_alias="Work", generation_mode="Generate on Change")["result"], ("answer",))
         self.assertEqual(self.requests.post.call_args.args[0], "http://192.168.0.9:1234/v1/chat/completions")
         self.assertEqual(self.requests.post.call_args.kwargs["headers"], {"Authorization": "Bearer private-test-key"})
         self.assertIn("Work", node_type.INPUT_TYPES()["optional"]["connection_alias"][0])
-        before = node_type.IS_CHANGED(connection_alias="Work")
+        node.run(connection_alias="Work", generation_mode="Generate on Change", seed=123)
+        self.assertEqual(self.requests.post.call_count, 1)
         self.call("save", {**self.profile, "overwrite": True, "port": 2345})
-        self.assertNotEqual(before, node_type.IS_CHANGED(connection_alias="Work"))
+        node.run(connection_alias="Work", generation_mode="Generate on Change")
+        self.assertEqual(self.requests.post.call_count, 2)
+        self.assertEqual(self.requests.post.call_args.args[0], "http://192.168.0.9:2345/v1/chat/completions")
 
     def test_prompt_boundary_scrubs_old_credentials_and_retains_new_workflow(self):
         old = {"type": "DINKI_LMStudio", "widgets_values": ["private-host", 1234, "private-test-key"],

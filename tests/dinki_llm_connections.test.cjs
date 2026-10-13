@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const vm = require('node:vm');
+const crypto = require('node:crypto');
+const { spawnSync } = require('node:child_process');
 const { JSDOM } = require('jsdom');
 
 const source = readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_llm_connections.js'), 'utf8');
@@ -66,7 +68,8 @@ async function fixture() {
         } else data = { ok: true, message: 'Connected successfully.' };
         return { ok: true, async json() { return data; } };
     } };
-    const context = vm.createContext({ document: dom.window.document, app, api, console, structuredClone });
+    const context = vm.createContext({ document: dom.window.document, app, api, console, structuredClone,
+        crypto: { getRandomValues: crypto.getRandomValues } }); // Also covers LAN HTTP without randomUUID.
     const module = new vm.SourceTextModule(source, { context });
     await module.link(async specifier => {
         const key = specifier.includes('app.js') ? 'app' : 'api';
@@ -86,6 +89,8 @@ async function fixture() {
             Object.defineProperty(widget, 'options', { get: () => options });
             Object.defineProperty(widget._state, 'options', { get: () => stateOptions });
             this.widgets.push(widget);
+            this.widgets.push({ name: 'generation_mode', value: 'Always Generate' },
+                { name: 'cached_response', value: '' });
             this.onNodeCreated();
             app.graph._nodes.push(this);
         }
@@ -107,6 +112,7 @@ async function fixture() {
             this.onSerialize(info); return info;
         }
         setDirtyCanvas() {}
+        onExecuted(...args) { this.executedArgs = args; return 42; }
     }
     extension.beforeRegisterNodeDef(Node, { name: 'DINKI_LMStudio' });
     await extension.setup();
@@ -190,7 +196,8 @@ test('a completed old paste migration cannot overwrite a newer configuration', a
     let release;
     f.gate(new Promise(resolve => { release = resolve; }));
     const node = new f.Node(); node.configure(legacy());
-    const saved = node.serialize(); saved.widgets_values[saved.widgets_values.length - 1] = 'Local';
+    const saved = node.serialize();
+    saved.widgets_values[node.widgets.findIndex(widget => widget.name === 'connection_alias')] = 'Local';
     node.configure(saved);
     release(); await settle();
     assert.equal(node.widgets.find(w => w.name === 'connection_alias').value, 'Local');
@@ -384,4 +391,123 @@ test('failed and linked API migrations still complete API workflow loading', asy
     assert.equal((await f.app.graphToPrompt()).output['0'].inputs.user_prompt, 'hello');
     assert.equal(f.apiLoads[0]['1'].inputs.connection_alias, NONE);
     assert.ok(!JSON.stringify(f.apiLoads).includes('private-key'));
+});
+
+function response(text = 'generated answer', scope = 'a'.repeat(32), signature = 'b'.repeat(64)) {
+    return JSON.stringify({ version: 1, scope, signature, text });
+}
+
+test('generation mode has an English label and the internal cache remains serialized but hidden', async () => {
+    const f = await fixture(), node = new f.Node();
+    const mode = node.widgets.find(widget => widget.name === 'generation_mode');
+    const cache = node.widgets.find(widget => widget.name === 'cached_response');
+    assert.equal(mode.label, 'Generation mode');
+    assert.equal(mode.value, 'Always Generate');
+    assert.equal(cache.hidden, true);
+    assert.equal(cache.type, 'converted-widget');
+    assert.deepEqual(Array.from(cache.computeSize()), [0, -4]);
+    assert.match(JSON.parse(cache.value).scope, /^[0-9a-f]{32}$/);
+    assert.ok(node.serialize().widgets_values.includes(cache.value));
+    assert.equal((await f.app.graphToPrompt()).output['0'].inputs.cached_response, cache.value);
+});
+
+test('successful answer updates the saved cache, including empty answers and Nodes 2.0 notifications', async () => {
+    const f = await fixture(), node = new f.Node();
+    let changes = 0, dirty = 0, seen;
+    node.graph.change = () => { changes++; };
+    f.app.rootGraph = node.graph;
+    node.setDirtyCanvas = () => { dirty++; };
+    node.onWidgetChanged = (...args) => { seen = args; };
+    const cache = node.widgets.find(widget => widget.name === 'cached_response');
+    const initial = cache.value;
+    const message = { dkst_llm_response: [response('')] };
+    assert.equal(node.onExecuted(message, 'extra'), 42);
+    assert.deepEqual(node.executedArgs, [message, 'extra']);
+    assert.deepEqual(seen, ['cached_response', message.dkst_llm_response[0], initial]);
+    assert.equal(JSON.parse(cache.value).text, '');
+    assert.equal(changes, 1);
+    assert.equal(dirty, 1);
+    node.onExecuted(message);
+    assert.equal(changes, 1);
+    const saved = node.serialize();
+    const restored = new f.Node(); restored.configure(saved);
+    assert.equal(restored.widgets.find(widget => widget.name === 'cached_response').value, cache.value);
+});
+
+test('cached answers stay isolated and updates dirty both the owning subgraph and root workflow', async () => {
+    const f = await fixture(), first = new f.Node(), second = new f.Node();
+    let inner = 0, root = 0;
+    f.app.rootGraph = { change() { root++; } };
+    first.graph = { change() { inner++; } };
+    const secondCache = second.widgets.find(widget => widget.name === 'cached_response');
+    const untouched = secondCache.value;
+    first.onExecuted({ dkst_llm_response: [response('first answer')] });
+    assert.equal(inner, 1);
+    assert.equal(root, 1);
+    assert.equal(secondCache.value, untouched);
+});
+
+test('failed or malformed execution updates preserve the previous successful cache', async () => {
+    const f = await fixture(), node = new f.Node();
+    node.onExecuted({ dkst_llm_response: [response('keep')] });
+    const cache = node.widgets.find(widget => widget.name === 'cached_response');
+    const saved = cache.value;
+    for (const message of [undefined, {}, { dkst_llm_response: 'wrong shape' },
+        { dkst_llm_response: ['bad JSON'] }, { dkst_llm_response: ['null'] },
+        { dkst_llm_response: [response(null)] }, { dkst_llm_response: [response('bad', 'wrong')] }]) {
+        assert.equal(node.onExecuted(message), 42);
+        assert.equal(cache.value, saved);
+    }
+});
+
+test('legacy paste cannot leave connection fields in newly appended generation and cache widgets', async () => {
+    const f = await fixture(), node = new f.Node(false);
+    node.configure(legacy(false, true));
+    assert.equal(node.widgets.find(widget => widget.name === 'generation_mode').value, 'Always Generate');
+    const cache = node.widgets.find(widget => widget.name === 'cached_response');
+    assert.equal(JSON.parse(cache.value).version, 1);
+    assert.ok(!JSON.stringify(node.serialize()).includes('private-key'));
+});
+
+test('real backend result survives frontend serialization and a new backend skips HTTP despite seed changes', async () => {
+    const f = await fixture();
+    let node = new f.Node();
+    node.widgets.find(widget => widget.name === 'generation_mode').value = 'Generate on Change';
+    node.widgets.find(widget => widget.name === 'connection_alias').value = 'Local';
+    const backend = inputs => {
+        const script = `import contextlib, io, json, runpy, sys, types
+from unittest.mock import MagicMock, patch
+requests = MagicMock()
+requests.HTTPError = RuntimeError
+requests.post.return_value.status_code = 200
+requests.post.return_value.headers = {"Content-Type": "application/json"}
+requests.post.return_value.json.return_value = {"choices": [{"message": {"content": "saved answer"}}]}
+connections = types.SimpleNamespace(NONE="-- Select connection --", aliases=lambda: ["Local"],
+    resolve=lambda alias: {"revision": "stable"}, connection_url=lambda profile: "http://local:1234",
+    connection_headers=lambda profile: {})
+with patch.dict(sys.modules, {"requests": requests, "numpy": MagicMock(), "PIL": MagicMock(),
+    "integration": types.ModuleType("integration"), "integration.dinki_llm_connections": connections}):
+    Node = runpy.run_path(sys.argv[1], run_name="integration.dinki_lmstudio")["DINKI_LMStudio"]
+inputs = json.loads(sys.argv[2])
+inputs.pop("control_after_generate", None)
+with contextlib.redirect_stdout(io.StringIO()):
+    result = Node().run(**inputs, unique_id="root:2")
+print(json.dumps({"output": result, "calls": requests.post.call_count}))`;
+        const result = spawnSync('python3', ['-c', script,
+            join(__dirname, '../ComfyUI-DINKIssTyle/dinki_lmstudio.py'), JSON.stringify(inputs)], { encoding: 'utf8' });
+        assert.equal(result.status, 0, result.stderr);
+        return JSON.parse(result.stdout);
+    };
+    const first = backend((await f.app.graphToPrompt()).output['0'].inputs);
+    assert.equal(first.calls, 1);
+    node.onExecuted(first.output.ui);
+    const saved = node.serialize();
+    node = new f.Node(); node.configure(saved);
+    node.widgets.find(widget => widget.name === 'seed').value = 9001;
+    const second = backend((await f.app.graphToPrompt()).output['1'].inputs);
+    assert.equal(second.calls, 0);
+    assert.deepEqual(second.output.result, ['saved answer']);
+    node.widgets.find(widget => widget.name === 'user_prompt').value = 'changed prompt';
+    const third = backend((await f.app.graphToPrompt()).output['1'].inputs);
+    assert.equal(third.calls, 1);
 });

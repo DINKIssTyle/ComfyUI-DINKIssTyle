@@ -191,8 +191,8 @@ class DINKI_IfElseBranch(_DINKI_IfElseBase):
 
 class DINKI_Node_Switch:
     """
-    A logic node that toggles the Bypass status of other nodes based on their IDs.
-    The actual bypassing logic is handled by the accompanying JavaScript.
+    A logic node that bypasses or mutes other nodes based on their IDs.
+    The actual mode switching is handled by the accompanying JavaScript.
     """
     
     def __init__(self):
@@ -204,6 +204,7 @@ class DINKI_Node_Switch:
             "required": {
                 "node_ids": ("STRING", {"multiline": False, "default": "1,2,3", "advanced": True}),
                 "active": ("BOOLEAN", {"default": True, "label_on": "On", "label_off": "Off"}),
+                "disable_mode": (["Bypass", "Mute"], {"default": "Bypass", "advanced": True}),
             },
         }
 
@@ -212,8 +213,8 @@ class DINKI_Node_Switch:
     CATEGORY = "DINKIssTyle/Util"
     OUTPUT_NODE = True
 
-    def do_nothing(self, node_ids, active):
-        # The bypassing logic happens in the frontend (JavaScript) before execution.
+    def do_nothing(self, node_ids, active, disable_mode="Bypass"):
+        # The mode switching happens in the frontend (JavaScript) before execution.
         # This python method is just a placeholder to satisfy the execution requirement.
         return ()
 

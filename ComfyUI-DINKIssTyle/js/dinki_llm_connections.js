@@ -30,6 +30,23 @@ function combo(node) {
     return node.widgets?.find(widget => widget.name === "connection_alias");
 }
 
+function prepareResponseWidgets(node) {
+    const mode = node.widgets?.find(widget => widget.name === "generation_mode");
+    if (mode) mode.label = "Generation mode";
+    const cache = node.widgets?.find(widget => widget.name === "cached_response");
+    if (!cache) return;
+    // Serialized like Multiline Cache, but managed internally in both node UIs.
+    cache.type = "converted-widget";
+    cache.hidden = true;
+    cache.computeSize = () => [0, -4];
+    if (!cache.value) {
+        // ComfyUI is often served over LAN HTTP, where randomUUID is unavailable.
+        const scope = [...crypto.getRandomValues(new Uint8Array(16))]
+            .map(byte => byte.toString(16).padStart(2, "0")).join("");
+        cache.value = JSON.stringify({ version: 1, scope });
+    }
+}
+
 function setAlias(node, value) {
     const widget = combo(node);
     if (!widget) return;
@@ -334,6 +351,7 @@ app.registerExtension({
             nodes.add(this);
             const widget = combo(this);
             if (widget) widget.label = "Connection alias";
+            prepareResponseWidgets(this);
             updateChoices(this);
             const refresh = this.addWidget("button", "Refresh connections", null,
                 () => refreshAliases().catch(error => report(error.message)), { serialize: false });
@@ -369,6 +387,14 @@ app.registerExtension({
                 values.forEach((value, index) => { if (stored[index]) stored[index].value = value; });
                 setAlias(this, NONE);
             }
+            if (legacy) {
+                // The frontend may already have assigned old address/key values
+                // to these newly appended widgets before onConfigure runs.
+                for (const [name, fallback] of [["generation_mode", "Always Generate"], ["cached_response", ""]]) {
+                    const widget = this.widgets?.find(widget => widget.name === name);
+                    if (widget) widget.value = named?.[name] ?? fallback;
+                }
+            }
             // Never retain old fields in a live node's properties.
             scrubFields(this.properties);
             // configure() may have already installed the serialized input list.
@@ -399,6 +425,29 @@ app.registerExtension({
                 pending.catch(() => {});
             }
             updateChoices(this);
+            prepareResponseWidgets(this);
+            return result;
+        };
+        const executed = nodeType.prototype.onExecuted;
+        nodeType.prototype.onExecuted = function(message) {
+            const result = executed?.apply(this, arguments);
+            const responses = message?.dkst_llm_response;
+            const value = Array.isArray(responses) ? responses.at(-1) : undefined;
+            if (typeof value !== "string") return result;
+            try {
+                const data = JSON.parse(value);
+                if (data?.version !== 1 || typeof data.text !== "string" ||
+                    !/^[0-9a-f]{32}$/.test(data.scope) || !/^[0-9a-f]{64}$/.test(data.signature)) return result;
+            } catch { return result; }
+            const widget = this.widgets?.find(widget => widget.name === "cached_response");
+            if (!widget || widget.value === value) return result;
+            const previous = widget.value;
+            widget.value = value;
+            widget.callback?.call(widget, value);
+            this.onWidgetChanged?.("cached_response", value, previous);
+            this.graph?.change?.();
+            if (this.graph && this.graph !== app.rootGraph) app.rootGraph?.change?.();
+            this.setDirtyCanvas?.(true, true);
             return result;
         };
         const serialize = nodeType.prototype.onSerialize;

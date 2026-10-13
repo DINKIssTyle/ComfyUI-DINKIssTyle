@@ -1,11 +1,16 @@
-import base64, io, json, time, requests
+import base64, hashlib, io, json, time, uuid, requests
 import numpy as np
 from PIL import Image
 from .dinki_llm_connections import (
-    NONE, aliases, resolve, revision, connection_url, connection_headers,
+    NONE, aliases, resolve, connection_url, connection_headers,
 )
 
 class DINKI_LMStudio:
+    def __init__(self):
+        self._fallback_scope = uuid.uuid4().hex
+        self._cache_scope = None
+        self._last_response = None
+
     @classmethod
     def INPUT_TYPES(cls):
         try:
@@ -35,13 +40,24 @@ class DINKI_LMStudio:
                 "connection_alias": ([NONE, *registered], {
                     "default": NONE,
                     "tooltip": "Register connections in Settings > DKST > LLM. Only this alias is saved in the workflow."}),
-            }
+                "generation_mode": (["Always Generate", "Generate on Change"], {
+                    "default": "Always Generate",
+                    "tooltip": "Always generate, or reuse the last answer when the prompts and images are unchanged. Seed changes do not trigger regeneration in Generate on Change mode. Model, connection and generation settings changes invalidate the cache."}),
+                "cached_response": ("STRING", {"default": "", "dynamicPrompts": False}),
+            },
+            "hidden": {"unique_id": "UNIQUE_ID"},
         }
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("AI Answer Text",)
     FUNCTION = "run"
     CATEGORY = "DINKIssTyle/LLM"
+    DESCRIPTION = (
+        "Generate text with LM Studio. Generate on Change reuses the last successful answer "
+        "when prompts and image contents are unchanged, regardless of seed randomization. "
+        "Model, connection, temperature and max_tokens changes require a new answer. "
+        "Save the workflow to retain the last answer."
+    )
 
     @classmethod
     def VALIDATE_INPUTS(cls, connection_alias=NONE, **kwargs):
@@ -51,9 +67,47 @@ class DINKI_LMStudio:
 
     @classmethod
     def IS_CHANGED(cls, connection_alias=NONE, **kwargs):
-        return revision(connection_alias)
+        # Always reach run(): ComfyUI's own signature includes seed and upstream
+        # nodes, whereas our response cache compares the actual incoming values.
+        return float("nan")
 
     # --- helpers ---
+    @staticmethod
+    def _saved_response(value):
+        try:
+            data = json.loads(value)
+            if not isinstance(data, dict) or data.get("version") != 1:
+                return None
+            scope = data.get("scope")
+            if not isinstance(scope, str) or uuid.UUID(scope).hex != scope:
+                return None
+            return data
+        except (ValueError, TypeError, AttributeError):
+            return None
+
+    @staticmethod
+    def _input_signature(scope, unique_id, user_prompt, system_prompt, image,
+                         model_key, connection_alias, profile, temperature, max_tokens):
+        digest = hashlib.sha256()
+        # Credentials and endpoints are not serialized. Profile revisions also
+        # invalidate a saved answer after connection settings change.
+        settings = [1, scope, unique_id, user_prompt, system_prompt, model_key,
+                    connection_alias, profile.get("revision"), float(temperature), int(max_tokens)]
+        digest.update(json.dumps(settings, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+        if image is not None:
+            tensor = image.detach() if hasattr(image, "detach") else image
+            array = tensor.cpu().numpy() if hasattr(tensor, "cpu") else tensor
+            array = np.ascontiguousarray(array)
+            digest.update(json.dumps([array.shape, array.dtype.str]).encode("ascii"))
+            if array.size:
+                digest.update(memoryview(array).cast("B"))
+        return digest.hexdigest()
+
+    @staticmethod
+    def _cached_result(data):
+        return {"ui": {"dkst_llm_response": [json.dumps(data, ensure_ascii=False)]},
+                "result": (data["text"],)}
+
     def _read_completion(self, response):
         if "text/event-stream" not in response.headers.get("Content-Type", "").lower():
             data = response.json()
@@ -89,7 +143,8 @@ class DINKI_LMStudio:
     def _convert_single_image_to_base64(self, img_tensor):
         """단일 이미지 텐서(H,W,C)를 base64 문자열로 변환"""
         try:
-            arr = img_tensor.cpu().numpy() if hasattr(img_tensor, "cpu") else img_tensor
+            tensor = img_tensor.detach() if hasattr(img_tensor, "detach") else img_tensor
+            arr = tensor.cpu().numpy() if hasattr(tensor, "cpu") else tensor
             # 값 스케일링 및 타입 변환
             arr = (arr * 255.0).clip(0, 255).astype("uint8")
             pil_img = Image.fromarray(arr)
@@ -116,6 +171,9 @@ class DINKI_LMStudio:
         auto_unload=False,
         unload_delay=0,
         connection_alias=NONE,
+        generation_mode="Always Generate",
+        cached_response="",
+        unique_id=None,
     ):
         # 1) 패스스루 모드
         if not assistant_enabled:
@@ -126,6 +184,21 @@ class DINKI_LMStudio:
         except ValueError as error:
             return (f"Error: {error}",)
         base_url = connection_url(profile)
+
+        saved = self._saved_response(cached_response)
+        scope = saved["scope"] if saved else self._fallback_scope
+        if scope != self._cache_scope:
+            self._cache_scope = scope
+            self._last_response = saved
+        signature = self._input_signature(scope, unique_id, user_prompt, system_prompt,
+                                          image, model_key, connection_alias, profile,
+                                          temperature, max_tokens)
+        previous = self._last_response
+        if (generation_mode == "Generate on Change" and previous
+                and previous.get("signature") == signature
+                and isinstance(previous.get("text"), str)):
+            print("[DINKI LM Studio] Inputs unchanged; reusing the last answer.", flush=True)
+            return self._cached_result(previous)
 
         # 2) 시드 처리
         if seed == -1: # seed가 -1이면 랜덤 (ComfyUI 위젯 특성상 randomize string 대신 -1 int 체크가 일반적이나, string 입력이 있다면 변환)
@@ -149,12 +222,12 @@ class DINKI_LMStudio:
                 # 배치에서 i번째 이미지만 추출 (H,W,C)
                 img_slice = image[i]
                 image_url = self._convert_single_image_to_base64(img_slice)
-                
-                if image_url:
-                    content_list.append({
-                        "type": "image_url", 
-                        "image_url": {"url": image_url}
-                    })
+                if not image_url:
+                    return ("Error: Cannot encode an input image for LM Studio.",)
+                content_list.append({
+                    "type": "image_url",
+                    "image_url": {"url": image_url}
+                })
 
         messages.append({"role": "user", "content": content_list})
 
@@ -208,7 +281,10 @@ class DINKI_LMStudio:
                     pass
 
         print("[DINKI LM Studio] Returning text to ComfyUI.", flush=True)
-        return (text,)
+        # Update only after a complete, successful response. Keep runtime state
+        # authoritative over stale workflow snapshots from already queued runs.
+        self._last_response = {"version": 1, "scope": scope, "signature": signature, "text": text}
+        return self._cached_result(self._last_response)
 
 # 등록
 NODE_CLASS_MAPPINGS = {

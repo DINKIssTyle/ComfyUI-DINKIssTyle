@@ -624,12 +624,17 @@ function applyNodeSwitch(node, changedName, changedValue, values = {}) {
     // Some widget renderers notify before committing widget.value.
     const idsText = changedName === "node_ids" ? changedValue : (values.node_ids ?? idWidget.value);
     const isActive = changedName === "active" ? changedValue : (values.active ?? toggleWidget.value);
+    const disableMode = changedName === "disable_mode" ? changedValue : (values.disable_mode ?? getWidget(node, "disable_mode")?.value);
+    const disabledMode = disableMode === "Mute" ? 2 : 4;
     const ids = new Set(String(idsText ?? "").split(",").map(id => id.trim()).filter(Boolean));
     let changed = false;
 
     for (const target of graph.nodes ?? graph._nodes ?? []) {
         if (target === node || !ids.has(String(target.id))) continue;
-        const mode = isActive ? (target.mode === 4 ? 0 : target.mode) : 4;
+        // Preserve manually muted nodes in the default Bypass mode.
+        const mode = isActive
+            ? (target.mode === 4 || (disabledMode === 2 && target.mode === 2) ? 0 : target.mode)
+            : disabledMode;
         if (target.mode !== mode) {
             target.mode = mode;
             changed = true;
@@ -699,10 +704,9 @@ function applyNodeChange(node, changedName, changedValue, values = {}) {
 }
 
 // LiteGraph's advanced toggle expands to fit visible widgets, but does not
-// shrink again when they are hidden. Keep Node Change's compact size separately
+// shrink again when they are hidden. Keep mode controls' compact size separately
 // so hidden advanced controls cannot leave a permanent empty area.
-function keepNodeChangeCompactSize(node) {
-    const property = "dkstNodeChangeCompactSize";
+function keepNodeModeCompactSize(node, property) {
     // Nodes 2.0 exposes sizes as typed array-like views, not plain Arrays.
     const validSize = size => size?.length === 2 &&
         Number.isFinite(size[0]) && size[0] > 0 &&
@@ -872,7 +876,7 @@ function nodeModePromotedValues(host, inherited, onSource) {
 function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
     const isNodeChange = nodeClass === "DINKI_Node_Change" || nodeClass === "DINKI_Auto_Node_Change";
     const previous = new WeakMap();
-    const nodeChangeSizes = new WeakMap();
+    const compactSizes = new WeakMap();
     const watchedHosts = new WeakSet();
     const watchedWidgets = new WeakSet();
     let monitor;
@@ -917,9 +921,9 @@ function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
                 // Nodes 2.0 can write text fields without a classic callback,
                 // including controls on the root graph. Labels are UI-only:
                 // refreshing them must not toggle any target node modes.
-                if (isNodeChange && node.comfyClass === nodeClass) {
-                    nodeChangeSizes.get(node)?.sync();
-                    syncNodeChangeLabels(node, undefined, undefined, values);
+                if (node.comfyClass === nodeClass) {
+                    compactSizes.get(node)?.sync();
+                    if (isNodeChange) syncNodeChangeLabels(node, undefined, undefined, values);
                 }
                 if (nested && node.comfyClass === nodeClass) {
                     const effective = Object.fromEntries(widgetNames.map(name => [name, values[name] ?? getWidget(node, name)?.value]));
@@ -975,16 +979,15 @@ app.registerExtension({
             }
         };
         restoreStateOutput(node);
-        if (isNodeChange) {
-            const sizing = keepNodeChangeCompactSize(node);
-            nodeChangeSizes.set(node, sizing);
-            const onSerialize = node.onSerialize;
-            node.onSerialize = function (info) {
-                const result = onSerialize?.apply(this, arguments);
-                sizing.serialize(info);
-                return result;
-            };
-        }
+        const sizing = keepNodeModeCompactSize(node,
+            isNodeChange ? "dkstNodeChangeCompactSize" : "dkstNodeSwitchCompactSize");
+        compactSizes.set(node, sizing);
+        const onSerialize = node.onSerialize;
+        node.onSerialize = function (info) {
+            const result = onSerialize?.apply(this, arguments);
+            sizing.serialize(info);
+            return result;
+        };
 
         // Nodes 2.0 and programmatic widget updates use the node notification.
         const onWidgetChanged = node.onWidgetChanged;
@@ -1015,7 +1018,7 @@ app.registerExtension({
                 const result = original?.apply(this, arguments);
                 if (hook === "onConfigure") {
                     restoreStateOutput(this);
-                    nodeChangeSizes.get(this)?.configure(arguments[0]);
+                    compactSizes.get(this)?.configure(arguments[0]);
                 }
                 queueMicrotask(() => apply(this));
                 return result;
@@ -1038,7 +1041,7 @@ app.registerExtension({
 });
 }
 
-registerNodeModeControl("DINKI.NodeSwitch", "DINKI_Node_Switch", ["node_ids", "active"], applyNodeSwitch);
+registerNodeModeControl("DINKI.NodeSwitch", "DINKI_Node_Switch", ["node_ids", "active", "disable_mode"], applyNodeSwitch);
 registerNodeModeControl("DINKI.NodeChange", "DINKI_Node_Change",
     ["node_ids_1", "node_ids_2", "active", "disable_mode", "group_1_label", "group_2_label"], applyNodeChange);
 registerNodeModeControl("DINKI.AutoNodeChange", "DINKI_Auto_Node_Change",
