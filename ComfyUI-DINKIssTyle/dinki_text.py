@@ -31,6 +31,69 @@ class DINKI_Text_Multiline:
         return (text,)
 
 
+class DINKI_Text_Multiline_Cache:
+    """Keep the last received string in a saved, editable multiline widget."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "text": ("STRING", {
+                    "default": "", "multiline": True, "dynamicPrompts": False,
+                    "tooltip": "Cached text. New text_in replaces this value; no new text keeps it. Edit here to replace or clear the cache.",
+                }),
+            },
+            "optional": {
+                # A normal linked input propagates ExecutionBlocker before this
+                # function runs. A raw link lets us fall back for blocked output,
+                # while its eager dependency still executes an enabled producer.
+                "text_in": ("STRING", {
+                    "forceInput": True, "rawLink": True,
+                    "tooltip": "Connect incoming text here. Empty, None, muted or blocked input keeps the cached text.",
+                }),
+            },
+            "hidden": {"execution_list": "EXECUTION_LIST", "unique_id": "UNIQUE_ID"},
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("text",)
+    FUNCTION = "output_text"
+    CATEGORY = "DINKIssTyle/Text"
+    DESCRIPTION = (
+        "Cache incoming text in the editable multiline text field. Connect the source to text_in. "
+        "New non-empty text replaces the cache; empty strings, None, muted/disconnected inputs "
+        "and blocked branches keep the previous text. Whitespace is preserved. "
+        "For a list of incoming texts, keep the last non-empty string. "
+        "Edit the text field to replace or clear the cache. Save the workflow to retain it."
+    )
+
+    @staticmethod
+    def _incoming_text(text_in, execution_list, unique_id):
+        if (isinstance(text_in, (list, tuple)) and len(text_in) == 2
+                and isinstance(text_in[0], str) and isinstance(text_in[1], int)):
+            if execution_list is None or unique_id is None:
+                return None
+            cached = execution_list.get_cache(text_in[0], unique_id)
+            index = text_in[1]
+            if cached is None or cached.outputs is None or not 0 <= index < len(cached.outputs):
+                return None
+            values = cached.outputs[index]
+        else:
+            values = text_in
+        if not isinstance(values, (list, tuple)):
+            values = (values,)
+        # Only strings can update the cache. This also excludes ExecutionBlocker
+        # without making the otherwise standalone text module depend on ComfyUI.
+        return next((value for value in reversed(values) if isinstance(value, str) and value != ""), None)
+
+    def output_text(self, text="", text_in=None, execution_list=None, unique_id=None):
+        incoming = self._incoming_text(text_in, execution_list, unique_id)
+        value = text if incoming is None else incoming
+        # Do not replay a fallback from an old prompt snapshot onto a newer widget.
+        ui = {} if incoming is None else {"dkst_cached_text": [incoming]}
+        return {"ui": ui, "result": (value,)}
+
+
 class DINKI_Text_Split:
     @classmethod
     def INPUT_TYPES(cls):

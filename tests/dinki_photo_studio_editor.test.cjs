@@ -127,6 +127,11 @@ test('Viewer images are discoverable from output cache, saved workflow and live 
         assert.equal(f.editorModule.selectedImageCandidate(viewer).descriptor.filename,'live.png');
         viewer.dkstPreviewImages=[];
         assert.equal(f.editorModule.selectedImageCandidate(viewer),null);
+        const cache=f.add('DINKI_Preview_Image_Cache');
+        cache.properties.dkstPreview={dkst_images:[{filename:'depth-snapshot.png',subfolder:'dkst_preview_cache',type:'output'}],selectedIndex:0};
+        assert.equal(f.editorModule.selectedImageCandidate(cache).descriptor.filename,'depth-snapshot.png');
+        cache.dkstPreviewImages=[{filename:'refreshed-depth.png',subfolder:'dkst_preview_cache',type:'output'}];
+        assert.equal(f.editorModule.selectedImageCandidate(cache).descriptor.filename,'refreshed-depth.png');
     } finally {f.cleanup();}
 });
 

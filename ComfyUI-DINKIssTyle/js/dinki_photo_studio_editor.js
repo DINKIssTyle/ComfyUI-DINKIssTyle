@@ -115,7 +115,7 @@ export function previewImages(node) {
         const image = node.dkstPhotoStudioImage ?? node.properties?.dkstPhotoStudioPreview;
         return image ? [image] : app.nodeOutputs?.[node.id]?.photo_studio_image ?? [];
     }
-    if (node.comfyClass === "DINKI_Preview_Image" || node.type === "DINKI_Preview_Image") {
+    if (["DINKI_Preview_Image", "DINKI_Preview_Image_Cache"].includes(node.comfyClass ?? node.type)) {
         // The DOM Viewer restores its own saved preview before the output cache.
         // Prefer the descriptors actually displayed, including a restored batch.
         if (node.dkstPreviewImages != null) return node.dkstPreviewImages;

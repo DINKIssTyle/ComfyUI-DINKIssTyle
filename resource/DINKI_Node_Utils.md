@@ -136,6 +136,38 @@ has exported the workflow and cannot synchronize Mute/Bypass for that queued run
 
 ---
 
+## 🔁 DKST Util (Auto Node Change)
+
+Uses the same two groups, custom labels, Mute/Bypass settings and Boolean `switch`
+output as Node Change. Choose the initial group with `active`, then expand
+**Show advanced inputs** to set `auto_mode`:
+
+| Mode | After a successful workflow run |
+| :--- | :--- |
+| `Manual` | Keep the current selection. |
+| `After run: Group 2` (default) | Select Group 2 for the next run, then keep Group 2 selected. |
+| `After run: Toggle 1 / 2` | Select the opposite group for the next run. Starting at Group 1 gives 1 → 2 → 1 → 2. |
+
+**Not supported for queued/batch runs. Finish one run before submitting the next.**
+**큐/배치 처리에는 사용할 수 없습니다. 한 번의 실행이 완료된 후 다음 실행을 시작하세요.**
+Already queued prompts contain a fixed group selection. Changing the control
+cannot change their execution. Overlapping submissions involving the same auto
+control skip automatic updates; queued work is not rescheduled or altered.
+
+Changes happen after the **whole workflow succeeds**, including successful runs
+using cached outputs. Errors, interruptions and failed queue submissions do not
+advance the selection. The current run's `switch` output stays fixed; the new
+selection applies to the next run. Manual selection or mode changes during a run
+are preserved if they differ from the submitted settings.
+
+The ComfyUI browser must remain open and connected to receive completion events.
+Automatic switching does not run for API-only submissions. Loading a workflow,
+replaying history or receiving completion from another workflow does not advance
+its selection. Promoted controls, including nested subgraphs, update along with
+the inner selector. Save the workflow to retain the current selection and mode.
+
+---
+
 ## 🕵️ DKST Util (Node Check)
 
 

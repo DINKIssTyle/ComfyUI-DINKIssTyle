@@ -41,7 +41,7 @@ optional accelerated kernels are configured separately. The command-line
 not need either training environment.
 
 
-- [All Nodes (66)](resource/Node_Catalog.md)
+- [All Nodes (69)](resource/Node_Catalog.md)
 - [Comparison Video Tools](resource/DINKI_Video_Tools.md)
 - [Image](resource/DINKI_Image.md)
 - [Color Nodes](resource/DINKI_Color_Nodes.md)

@@ -17,7 +17,7 @@ function element(tag) {
     };
 }
 
-async function runtime() {
+async function runtime(nodeClass = 'DINKI_Preview_Image') {
     let extension;
     const events = new Map();
     const document = { createElement: element, visibilityState: 'visible',
@@ -33,7 +33,7 @@ async function runtime() {
     });
     class Viewer {
         constructor(id = 7, properties = {}, graph = app.rootGraph) {
-            this.id = id; this.comfyClass = 'DINKI_Preview_Image'; this.properties = properties;
+            this.id = id; this.comfyClass = nodeClass; this.properties = properties;
             this.graph = graph; graph._nodes.push(this); this.onNodeCreated();
         }
         addDOMWidget(name, type, container, options) {
@@ -41,13 +41,32 @@ async function runtime() {
         }
         setDirtyCanvas() {}
     }
-    await extension.beforeRegisterNodeDef(Viewer, { name: 'DINKI_Preview_Image' });
+    await extension.beforeRegisterNodeDef(Viewer, { name: nodeClass });
     extension.setup?.();
     const emit = (name, detail) => events.get(name)?.({ detail });
     return { app, extension, Viewer, document, emit };
 }
 
 const output = filename => ({ dkst_images: [{ filename, type: 'temp' }] });
+
+test('Preview Cache renders and restores the same persistent preview and batch controls as Viewer', async () => {
+    const { app, extension, Viewer, emit } = await runtime('DINKI_Preview_Image_Cache');
+    const saved = { dkst_images: [
+        { filename: 'depth-one.png', subfolder: 'dkst_preview_cache', type: 'output' },
+        { filename: 'depth-two.png', subfolder: 'dkst_preview_cache', type: 'output' },
+    ], resolution: ['832 × 1248'] };
+    const node = new Viewer(7, { dkstPreview: saved });
+    extension.loadedGraphNode(node);
+    assert.match(node.container.children[0].src, /depth-one.png/);
+    assert.equal(node.container.children[1].textContent, '832 × 1248');
+    const selector = node.container.children[2];
+    selector.value = '1'; selector.onchange();
+    assert.match(node.container.children[0].src, /depth-two.png/);
+    app.nodeOutputs[7] = output('refreshed-depth.png');
+    emit('api:executed', { node: '7', output: app.nodeOutputs[7] });
+    assert.match(node.container.children[0].src, /refreshed-depth.png/);
+    assert.equal(node.properties.dkstPreview.dkst_images[0].filename, 'refreshed-depth.png');
+});
 
 test('returning to a browser tab replaces an old preview with the latest stored output', async () => {
     const { app, Viewer, document, emit } = await runtime();

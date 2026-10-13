@@ -2,7 +2,7 @@
 
 [Home](../README.md)
 
-66 nodes across 9 categories. Display names use `DKST Category (Function)`.
+69 nodes across 9 categories. Display names use `DKST Category (Function)`.
 Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` is now `DINKIssTyle/Util`.
 
 Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · [LM Studio](DINKI_LM_Studio_Assistant.md) · [Processing](DINKI_PS.md) · [Prompts and Text](DINKI_Prompt_and_String.md) · [Utilities](DINKI_Node_Utils.md) · [Video and Player](DINKI_Video_Tools.md). [System Monitor](DKST_System_Monitor.md) is a frontend feature and does not register a workflow node.
@@ -27,6 +27,7 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Image` | DKST Image (Load & Crop) | `DINKI_Image_Load_Crop` |
 | `DINKIssTyle/Image` | DKST Image (Overlay) | `DINKI_Overlay` |
 | `DINKIssTyle/Image` | DKST Image (Photo Specs) | `DINKI_photo_specifications` |
+| `DINKIssTyle/Image` | DKST Image (Preview Cache) | `DINKI_Preview_Image_Cache` |
 | `DINKIssTyle/Image` | DKST Image (Resize) | `DINKI_Image_Resize` |
 | `DINKIssTyle/Image` | DKST Image (Viewer) | `DINKI_Preview_Image` |
 | `DINKIssTyle/LLM` | DKST LLM (LM Studio) | `DINKI_LMStudio` |
@@ -47,11 +48,13 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Prompt` | DKST Prompt (Random) | `DINKI_random_prompt` |
 | `DINKIssTyle/Text` | DKST Text (Concatenate) | `DINKI_Text_Concatenate` |
 | `DINKIssTyle/Text` | DKST Text (Multiline) | `DINKI_Text_Multiline` |
+| `DINKIssTyle/Text` | DKST Text (Multiline Cache) | `DINKI_Text_Multiline_Cache` |
 | `DINKIssTyle/Text` | DKST Text (Note) | `DINKI_Text_Note` |
 | `DINKIssTyle/Text` | DKST Text (Split) | `DINKI_Text_Split` |
 | `DINKIssTyle/Util` | DKST Util (Anchor) | `DINKI_Anchor` |
 | `DINKIssTyle/Util` | DKST Util (Arrange) | `DINKI_Arrange` |
 | `DINKIssTyle/Util` | DKST Util (Auto Focus) | `DINKI_Auto_Focus` |
+| `DINKIssTyle/Util` | DKST Util (Auto Node Change) | `DINKI_Auto_Node_Change` |
 | `DINKIssTyle/Util` | DKST Util (Execution Report) | `DINKI_Execution_Report` |
 | `DINKIssTyle/Util` | DKST Util (Base64 Input) | `DINKI_Base64Input` |
 | `DINKIssTyle/Util` | DKST Util (Base64 Viewer) | `DINKI_Base64Viewer` |

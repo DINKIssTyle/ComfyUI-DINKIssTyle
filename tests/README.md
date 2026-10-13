@@ -1,5 +1,51 @@
 # Tests
 
+Preview Cache snapshots, producer skipping and viewer restoration:
+
+```sh
+python3 -m unittest discover -s tests -p test_preview_cache.py
+node --test tests/dinki_preview_cache.test.cjs tests/dinki_preview_viewer.test.cjs tests/dinki_preview_menu.test.cjs
+```
+
+Python tests require NumPy and Pillow and use a small CPU tensor adapter instead
+of installing PyTorch. Real floating-point snapshot and PNG files verify lossless
+batch retention, immutable refreshes, workflow recreation, missing/blocked input,
+bypassed original images, missing/corrupt cache recovery and partial-write cleanup.
+Lazy dependency requests, hidden-widget serialization and existing viewer controls
+are covered. On ComfyUI, replace the depth branch's Preview Image with Preview Cache,
+run Capture once, then change the source image and verify that the depth producer
+does not run and the original depth map remains. Refresh with the producer enabled,
+then return to Capture once. Save/reload the workflow and restart the server to
+verify retained pixels and previews; other direct consumers can still run the depth
+producer independently.
+
+Multiline Cache text retention and incoming-result persistence:
+
+```sh
+python3 -m unittest discover -s tests -p test_text_nodes.py
+node --test tests/dinki_text_cache.test.cjs
+```
+
+Checks cover raw-link output lookup, empty/None/blocked input, separate node
+state, manual replacement/clearing, exact whitespace, saved widget values and
+frontend notifications. The frontend test also runs the real Python node and
+reloads its received text before further empty/blocked and replacement runs.
+On ComfyUI, connect a text source to `text_in` and keep the cache enabled when
+muting its source; verify the received text is shown and saved in the workflow.
+
+Auto Node Change completion switching, group routing and workflow lifecycle:
+
+```sh
+node --test tests/dinki_auto_node_change.test.cjs tests/dinki_node_change.test.cjs tests/dinki_node_switch.test.cjs
+python3 -m unittest discover -s tests -p test_if_else_switch.py
+```
+
+Tests simulate prompt export, queue responses and completion events, including
+cached completion before HTTP responds, errors/cancellation, manual changes,
+workflow replacement, nested promoted controls, duplicate events and unsupported
+overlapping submissions. Confirm sequential runs with a live ComfyUI frontend;
+this node is not supported for queued/batch or API-only execution.
+
 Host dependency installation, isolated node loading and trainer runtime setup:
 
 ```sh

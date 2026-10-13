@@ -700,7 +700,7 @@ function applyNodeChange(node, changedName, changedValue, values = {}) {
 
 // LiteGraph's advanced toggle expands to fit visible widgets, but does not
 // shrink again when they are hidden. Keep Node Change's compact size separately
-// so its five advanced controls cannot leave a permanent empty area.
+// so hidden advanced controls cannot leave a permanent empty area.
 function keepNodeChangeCompactSize(node) {
     const property = "dkstNodeChangeCompactSize";
     // Nodes 2.0 exposes sizes as typed array-like views, not plain Arrays.
@@ -711,7 +711,7 @@ function keepNodeChangeCompactSize(node) {
     if (computeSize) {
         node.computeSize = function () {
             const size = computeSize.apply(this, arguments);
-            // Nodes 2.0's minimum includes the five hidden advanced widgets
+            // Nodes 2.0's minimum includes the hidden advanced widgets
             // even when this control is collapsed. The visible row and footer
             // need only 90 graph units (plus the frontend's title height).
             if (!this.showAdvanced && validSize(size)) return [size[0], Math.min(size[1], 90)];
@@ -868,8 +868,9 @@ function nodeModePromotedValues(host, inherited, onSource) {
     return result;
 }
 
-// Both controls need the same classic/Nodes 2.0 and workflow lifecycle hooks.
+// These controls share classic/Nodes 2.0 and workflow lifecycle hooks.
 function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
+    const isNodeChange = nodeClass === "DINKI_Node_Change" || nodeClass === "DINKI_Auto_Node_Change";
     const previous = new WeakMap();
     const nodeChangeSizes = new WeakMap();
     const watchedHosts = new WeakSet();
@@ -916,7 +917,7 @@ function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
                 // Nodes 2.0 can write text fields without a classic callback,
                 // including controls on the root graph. Labels are UI-only:
                 // refreshing them must not toggle any target node modes.
-                if (nodeClass === "DINKI_Node_Change" && node.comfyClass === nodeClass) {
+                if (isNodeChange && node.comfyClass === nodeClass) {
                     nodeChangeSizes.get(node)?.sync();
                     syncNodeChangeLabels(node, undefined, undefined, values);
                 }
@@ -926,7 +927,7 @@ function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
                     // A tab switch or workflow load can restore target modes without
                     // changing the promoted selector value. Reassert Node Change's
                     // effective selection; apply() only dirties the graph if needed.
-                    if (nodeClass === "DINKI_Node_Change" || !old || old.graph !== graph || widgetNames.some(name => !Object.is(old.values[name], effective[name]))) {
+                    if (isNodeChange || !old || old.graph !== graph || widgetNames.some(name => !Object.is(old.values[name], effective[name]))) {
                         apply(node, undefined, undefined, effective);
                         previous.set(node, { graph, values: effective });
                     }
@@ -935,7 +936,7 @@ function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
                     watchHost(node);
                     visit(node.subgraph, nodeModePromotedValues(node, values), true);
                     // Copy labels after children have updated, including nested promotions.
-                    if (nodeClass === "DINKI_Node_Change") {
+                    if (isNodeChange) {
                         nodeModePromotedValues(node, values, (widget, target, name) => {
                             if (!(target.subgraph || (target.comfyClass === nodeClass && name === "active"))) return;
                             const source = getWidget(target, name);
@@ -969,12 +970,12 @@ app.registerExtension({
         }
         if (node.comfyClass !== nodeClass) return;
         const restoreStateOutput = target => {
-            if (nodeClass === "DINKI_Node_Change" && !target.outputs?.some(output => output.name === "switch")) {
+            if (isNodeChange && !target.outputs?.some(output => output.name === "switch")) {
                 target.addOutput?.("switch", "BOOLEAN");
             }
         };
         restoreStateOutput(node);
-        if (nodeClass === "DINKI_Node_Change") {
+        if (isNodeChange) {
             const sizing = keepNodeChangeCompactSize(node);
             nodeChangeSizes.set(node, sizing);
             const onSerialize = node.onSerialize;
@@ -1040,6 +1041,198 @@ app.registerExtension({
 registerNodeModeControl("DINKI.NodeSwitch", "DINKI_Node_Switch", ["node_ids", "active"], applyNodeSwitch);
 registerNodeModeControl("DINKI.NodeChange", "DINKI_Node_Change",
     ["node_ids_1", "node_ids_2", "active", "disable_mode", "group_1_label", "group_2_label"], applyNodeChange);
+registerNodeModeControl("DINKI.AutoNodeChange", "DINKI_Auto_Node_Change",
+    ["node_ids_1", "node_ids_2", "active", "disable_mode", "group_1_label", "group_2_label", "auto_mode"], applyNodeChange);
+
+// Include the widgets which actually own promoted values, all the way to the
+// outermost host. Updating only the inner widget would be undone by the monitor.
+function autoNodeChangeBindings(root) {
+    const bindings = new Map();
+    const visiting = new Set();
+    const names = ["node_ids_1", "node_ids_2", "active", "disable_mode", "group_1_label", "group_2_label", "auto_mode"];
+    const visit = (graph, overrides = new Map(), writers = new Map(), path = []) => {
+        if (!graph || visiting.has(graph)) return;
+        visiting.add(graph);
+        for (const node of graph.nodes ?? graph._nodes ?? []) {
+            if (node.mode === 2 || node.mode === 4) continue;
+            const values = overrides.get(node) ?? {};
+            const sources = writers.get(node) ?? {};
+            const id = [...path, String(node.id)].join(":");
+            if (node.comfyClass === "DINKI_Auto_Node_Change") {
+                bindings.set(id, { node, graph, sources,
+                    values: Object.fromEntries(names.map(name => [name, values[name] ?? getWidget(node, name)?.value])) });
+            }
+            if (node.subgraph) {
+                const childWriters = new Map();
+                const childValues = nodeModePromotedValues(node, values, (widget, target, name, sourceName) => {
+                    if (!childWriters.has(target)) childWriters.set(target, {});
+                    childWriters.get(target)[name] = [...(sources[sourceName] ?? []), ...(widget ? [{ node, widget }] : [])];
+                });
+                visit(node.subgraph, childValues, childWriters, [...path, String(node.id)]);
+            }
+        }
+        visiting.delete(graph);
+    };
+    visit(root);
+    return bindings;
+}
+
+function installAutoNodeChanges(app, api) {
+    const exports = new WeakMap();
+    const jobs = new Map();
+    const buffered = new Map();
+    const ended = new Set();
+    const pending = new WeakMap();
+    const listeners = [];
+    const graphToPrompt = app.graphToPrompt;
+    const queuePrompt = api.queuePrompt;
+    let generation = 0;
+    let submitting = 0;
+    let disposed = false;
+    const release = entries => {
+        for (const entry of entries) {
+            const set = pending.get(entry.node);
+            set?.delete(entry);
+            if (!set?.size) pending.delete(entry.node);
+        }
+    };
+    const complete = (name, detail) => {
+        const id = detail?.prompt_id;
+        if (!id || ended.has(id)) return;
+        const job = jobs.get(id);
+        if (!job) {
+            // Even a completely cached prompt can finish before HTTP responds.
+            if (submitting && !buffered.has(id)) {
+                buffered.set(id, { name, detail });
+                if (buffered.size > 32) buffered.delete(buffered.keys().next().value);
+            }
+            return;
+        }
+        jobs.delete(id);
+        ended.add(id);
+        if (ended.size > 64) ended.delete(ended.values().next().value);
+        release(job.entries);
+        if (disposed || name !== "execution_success" || generation !== job.generation ||
+            (app.rootGraph ?? app.graph) !== job.root || app.configuringGraph) return;
+        const current = autoNodeChangeBindings(job.root);
+        for (const entry of job.entries) {
+            const now = current.get(entry.id);
+            if (entry.overlap || now?.node !== entry.node || now.graph !== entry.graph ||
+                now.values.active !== entry.active ||
+                (now.values.auto_mode ?? "After run: Group 2") !== entry.autoMode) continue;
+            const active = entry.autoMode === "After run: Group 2" ? false : !entry.active;
+            const writers = [...(now.sources.active ?? []), { node: now.node, widget: getWidget(now.node, "active") }];
+            // Commit every owning widget first, before any callback reads them.
+            const changed = new Map();
+            for (const owner of writers) {
+                if (!owner.widget || changed.has(owner.widget)) continue;
+                if (owner.widget.value !== active) {
+                    owner.widget.value = active;
+                    changed.set(owner.widget, owner.node);
+                }
+            }
+            for (const [widget, node] of changed) {
+                widget.callback?.call(widget, active);
+                node.onWidgetChanged?.(widget.name, active);
+            }
+            applyNodeChange(now.node, "active", active, now.values);
+            if (changed.size) {
+                now.graph.change?.();
+                if (job.root !== now.graph) job.root.change?.();
+                job.root.setDirtyCanvas?.(true, true);
+            }
+        }
+    };
+    for (const name of ["execution_success", "execution_error", "execution_interrupted"]) {
+        const listener = ({ detail }) => complete(name, detail);
+        api.addEventListener(name, listener);
+        listeners.push([name, listener]);
+    }
+    const wrappedExport = async function (...args) {
+        const root = args[0] ?? app.rootGraph ?? app.graph;
+        let bindings = disposed || app.configuringGraph ? new Map() : autoNodeChangeBindings(root);
+        // Modes must be synchronized BEFORE the frontend builds the API prompt.
+        for (const { node, values } of bindings.values()) applyNodeChange(node, undefined, undefined, values);
+        bindings = disposed || app.configuringGraph ? new Map() : autoNodeChangeBindings(root);
+        const exportGeneration = generation;
+        const result = await graphToPrompt.apply(this, args);
+        if (!disposed && result && typeof result === "object") {
+            const entries = [];
+            for (const [id, binding] of bindings) {
+                const input = result.output?.[id];
+                const autoMode = input?.inputs?.auto_mode ?? binding.values.auto_mode ?? "After run: Group 2";
+                const active = input?.inputs?.active ?? binding.values.active;
+                if (input?.class_type !== "DINKI_Auto_Node_Change" || typeof active !== "boolean" ||
+                    !["After run: Group 2", "After run: Toggle 1 / 2"].includes(autoMode)) continue;
+                entries.push({ id, node: binding.node, graph: binding.graph, active, autoMode, overlap: false });
+            }
+            exports.set(result, { root, generation: exportGeneration, entries });
+        }
+        return result;
+    };
+    const wrappedQueue = async function (...args) {
+        const snapshot = exports.get(args[1]);
+        if (disposed || !snapshot?.entries.length) return queuePrompt.apply(this, args);
+        // Overlapping submissions cannot use completion-based selection. Suppress
+        // their automatic updates without changing or rescheduling queued work.
+        const job = { ...snapshot, entries: snapshot.entries.map(entry => ({ ...entry })) };
+        for (const entry of job.entries) {
+            if (!pending.has(entry.node)) pending.set(entry.node, new Set());
+            const set = pending.get(entry.node);
+            if (set.size) {
+                entry.overlap = true;
+                for (const previous of set) previous.overlap = true;
+            }
+            set.add(entry);
+        }
+        submitting++;
+        try {
+            const result = await queuePrompt.apply(this, args);
+            if (disposed || !result?.prompt_id) release(job.entries);
+            else {
+                jobs.set(result.prompt_id, job);
+                const early = buffered.get(result.prompt_id);
+                buffered.delete(result.prompt_id);
+                if (early) complete(early.name, early.detail);
+            }
+            return result;
+        } catch (error) {
+            release(job.entries);
+            throw error;
+        } finally {
+            if (!--submitting) buffered.clear();
+        }
+    };
+    if (typeof graphToPrompt === "function") app.graphToPrompt = wrappedExport;
+    if (typeof queuePrompt === "function") api.queuePrompt = wrappedQueue;
+    return {
+        invalidate() { generation++; },
+        destroy() {
+            disposed = true;
+            for (const [name, listener] of listeners) api.removeEventListener(name, listener);
+            if (app.graphToPrompt === wrappedExport) app.graphToPrompt = graphToPrompt;
+            if (api.queuePrompt === wrappedQueue) api.queuePrompt = queuePrompt;
+            for (const job of jobs.values()) release(job.entries);
+            jobs.clear();
+            buffered.clear();
+            ended.clear();
+        },
+    };
+}
+
+let autoNodeChangeController;
+app.registerExtension({
+    name: "DINKI.AutoNodeChange.Execution",
+    setup() {
+        if (autoNodeChangeController) return;
+        autoNodeChangeController = installAutoNodeChanges(app, api);
+        window.addEventListener("pagehide", () => {
+            autoNodeChangeController.destroy();
+            autoNodeChangeController = undefined;
+        }, { once: true });
+    },
+    afterConfigureGraph() { autoNodeChangeController?.invalidate(); },
+});
 
 
 // ============================================================
@@ -2324,6 +2517,8 @@ app.registerExtension({
 // ============================================================
 // 13. DKST Image (Viewer) resolution overlay
 // ============================================================
+const previewImageClasses = new Set(["DINKI_Preview_Image", "DINKI_Preview_Image_Cache"]);
+
 function visitPreviewNodes(callback) {
     const visited = new Set();
     const visit = (graph, path = []) => {
@@ -2331,7 +2526,7 @@ function visitPreviewNodes(callback) {
         visited.add(graph);
         for (const node of graph.nodes ?? graph._nodes ?? []) {
             const executionId = [...path, String(node.id)].join(":");
-            if (node.comfyClass === "DINKI_Preview_Image") callback(node, executionId);
+            if (previewImageClasses.has(node.comfyClass)) callback(node, executionId);
             if (node.subgraph) visit(node.subgraph, [...path, String(node.id)]);
         }
     };
@@ -2378,7 +2573,7 @@ app.registerExtension({
         if (!app.configuringGraph) visitPreviewNodes(node => node.dkstSyncPreview?.(false, true));
     },
     async beforeRegisterNodeDef(nodeType, nodeData) {
-        if (nodeData.name !== "DINKI_Preview_Image") return;
+        if (!previewImageClasses.has(nodeData.name)) return;
         const created = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function() {
             const result = created?.apply(this, arguments);
@@ -2551,7 +2746,7 @@ app.registerExtension({
         };
     },
     loadedGraphNode(node) {
-        if (node.comfyClass === "DINKI_Preview_Image") {
+        if (previewImageClasses.has(node.comfyClass)) {
             node.dkstRestorePreview?.();
         }
     },

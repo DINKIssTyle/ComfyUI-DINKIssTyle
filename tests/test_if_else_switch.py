@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 
 NODE_FILE = Path(__file__).resolve().parents[1] / "ComfyUI-DINKIssTyle" / "dinki_switch.py"
+TextCache = runpy.run_path(str(NODE_FILE.with_name("dinki_text.py")))["DINKI_Text_Multiline_Cache"]
 
 
 class ExecutionBlocker:
@@ -25,6 +26,7 @@ with patch.dict(sys.modules, {"comfy_execution": types.ModuleType("comfy_executi
     ImageSwitch = nodes["DINKI_IfElseImageSwitch"]
     Branch = nodes["DINKI_IfElseBranch"]
     NodeChange = nodes["DINKI_Node_Change"]
+    AutoNodeChange = nodes["DINKI_Auto_Node_Change"]
 
 
 class FakeExecutionList:
@@ -37,6 +39,38 @@ class FakeExecutionList:
 
 
 class IfElseSwitchTests(unittest.TestCase):
+    def test_text_cache_receives_new_text_then_keeps_it_when_the_selected_branch_is_empty(self):
+        cached_text = ""
+        for active, incoming, expected in [(True, "first\nprompt", "first\nprompt"),
+                                           (False, "unused", "first\nprompt"),
+                                           (True, "replacement", "replacement")]:
+            with self.subTest(active=active, incoming=incoming):
+                state, = AutoNodeChange().do_nothing("producer", "", active, "Mute")
+                branch_output = Switch().select(switch=state, on_true_1=incoming)[0]
+                if not active:
+                    self.assertIsInstance(branch_output, ExecutionBlocker)
+                result = TextCache().output_text(cached_text, ["source", 0],
+                                                FakeExecutionList([branch_output]), "switch")
+                self.assertEqual(result["result"], (expected,))
+                cached_text = result["ui"].get("dkst_cached_text", [cached_text])[0]
+                self.assertEqual(cached_text, expected)
+
+    def test_auto_node_change_keeps_this_runs_selection_for_every_mode(self):
+        schema = AutoNodeChange.INPUT_TYPES()
+        modes, options = schema["optional"]["auto_mode"]
+        self.assertTrue(options["advanced"])
+        self.assertEqual(options["default"], "After run: Group 2")
+        self.assertIn("queued/batch", AutoNodeChange.DESCRIPTION)
+        self.assertEqual(schema["required"], NodeChange.INPUT_TYPES()["required"])
+        self.assertEqual(AutoNodeChange.RETURN_TYPES, ("BOOLEAN",))
+        self.assertEqual(AutoNodeChange.RETURN_NAMES, ("switch",))
+        for mode in modes:
+            for active in (True, False):
+                with self.subTest(mode=mode, active=active):
+                    self.assertEqual(AutoNodeChange().do_nothing("1", "2", active,
+                        auto_mode=mode), (active,))
+        self.assertEqual(AutoNodeChange().do_nothing("1", "2", True), (True,))
+
     def test_node_change_selection_requests_the_matching_decoder_only(self):
         self.assertEqual(NodeChange.RETURN_TYPES, ("BOOLEAN",))
         self.assertEqual(NodeChange.RETURN_NAMES, ("switch",))

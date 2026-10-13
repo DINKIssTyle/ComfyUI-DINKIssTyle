@@ -105,6 +105,27 @@ The locked preview supports headings, emphasis, strikethrough, lists, display-on
 
 Enter multiline `text` and pass it through as a `STRING` output.
 
+## DKST Text (Multiline Cache)
+
+Connect a source's `STRING` output to **`text_in`**. Each new non-empty string
+replaces the editable multiline **`text`** field and is sent to the `text` output.
+When the source sends an empty string, `None`, or a blocked branch, or is muted
+or disconnected, the node outputs the text already stored in that field.
+Whitespace and line breaks are preserved; whitespace-only strings count as text.
+For a list of source outputs, the last non-empty string becomes the cached text.
+
+You can edit `text` to set an initial value, replace the cache or clear it.
+The received text is stored in the workflow widget: **save the workflow after
+receiving text** to retain it across reloads or a server restart. Keep the browser
+connected to record incoming text. API-only callers must pass the previous output
+back as `text` on their next request; no global server-side text is shared between
+nodes or workflows.
+
+With Auto Node Change, keep this cache node enabled in both groups. Put only its
+text producer in the group that will be disabled, using **Mute**. The first run
+fills the cache; later runs with that producer muted reuse the saved text.
+Upstream validation errors and execution failures still stop the workflow.
+
 ## DKST Text (Split)
 
 Split the input `text` at the exact `delimiter` (default `,`) into `text_1`–`text_10`. `clean_whitespace` trims each piece by default. Empty pieces retain their positions, and the tenth output contains any remaining text. An empty delimiter leaves the text intact; use an actual line break as the delimiter to split lines.

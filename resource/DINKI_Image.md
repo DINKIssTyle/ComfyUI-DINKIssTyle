@@ -340,6 +340,20 @@ Connect an optional `image` and set `width`, `height`, `interpolation`, `keep_pr
 
 Displays each input image and passes the original `images` batch through. `filename_prefix` controls names. `format` supports `png`, `exr`, `avif`, and `webp`; PNG supports `8bit` and `16bit`, EXR requires `16bit`, and AVIF/WebP require `8bit`. EXR saves linear values converted from the `sRGB` input setting and uses a temporary PNG for the on-node preview. `always_save` writes to ComfyUI's output folder; otherwise files go to the temporary folder. AVIF availability depends on the installed Pillow build.
 
+## DKST Image (Preview Cache)
+
+Connect a depth generator's `depth` output to optional `images`, then connect this node's `images` output to the depth input of Photo Studio or another consumer. It previews the complete image batch with the same image menus, resolution display and batch selector as Viewer, and outputs the retained batch as a CPU `IMAGE` tensor.
+
+* **Capture once** (default): request the source only until an image is saved. Later runs reuse the snapshot, even if the source image changes or the depth generator is bypassed, muted or disconnected. The lazy input stops this branch from evaluating the depth generator, so no Auto Node Change is needed for this branch.
+* **Refresh:** request the current source and replace the snapshot. Activate the depth generator before refreshing; a bypassed generator sends its original image rather than a depth map. Empty, `None` or blocked input keeps a previous snapshot. After updating, return to Capture once to freeze it again.
+* **Use cache:** always reuse a saved snapshot without requesting the source. A missing cache reports an error explaining how to capture an image.
+
+Replace the original Preview Image in the depth branch with this node. Keep the cache node itself enabled. An independent preview or another consumer connected directly to the depth generator can still request and execute it.
+
+The actual floating-point batch is stored losslessly as `.npy` in ComfyUI's `output/dkst_preview_cache`; its PNG previews are for display only. Save the workflow after capture: a managed hidden widget saves the snapshot reference. The pixels and previews can then be reused after reopening the workflow or restarting ComfyUI on the same server. Copied workflows can share an existing immutable snapshot; refreshing either creates a new file and leaves the other snapshot unchanged.
+
+Image data is not embedded in the workflow JSON. Moving the workflow to another server also requires its cache files. Old snapshots are retained for saved workflows; remove unneeded files manually when no workflow references them. If a snapshot is missing, Capture once requests the source again; if corrupt, choose Refresh with an active source. API-only callers must carry the returned `ui.dkst_cache_file[0]` into the next prompt's `cache_file`. Complete the first capture before queueing runs that should reuse it.
+
 ## DKST Util (Image Selector)
 
 Accepts up to eight optional inputs (`image_1`–`image_8`) and returns the connected input with the highest slot number. With no connected image, it returns a 1×1 black placeholder.
