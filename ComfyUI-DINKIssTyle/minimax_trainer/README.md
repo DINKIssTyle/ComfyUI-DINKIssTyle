@@ -18,7 +18,14 @@ also detects this environment; both workers use the same dependency versions.
 Click **Check Runtime** to check the H3 engine. No new Python installation is
 needed just because this is a second node.
 
-To make an independent environment, run from `minimax_trainer`:
+Use **Configure Models → Prepare Runtime** to prepare dependencies from the UI.
+It reuses an existing Qwen `.venv` when MiniMax has no environment of its own;
+otherwise it creates/updates `minimax_trainer/.venv`. Installation progress and
+errors are shown in the dialog. Select the resulting Training Python and save.
+**Check Runtime** validates the pinned dependency versions and CUDA availability.
+Python with `venv`/pip is required on the server; Python 3.12 is recommended.
+
+To make an independent environment from the command line, run from `minimax_trainer`:
 
 ```powershell
 py -3.12 setup_runtime.py

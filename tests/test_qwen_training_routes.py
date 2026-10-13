@@ -59,6 +59,33 @@ class TestTrainingRoutes(unittest.TestCase):
         reservation.start()
         self.addCleanup(reservation.stop)
 
+    def test_runtime_setup_routes_for_both_trainers_and_active_training_rejection(self):
+        for endpoint in ("/dinki/qwen21", "/dinki/minimax_h3"):
+            get = registered["get", endpoint + "/runtime/setup"]
+            post = registered["post", endpoint + "/runtime/setup"]
+            with patch.object(shared.SETUP, "status", return_value={"status": "installing"}):
+                self.assertEqual(asyncio.run(get(Request({})))["body"]["status"], "installing")
+            with patch.object(shared, "active_training", return_value={"id": "active"}), \
+                 patch.object(shared.SETUP, "start") as start:
+                response = asyncio.run(post(Request({})))
+                self.assertEqual(response["status"], 400)
+                start.assert_not_called()
+            with patch.object(shared, "active_training", return_value=None), \
+                 patch.object(shared.SETUP, "start", return_value={"status": "installing"}) as start:
+                self.assertEqual(asyncio.run(post(Request({})))["body"]["status"], "installing")
+                self.assertTrue(str(start.call_args.args[1]).endswith("runner.py"))
+
+    def test_runtime_install_blocks_training_start_resume_and_checks(self):
+        with patch.object(shared.SETUP, "active", return_value=True):
+            with self.assertRaisesRegex(ValueError, "preparation"):
+                module.start_job({})
+            with self.assertRaisesRegex(ValueError, "preparation"):
+                shared.start_exclusive("minimax_h3", lambda: None, {}, resume_id="job")
+            for endpoint in ("/dinki/qwen21", "/dinki/minimax_h3"):
+                response = asyncio.run(registered["post", endpoint + "/check"](Request({})))
+                self.assertEqual(response["status"], 400)
+                self.assertIn("preparation", response["body"]["error"])
+
     def test_trainer_readme_links_and_runtime_files_exist_in_checkout(self):
         # Catch a partial rename where documentation/tests point to a missing folder.
         import re

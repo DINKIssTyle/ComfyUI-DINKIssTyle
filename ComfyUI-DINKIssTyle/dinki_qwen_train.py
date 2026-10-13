@@ -32,6 +32,8 @@ def manager():
 
 
 register_trainer("qwen21", lambda: manager())
+dinki_training_shared.register_runtime_setup("/dinki/qwen21", "qwen21",
+                                           Path(__file__).parent / "qwen21_trainer/runner.py")
 
 
 class DINKI_Qwen21_LoRA_Trainer:
@@ -103,6 +105,7 @@ def busy_generation():
 
 def start_job(data, resume_id=None):
     with GPU_LOCK:
+        dinki_training_shared.require_runtime_idle()
         if busy_generation():
             raise ValueError("Finish or clear the ComfyUI generation queue before starting training.")
         require_other_trainers_idle("qwen21")
@@ -236,6 +239,7 @@ def check_runtime():
 @PromptServer.instance.routes.post("/dinki/qwen21/check")
 async def check(request):
     try:
+        dinki_training_shared.require_runtime_idle()
         if manager().active():
             raise ValueError("Finish the active job before checking the runtime.")
         return web.json_response(await asyncio.to_thread(check_runtime))

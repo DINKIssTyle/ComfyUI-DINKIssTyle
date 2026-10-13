@@ -54,6 +54,21 @@ CONTROLS = {
     "lens_blur_depth_sigma": ("float", 2.0, 0.1, 10.0, 0.1),
     "depth_near_is_white": ("bool", True),
     "grain_seed": ("int", 0, 0, 2147483647, 1),
+    # Append controls so legacy positional workflows keep their original order.
+    "geometry_auto": ("float", 0.0, 0.0, 100.0, 1.0),
+    "geometry_vertical": ("float", 0.0, -100.0, 100.0, 1.0),
+    "geometry_horizontal": ("float", 0.0, -100.0, 100.0, 1.0),
+    "geometry_rotate": ("float", 0.0, -180.0, 180.0, 0.1),
+    "geometry_aspect": ("float", 0.0, -100.0, 100.0, 1.0),
+    "geometry_scale": ("float", 100.0, 25.0, 200.0, 1.0),
+    "geometry_offset_x": ("float", 0.0, -100.0, 100.0, 0.1),
+    "geometry_offset_y": ("float", 0.0, -100.0, 100.0, 0.1),
+    "crop_enabled": ("bool", False),
+    "crop_aspect": ("choice", "Free", ("Free", "Original", "1:1", "4:3", "3:2", "16:9", "9:16")),
+    "crop_left": ("float", 0.0, 0.0, 100.0, 0.1),
+    "crop_top": ("float", 0.0, 0.0, 100.0, 0.1),
+    "crop_right": ("float", 100.0, 0.0, 100.0, 0.1),
+    "crop_bottom": ("float", 100.0, 0.0, 100.0, 0.1),
 }
 
 TOOLTIPS = {
@@ -73,6 +88,17 @@ TOOLTIPS = {
     "lens_blur_bokeh_boost": "Brightens out-of-focus highlights.",
     "lens_blur_depth_blur_radius": "Gaussian blur radius for the depth map. Zero disables depth smoothing.",
     "lens_blur_depth_sigma": "Gaussian sigma for depth boundaries, using the Blur Image node's kernel scale.",
+    "geometry_auto": "Automatic straightening strength. Uses dominant horizontal/vertical edges; leaves ambiguous scenes unchanged.",
+    "geometry_vertical": "Correct vertical perspective (top/bottom convergence). Apply lens correction first.",
+    "geometry_horizontal": "Correct horizontal perspective (left/right convergence).",
+    "geometry_rotate": "Clockwise rotation in degrees, added to automatic straightening.",
+    "geometry_aspect": "Stretch width and compress height, or vice versa, around the image center.",
+    "geometry_scale": "Centered zoom in percent. 100 keeps the original scale.",
+    "geometry_offset_x": "Horizontal translation as a percentage of the image width.",
+    "geometry_offset_y": "Vertical translation as a percentage of the image height.",
+    "crop_enabled": "Crop the adjusted image at its native resolution; disable to keep the full frame.",
+    "crop_aspect": "Fit the chosen aspect ratio inside the crop rectangle without stretching the image.",
+    **{f"crop_{edge}": "Crop boundary as a percentage of the transformed full frame." for edge in ("left", "top", "right", "bottom")},
 }
 
 
@@ -100,6 +126,8 @@ def _validate_settings(values, complete=False):
         elif isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value) or not spec[2] <= value <= spec[3]:
             raise ValueError(f"Invalid {name}")
         result[name] = value
+    if result["crop_left"] >= result["crop_right"] or result["crop_top"] >= result["crop_bottom"]:
+        raise ValueError("Crop must have positive width and height")
     return result
 
 
@@ -172,6 +200,106 @@ def _distort(rgb, depth, alpha, amount):
     if alpha is not None:
         alpha = F.grid_sample(alpha, grid, mode="bilinear", padding_mode="border", align_corners=False)
     return rgb, depth, alpha
+
+
+def _auto_straighten(rgb):
+    """Estimate modest camera roll from concentrated edge directions, per frame."""
+    height, width = rgb.shape[-2:]
+    scale = min(1.0, 256 / max(height, width))
+    small = F.interpolate(rgb.detach().float(), size=(max(1, round(height * scale)),
+                          max(1, round(width * scale))), mode="area")
+    if min(small.shape[-2:]) < 8:
+        return rgb.new_zeros((rgb.shape[0],))
+    gray = _blur(_luminance(small), 1.0)
+    gx = gray[..., 1:-1, 2:] - gray[..., 1:-1, :-2]
+    gy = gray[..., 2:, 1:-1] - gray[..., :-2, 1:-1]
+    magnitude = (gx.square() + gy.square()).sqrt()
+    angle = ((torch.atan2(gy, gx) * (180 / math.pi) + 45) % 90) - 45
+    corrections = []
+    for frame_angle, frame_magnitude in zip(angle, magnitude):
+        weights = frame_magnitude.flatten().cpu()
+        degrees = frame_angle.flatten().cpu()
+        threshold = max(0.025, float(torch.quantile(weights, .80)))
+        strong = weights > threshold
+        near_axis = strong & (degrees.abs() <= 15)
+        if int(near_axis.sum()) < 32:
+            corrections.append(0.0)
+            continue
+        histogram = torch.zeros(61)
+        bins = ((degrees[near_axis] + 15) * 2).round().long().clamp(0, 60)
+        histogram.scatter_add_(0, bins, weights[near_axis])
+        smooth = F.conv1d(F.pad(histogram[None, None], (2, 2)), torch.ones(1, 1, 5))[0, 0]
+        peak = int(smooth.argmax())
+        center = peak / 2 - 15
+        cluster = near_axis & ((degrees - center).abs() <= 1.5)
+        confidence = float(weights[cluster].sum() / weights[strong].sum().clamp_min(1e-6))
+        correction = -float((degrees[cluster] * weights[cluster]).sum() / weights[cluster].sum().clamp_min(1e-6))
+        corrections.append(round(correction, 2) if confidence >= .25 and abs(correction) <= 12 else 0.0)
+    return rgb.new_tensor(corrections)
+
+
+def _geometry(rgb, depth, alpha, settings):
+    names = ("auto", "vertical", "horizontal", "rotate", "aspect", "offset_x", "offset_y")
+    if not any(settings[f"geometry_{name}"] for name in names) and settings["geometry_scale"] == 100:
+        return rgb, depth, alpha
+    batch, _, height, width = rgb.shape
+    angle = rgb.new_full((batch,), settings["geometry_rotate"])
+    if settings["geometry_auto"]:
+        angle = angle + _auto_straighten(rgb) * (settings["geometry_auto"] / 100)
+    angle = angle.view(-1, 1, 1) * (math.pi / 180)
+    y = torch.arange(height, device=rgb.device, dtype=rgb.dtype) + .5 - height / 2
+    x = torch.arange(width, device=rgb.device, dtype=rgb.dtype) + .5 - width / 2
+    yy, xx = torch.meshgrid(y, x, indexing="ij")
+    scale = settings["geometry_scale"] / 100
+    aspect = 2 ** (settings["geometry_aspect"] / 100)
+    xx = (xx - settings["geometry_offset_x"] / 100 * width) / (scale * aspect)
+    yy = (yy - settings["geometry_offset_y"] / 100 * height) / (scale / aspect)
+    sx = angle.cos() * xx + angle.sin() * yy
+    sy = -angle.sin() * xx + angle.cos() * yy
+    denominator = 1 - settings["geometry_horizontal"] / 100 * .6 * sx / (width / 2) - settings["geometry_vertical"] / 100 * .6 * sy / (height / 2)
+    valid = denominator > .05
+    grid = torch.stack((2 * sx / denominator.clamp_min(.05) / width,
+                        2 * sy / denominator.clamp_min(.05) / height), -1)
+    grid = torch.where(valid[..., None], grid, torch.full_like(grid, 3))
+
+    def warp(value):
+        return F.grid_sample(value, grid, mode="bilinear", padding_mode="zeros", align_corners=False)
+
+    # Premultiplication avoids colored fringes around transparent subjects.
+    if alpha is not None:
+        premultiplied = warp(rgb * alpha)
+        alpha = warp(alpha)
+        rgb = torch.where(alpha > 1e-6, premultiplied / alpha.clamp_min(1e-6), torch.zeros_like(premultiplied))
+    else:
+        rgb = warp(rgb)
+    return rgb, warp(depth) if depth is not None else None, alpha
+
+
+def _crop_bounds(height, width, settings):
+    if not settings["crop_enabled"]:
+        return 0, 0, width, height
+    left, right = (settings[f"crop_{side}"] / 100 * width for side in ("left", "right"))
+    top, bottom = (settings[f"crop_{side}"] / 100 * height for side in ("top", "bottom"))
+    aspect = settings["crop_aspect"]
+    if aspect != "Free":
+        ratio = width / height if aspect == "Original" else 1.0
+        if aspect != "Original":
+            a, b = aspect.split(":")
+            ratio = float(a) / float(b)
+        crop_w = min(right - left, (bottom - top) * ratio)
+        crop_h = crop_w / ratio
+        cx, cy = (left + right) / 2, (top + bottom) / 2
+        left, right, top, bottom = cx - crop_w / 2, cx + crop_w / 2, cy - crop_h / 2, cy + crop_h / 2
+    left = min(width - 1, max(0, round(left)))
+    top = min(height - 1, max(0, round(top)))
+    right = min(width, max(left + 1, round(right)))
+    bottom = min(height, max(top + 1, round(bottom)))
+    return left, top, right, bottom
+
+
+def _crop(image, settings):
+    left, top, right, bottom = _crop_bounds(image.shape[1], image.shape[2], settings)
+    return image[:, top:bottom, left:right]
 
 
 def _prepare_depth(depth_image, rgb, near_is_white, blur_radius=0, sigma=2.0):
@@ -498,6 +626,7 @@ def _process(image, depth_image, settings):
                            settings["lens_blur_depth_sigma"]) if settings["lens_blur_apply"] else None
     if settings["optics_distortion"]:
         rgb, depth, alpha = _distort(rgb, depth, alpha, settings["optics_distortion"])
+    rgb, depth, alpha = _geometry(rgb, depth, alpha, settings)
     if settings["optics_vignette"]:
         rgb = rgb * (1 + _radial(rgb).pow(1.5) * settings["optics_vignette"] / 100 * 0.8)
 
@@ -583,7 +712,7 @@ def _process(image, depth_image, settings):
     output = rgb.clamp(0, 1).permute(0, 2, 3, 1).to(image.dtype)
     if alpha is not None:
         output = torch.cat((output, alpha.permute(0, 2, 3, 1).to(image.dtype)), dim=-1)
-    return output
+    return _crop(output, settings)
 
 
 class DINKI_Photo_Studio:
@@ -645,8 +774,11 @@ class DINKI_Photo_Studio:
         if not torch.isfinite(image).all():
             raise ValueError("image contains non-finite values")
         settings = _validate_settings(settings)
-        if all(not settings[key] for key in CONTROLS if key not in
-               ("color_white_balance", "lens_blur_focus", "lens_blur_amount", "lens_blur_bokeh", "lens_blur_aperture_blades", "lens_blur_depth_blur_radius", "lens_blur_depth_sigma", "depth_near_is_white", "grain_seed")) and settings["color_white_balance"] == "Off":
+        ignored = {"lens_blur_focus", "lens_blur_amount", "lens_blur_bokeh", "lens_blur_aperture_blades",
+                   "lens_blur_depth_blur_radius", "lens_blur_depth_sigma", "depth_near_is_white", "grain_seed"}
+        if not settings["crop_enabled"]:
+            ignored.update(name for name in CONTROLS if name.startswith("crop_"))
+        if all(settings[key] == spec[1] for key, spec in CONTROLS.items() if key not in ignored):
             return (image,)
         return (_process(image, depth_image, settings),)
 
@@ -669,6 +801,7 @@ def _read_presets(path):
         raise ValueError("Invalid photo studio preset file")
     legacy_controls = {"lens_blur_aperture_blades", "lens_blur_depth_blur_radius",
                        "lens_blur_depth_sigma"}
+    legacy_controls.update(name for name in CONTROLS if name.startswith(("geometry_", "crop_")))
     presets = {}
     for name, values in data["presets"].items():
         if isinstance(values, dict) and set(CONTROLS) - set(values) <= legacy_controls:
@@ -921,12 +1054,15 @@ def _preview_depth(item, settings):
     depth = _prepare_depth(item["depth"], rgb, settings["depth_near_is_white"],
                            settings["lens_blur_depth_blur_radius"], settings["lens_blur_depth_sigma"])
     if settings["optics_distortion"]:
-        _, depth, _ = _distort(rgb, depth, None, settings["optics_distortion"])
-    return depth
+        rgb, depth, _ = _distort(rgb, depth, None, settings["optics_distortion"])
+    _, depth, _ = _geometry(rgb, depth, None, settings)
+    return _crop(depth.permute(0, 2, 3, 1), settings).permute(0, 3, 1, 2)
 
 
 def _render_preview(item, payload):
     settings = _validate_settings(payload.get("settings", {}))
+    if payload.get("crop_edit") is True:
+        settings["crop_enabled"] = False
     quality = payload.get("quality", "fast")
     if quality not in ("fast", "original"):
         raise ValueError("Invalid preview quality")
@@ -940,8 +1076,17 @@ def _render_preview(item, payload):
         histogram = [torch.histc(histogram_image[..., c].float(), bins=64, min=0, max=1).int().tolist() for c in range(3)]
         response = {"preview": _png_uri(result), "histogram": histogram,
                     "quality": quality, "proxy": image.shape != item["image"].shape}
+        left, top, right, bottom = _crop_bounds(*item["image"].shape[1:3], settings)
+        before_key = f"{quality}:{left}:{top}:{right}:{bottom}"
+        response.update({"width": right - left, "height": bottom - top, "before_key": before_key})
+        if payload.get("before_key") != before_key:
+            if item.get("before_key") != before_key:
+                item["before_preview"] = _png_uri(_crop(image, settings))
+                item["before_key"] = before_key
+            response["before"] = item["before_preview"]
         if item["depth"] is not None:
-            key = tuple(settings[name] for name in ("depth_near_is_white", "lens_blur_depth_blur_radius", "lens_blur_depth_sigma", "optics_distortion"))
+            key = tuple(settings[name] for name in ("depth_near_is_white", "lens_blur_depth_blur_radius", "lens_blur_depth_sigma", "optics_distortion")) + tuple(
+                settings[name] for name in CONTROLS if name.startswith(("geometry_", "crop_")))
             if item.get("depth_preview_key") != key:
                 item["depth_preview"] = _png_uri(_preview_depth(item, settings).permute(0, 2, 3, 1), 640)
                 item["depth_preview_key"] = key

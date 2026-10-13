@@ -3,6 +3,9 @@ import { api } from "../../scripts/api.js";
 import { NODE_CLASS, isSetting, settingsOf, setNodeValue, openPhotoStudio, request, selectedImageCandidate, inputSignature, imageUrl, photoImageActions, showPhotoImageMenu } from "./dinki_photo_studio_editor.js";
 
 const LEGACY_DEFAULTS = { lens_blur_aperture_blades: 9, lens_blur_depth_blur_radius: 5, lens_blur_depth_sigma: 2.0 };
+const SPATIAL_DEFAULTS = { geometry_auto: 0, geometry_vertical: 0, geometry_horizontal: 0,
+    geometry_rotate: 0, geometry_aspect: 0, geometry_scale: 100, geometry_offset_x: 0, geometry_offset_y: 0,
+    crop_enabled: false, crop_aspect: "Free", crop_left: 0, crop_top: 0, crop_right: 100, crop_bottom: 100 };
 function report(error) {
     const message = error?.message ?? String(error);
     if (app.ui?.dialog?.show) app.ui.dialog.show(message);
@@ -33,12 +36,13 @@ app.registerExtension({
             this.dkstPhotoStudioCompact?.();
             const serializable = this.widgets?.filter(widget =>
                 widget.name === "active" || widget.name === "preset" ||
-                /^(light|color|effects|detail|optics|lens_blur|depth_near_is_white|grain_seed)/.test(widget.name)) ?? [];
+                isSetting(widget.name)) ?? [];
             const named = info?.properties?.dkstPhotoStudioSettings ??
                 info?.dkst_photo_settings ?? info?.widgets_values_named;
             if (named && typeof named === "object" && !Array.isArray(named)) {
                 for (const widget of serializable) {
                     if (Object.hasOwn(named, widget.name)) widget.value = named[widget.name];
+                    else if (Object.hasOwn(SPATIAL_DEFAULTS, widget.name)) widget.value = SPATIAL_DEFAULTS[widget.name];
                 }
                 return result;
             }
@@ -47,9 +51,14 @@ app.registerExtension({
             // headers and a trailing hidden Auto flag. No setting uses null.
             const values = info.widgets_values.filter(value => value !== null);
             if (typeof values.at(-1) === "boolean") values.pop();
-            const missing = serializable.length - values.length;
-            if (missing < 0 || missing > 3) return result;
+            let missing = serializable.length - values.length;
             const omitted = new Set();
+            const spatial = serializable.filter(widget => Object.hasOwn(SPATIAL_DEFAULTS, widget.name));
+            if (spatial.length && missing >= spatial.length) {
+                for (const widget of spatial) omitted.add(widget.name);
+                missing -= spatial.length;
+            }
+            if (missing < 0 || missing > 3) return result;
             if (missing === 1 || missing === 3) omitted.add("lens_blur_aperture_blades");
             if (missing === 2 || missing === 3) {
                 omitted.add("lens_blur_depth_blur_radius");
@@ -60,7 +69,7 @@ app.registerExtension({
             stored.forEach((widget, index) => { widget.value = values[index]; });
             for (const name of omitted) {
                 const widget = serializable.find(candidate => candidate.name === name);
-                if (widget) widget.value = LEGACY_DEFAULTS[name];
+                if (widget) widget.value = SPATIAL_DEFAULTS[name] ?? LEGACY_DEFAULTS[name];
             }
             return result;
         };
@@ -76,7 +85,7 @@ app.registerExtension({
                 info.properties ??= {};
                 info.properties.dkstPhotoStudioSettings = Object.fromEntries((this.widgets ?? [])
                     .filter(widget => widget.name === "active" || widget.name === "preset" ||
-                        /^(light|color|effects|detail|optics|lens_blur|depth_near_is_white|grain_seed)/.test(widget.name))
+                        isSetting(widget.name))
                     .map(widget => [widget.name, widget.value]));
             }
             return result;

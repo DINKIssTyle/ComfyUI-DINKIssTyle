@@ -69,9 +69,10 @@ export function registerTrainingUI(config) {
         try { catalog = await request("/models"); }
         catch (error) { catalog = { choices: {}, warnings: [error.message] }; }
         const dialog = el("dialog");
-        Object.assign(dialog.style, { width: "min(760px, 90vw)", background: "#202024", color: "#eee", borderRadius: "8px" });
+        Object.assign(dialog.style, { width: "min(760px, 90vw)", maxHeight: "90vh", overflow: "auto",
+            background: "#202024", color: "#eee", borderRadius: "8px" });
         dialog.append(el("h3", `DKST · ${title} Training`));
-        dialog.append(el("p", "Select models registered in ComfyUI. Install the separate training environment first. Paths are stored on the server."));
+        dialog.append(el("p", "Select models registered in ComfyUI. Prepare Runtime installs a separate CUDA environment on the server (Windows/Linux, NVIDIA GPU; downloads several GB). Python 3.12 is recommended. Paths are stored on the server."));
         const fields = {};
         const labels = config.modelLabels;
         for (const [key, label] of Object.entries(labels)) {
@@ -113,12 +114,14 @@ export function registerTrainingUI(config) {
             dialog.append(row);
         }
         const message = el("pre");
-        message.style.whiteSpace = "pre-wrap";
+        Object.assign(message.style, { whiteSpace: "pre-wrap", maxHeight: "40vh", overflow: "auto", overflowWrap: "anywhere" });
+        bindScrollWheel(message);
         const save = el("button", "Save");
         const check = el("button", "Check Runtime");
+        const prepare = el("button", "Prepare Runtime");
         const close = el("button", "Close");
         const refresh = el("button", "Refresh Models");
-        for (const button of [save, check, refresh, close]) { button.type = "button"; button.style.marginRight = "8px"; }
+        for (const button of [save, check, prepare, refresh, close]) { button.type = "button"; button.style.marginRight = "8px"; }
         const values = () => Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, v.value()]));
         message.textContent = (catalog.warnings || []).join("\n");
         refresh.onclick = async () => {
@@ -147,11 +150,52 @@ export function registerTrainingUI(config) {
             } catch (error) { message.textContent = error.message; }
             finally { check.disabled = false; }
         };
+        let setupTimer, setupPolling = false, closed = false, selectPrepared = false;
+        const showSetup = async (state) => {
+            if (closed) return;
+            const installing = state.status === "installing";
+            if (installing) selectPrepared = true;
+            prepare.disabled = check.disabled = installing;
+            if (state.status !== "idle") message.textContent = state.message + (state.log ? "\n\n" + state.log : "");
+            if (installing && !setupTimer) setupTimer = setInterval(pollSetup, 2000);
+            if (!installing && setupTimer) { clearInterval(setupTimer); setupTimer = undefined; }
+            if (state.status === "ready") {
+                const selected = values();
+                const python = selectPrepared || !selected.python ? state.python : selected.python;
+                catalog = await request("/models");
+                if (closed) return;
+                for (const [key, field] of Object.entries(fields)) field.populate(key === "python" ? python : selected[key]);
+                selectPrepared = false;
+            }
+        };
+        const pollSetup = async () => {
+            if (setupPolling || closed) return;
+            setupPolling = true;
+            try { await showSetup(await request("/runtime/setup")); }
+            catch (error) {
+                if (!closed) message.textContent = error.message;
+                if (setupTimer) clearInterval(setupTimer);
+                setupTimer = undefined;
+                prepare.disabled = check.disabled = false;
+            } finally { setupPolling = false; }
+        };
+        prepare.onclick = async () => {
+            selectPrepared = true;
+            prepare.disabled = check.disabled = true;
+            message.textContent = "Preparing the separate training environment…";
+            try { await showSetup(await request("/runtime/setup", {})); }
+            catch (error) { if (!closed) message.textContent = error.message; prepare.disabled = check.disabled = false; }
+        };
         close.onclick = () => dialog.close();
-        dialog.addEventListener("close", () => dialog.remove(), { once: true });
-        dialog.append(save, check, refresh, close, message);
+        dialog.addEventListener("close", () => {
+            closed = true;
+            if (setupTimer) clearInterval(setupTimer);
+            dialog.remove();
+        }, { once: true });
+        dialog.append(save, check, prepare, refresh, close, message);
         document.body.append(dialog);
         dialog.showModal();
+        await pollSetup();
     }
 
     app.registerExtension({

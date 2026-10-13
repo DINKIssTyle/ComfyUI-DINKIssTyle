@@ -1,5 +1,20 @@
 # Tests
 
+Host dependency installation, isolated node loading and trainer runtime setup:
+
+```sh
+python3 -m unittest discover -s tests -p test_dependencies.py
+python3 -m unittest discover -s tests -p test_qwen_training_routes.py
+node --test tests/dinki_qwen_train.test.cjs
+```
+
+Dependency tests require `packaging`; subprocess/pip operations are mocked and
+do not install packages or require CUDA. Checks cover fresh-install entry points,
+partial module import failure, offline startup, OpenCV variant reuse, trainer pin
+validation, setup progress/errors and training/setup exclusion. Full CUDA package
+installation and both worker checks must be verified on Windows/Linux with an
+NVIDIA GPU. Face Crop's real YuNet test needs OpenCV.
+
 Face crop geometry, disk exports, background control, ComfyUI outputs and UI:
 
 ```sh
@@ -133,6 +148,15 @@ exports without workflow execution, centered zoom, minimap navigation and aligne
 Slide/Difference comparison. Apply stores settings and connections; the node's
 full-resolution context-menu image is produced by workflow execution. Before
 execution its image menu uses the displayed draft preview.
+Geometry includes conservative automatic straightening, manual vertical/horizontal
+perspective, rotation, aspect, scale and offsets. Empty transformed areas are black
+for RGB and transparent for RGBA. Crop supports free/original/fixed aspect ratios,
+eight drag handles, frame movement and keyboard adjustments. Its percentage bounds
+are evaluated at native resolution, without upscaling. Depth previews and focus
+sampling follow geometry and crop; the Before image uses matching crop dimensions.
+Tests check batch/RGBA transforms, transparent-edge colors, native crop pixels,
+preview/export/node agreement, connected controls, gesture undo and migration of
+presets and workflows created before these spatial controls existed.
 `tests/photo_studio_browser.py` provides an isolated browser harness with the
 real Python preview/export routes. Confirm node layout in regular ComfyUI and
 Nodes 2.0 on the target machine as well.

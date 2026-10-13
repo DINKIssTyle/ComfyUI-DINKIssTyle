@@ -3,7 +3,7 @@ import { api } from "../../scripts/api.js";
 
 const ROOT = "/dinki/photo-studio";
 export const NODE_CLASS = "DINKI_Photo_Studio";
-export const isSetting = name => /^(light_|color_|effects_|detail_|optics_|lens_blur_|depth_near_is_white$|grain_seed$)/.test(name);
+export const isSetting = name => /^(light_|color_|effects_|detail_|optics_|lens_blur_|geometry_|crop_|depth_near_is_white$|grain_seed$)/.test(name);
 export const settingsOf = node => Object.fromEntries((node?.widgets ?? []).filter(w => isSetting(w.name)).map(w => [w.name, w.value]));
 const widget = (node, name) => node?.widgets?.find(w => w.name === name);
 let currentEditor = null;
@@ -208,8 +208,8 @@ function button(text, parent, action) {
     return el;
 }
 function labelFor(name) {
-    const special = { depth_near_is_white: "Depth: white is near", grain_seed: "Grain seed", lens_blur_bokeh: "Bokeh (f-number)", lens_blur_aperture_blades: "Aperture blades", lens_blur_depth_blur_radius: "Depth blur radius", lens_blur_depth_sigma: "Depth sigma" };
-    return special[name] || name.replace(/^(light|color|effects|detail|optics|lens_blur)_/, "").replaceAll("_", " ").replace(/^./, s => s.toUpperCase());
+    const special = { depth_near_is_white: "Depth: white is near", grain_seed: "Grain seed", lens_blur_bokeh: "Bokeh (f-number)", lens_blur_aperture_blades: "Aperture blades", lens_blur_depth_blur_radius: "Depth blur radius", lens_blur_depth_sigma: "Depth sigma", geometry_auto: "Auto straighten", geometry_rotate: "Rotate (°)", geometry_scale: "Scale (%)", geometry_offset_x: "Offset X (%)", geometry_offset_y: "Offset Y (%)", crop_enabled: "Enable crop", crop_aspect: "Aspect ratio" };
+    return special[name] || name.replace(/^(light|color|effects|detail|optics|lens_blur|geometry|crop)_/, "").replaceAll("_", " ").replace(/^./, s => s.toUpperCase());
 }
 function ensureStyles() {
     if (document.getElementById("dkst-photo-styles")) return;
@@ -304,6 +304,9 @@ export class PhotoStudioEditor {
         this.histogram = query("canvas");
         this.focusMarker = element("span", "dkst-photo-focus-marker", null, query(".dkst-photo-viewport"));
         this.focusMarker.hidden = true;
+        this.geometryGrid = element("div", "dkst-photo-geometry-grid", null, this.pair);
+        this.geometryGrid.hidden = true;
+        this.installCrop();
         this.panels = query(".dkst-photo-panels");
         const actions = query(".dkst-photo-actions");
         this.preset = element("select", "", null, actions);
@@ -351,6 +354,8 @@ export class PhotoStudioEditor {
         });
         this.showDepth = button("Show depth", viewTools, () => { this.pair.classList.toggle("show-depth"); this.updateComparison(); this.updateMinimap(); this.updateFocusMarker(); });
         this.focusButton = button("Pick focus", viewTools, () => { this.pickFocus = !this.pickFocus; this.focusButton.classList.toggle("selected", this.pickFocus); this.pair.classList.toggle("pick-focus", this.pickFocus); });
+        this.cropButton = button("Crop", viewTools, () => this.setCropEditing(!this.cropEditing));
+        this.cropButton.disabled = true;
         this.quality = element("select", "", null, viewTools);
         this.quality.setAttribute("aria-label", "Preview quality");
         this.quality.innerHTML = '<option value="fast">Fast preview</option><option value="original">Original resolution processing</option>';
@@ -361,7 +366,7 @@ export class PhotoStudioEditor {
         this.zoom.addEventListener("change", () => this.setZoom(this.zoom.value));
         this.pair.addEventListener("click", e => this.focusAt(e));
         this.pair.addEventListener("pointermove", event => {
-            if (this.pickFocus || !this.pair.classList.contains("compare") || this.comparisonMode.value !== "Slide") return;
+            if (this.cropEditing || this.pickFocus || !this.pair.classList.contains("compare") || this.comparisonMode.value !== "Slide") return;
             const bounds = this.pair.getBoundingClientRect();
             if (bounds.width) this.comparisonPosition = Math.max(0, Math.min(100, (event.clientX - bounds.left) / bounds.width * 100));
             this.updateComparison();
@@ -374,7 +379,7 @@ export class PhotoStudioEditor {
         this.applyButton.className = "primary";
         this.applyButton.disabled = true;
         this.keyHandler = e => {
-            if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); const picker = this.root.querySelector(".dkst-photo-picker"); if (picker) picker.remove(); else this.close(); }
+            if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); const picker = this.root.querySelector(".dkst-photo-picker"); if (picker) picker.remove(); else if (this.cropEditing) this.setCropEditing(false); else this.close(); }
             if (e.key === "Tab") {
                 const targets = [...(this.root.querySelector(".dkst-photo-picker") || this.root).querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled), [tabindex="0"]')].filter(el => !el.closest("details:not([open])") && !el.hidden);
                 const first = targets[0], last = targets.at(-1);
@@ -473,7 +478,7 @@ export class PhotoStudioEditor {
     }
 
     updateComparison() {
-        const compare = this.pair.classList.contains("compare") && !this.pair.classList.contains("show-depth");
+        const compare = !this.cropEditing && this.pair.classList.contains("compare") && !this.pair.classList.contains("show-depth");
         const difference = compare && this.comparisonMode.value === "Difference";
         this.pair.classList.toggle("difference", difference);
         this.after.style.clipPath = compare && !difference ? `inset(0 ${100 - this.comparisonPosition}% 0 0)` : "none";
@@ -561,12 +566,203 @@ export class PhotoStudioEditor {
         return this.node?.inputs?.some(i => (i.widget?.name === name || i.name === name) && i.link != null);
     }
 
+    resetGroup(prefix) {
+        if (prefix === "crop_" && this.cropEditing) this.setCropEditing(false);
+        this.change({ ...this.draft, ...Object.fromEntries(Object.entries(this.defaults).filter(([name]) => name.startsWith(prefix))) });
+    }
+
+    cropRatio(settings = this.draft) {
+        const aspect = settings?.crop_aspect || "Free";
+        if (aspect === "Free" || !this.sourceWidth || !this.sourceHeight) return null;
+        const ratio = aspect === "Original" ? this.sourceWidth / this.sourceHeight : aspect.split(":").map(Number).reduce((a, b) => a / b);
+        return ratio * this.sourceHeight / this.sourceWidth;
+    }
+
+    cropRect(settings = this.draft) {
+        let left = settings?.crop_left ?? 0, top = settings?.crop_top ?? 0;
+        let right = settings?.crop_right ?? 100, bottom = settings?.crop_bottom ?? 100;
+        const ratio = this.cropRatio(settings);
+        if (ratio) {
+            const w = Math.min(right - left, (bottom - top) * ratio), h = w / ratio;
+            const cx = (left + right) / 2, cy = (top + bottom) / 2;
+            left = cx - w / 2; right = cx + w / 2; top = cy - h / 2; bottom = cy + h / 2;
+        }
+        return { left, top, right, bottom };
+    }
+
+    normalizeCrop(changed) {
+        const d = this.draft;
+        if (changed === "crop_left") d.crop_left = Math.min(d.crop_left, d.crop_right - .1);
+        if (changed === "crop_right") d.crop_right = Math.max(d.crop_right, d.crop_left + .1);
+        if (changed === "crop_top") d.crop_top = Math.min(d.crop_top, d.crop_bottom - .1);
+        if (changed === "crop_bottom") d.crop_bottom = Math.max(d.crop_bottom, d.crop_top + .1);
+        for (const [low, high] of [["left", "right"], ["top", "bottom"]]) {
+            if (d[`crop_${low}`] >= d[`crop_${high}`]) {
+                if (!this.isConnected(`crop_${low}`)) d[`crop_${low}`] = Math.max(0, d[`crop_${high}`] - .1);
+                else if (!this.isConnected(`crop_${high}`)) d[`crop_${high}`] = Math.min(100, d[`crop_${low}`] + .1);
+            }
+        }
+        if (changed === "crop_aspect") {
+            const rect = this.cropRect();
+            for (const [edge, value] of Object.entries(rect)) if (!this.isConnected(`crop_${edge}`)) d[`crop_${edge}`] = value;
+        }
+    }
+
+    setCropEditing(enabled) {
+        if (enabled && (!this.session || [...this.controls.keys()].some(name => name.startsWith("crop_") && this.isConnected(name)))) return;
+        if (!!this.cropEditing === enabled) return;
+        this.cropEditing = enabled;
+        this.cropReady = false;
+        this.cropDrag = null;
+        if (enabled) {
+            if (!this.draft.crop_enabled) { this.remember(); this.draft.crop_enabled = true; this.preset.value = "Custom"; }
+            this.pickFocus = false;
+            this.pair.classList.remove("pick-focus", "show-depth");
+            this.focusButton.classList.remove("selected");
+            this.focusPoint = null; this.focusMarker.hidden = true;
+            this.width = this.sourceWidth; this.height = this.sourceHeight;
+            this.cropPanel.open = true;
+            this.setZoom(this.zoomValue);
+        }
+        this.pair.classList.toggle("cropping", enabled);
+        this.cropButton.classList.toggle("selected", enabled);
+        this.cropButton.setAttribute("aria-pressed", String(enabled));
+        this.cropButton.textContent = enabled ? "Done crop" : "Crop";
+        this.editCropButton.textContent = enabled ? "Done crop" : "Edit crop";
+        this.showDepth.disabled = enabled || !this.hasDepth;
+        this.focusButton.disabled = enabled || !this.hasDepth;
+        this.compare.disabled = this.comparisonMode.disabled = enabled;
+        this.sync(); this.updateComparison(); this.schedule(0);
+    }
+
+    updateCropOverlay() {
+        if (!this.cropFrame || !this.draft) return;
+        this.cropFrame.hidden = !this.cropEditing || !this.cropReady;
+        const rect = this.cropRect();
+        Object.assign(this.cropFrame.style, { left: `${rect.left}%`, top: `${rect.top}%`,
+            width: `${rect.right - rect.left}%`, height: `${rect.bottom - rect.top}%` });
+        const locked = [...this.controls.keys()].some(name => name.startsWith("crop_") && this.isConnected(name));
+        if (this.editCropButton) this.editCropButton.disabled = !this.session || locked;
+        if (this.cropButton) this.cropButton.disabled = !this.session || locked;
+        if (this.cropSize && this.sourceWidth) {
+            const cropped = this.draft.crop_enabled;
+            const w = cropped ? Math.max(1, Math.round(rect.right / 100 * this.sourceWidth) - Math.round(rect.left / 100 * this.sourceWidth)) : this.sourceWidth;
+            const h = cropped ? Math.max(1, Math.round(rect.bottom / 100 * this.sourceHeight) - Math.round(rect.top / 100 * this.sourceHeight)) : this.sourceHeight;
+            this.cropSize.textContent = `Output: ${w} × ${h} px${this.cropEditing ? " · full frame shown while editing" : ""}`;
+        }
+    }
+
+    installCrop() {
+        this.cropFrame = element("div", "dkst-photo-crop-frame", null, this.pair);
+        this.cropFrame.hidden = true;
+        this.cropFrame.tabIndex = 0;
+        this.cropFrame.setAttribute("role", "group");
+        this.cropFrame.setAttribute("aria-label", "Crop frame. Drag or use arrow keys to move.");
+        for (const edge of ["nw", "n", "ne", "e", "se", "s", "sw", "w"]) {
+            const handle = element("span", `dkst-photo-crop-handle ${edge}`, null, this.cropFrame);
+            handle.dataset.edge = edge; handle.tabIndex = 0;
+            handle.setAttribute("role", "button");
+            handle.setAttribute("aria-label", `Resize crop ${edge}. Use arrow keys.`);
+        }
+        this.cropFrame.addEventListener("pointerdown", event => {
+            if (event.button !== 0 || !this.cropEditing || !this.cropReady) return;
+            const bounds = this.pair.getBoundingClientRect();
+            if (!bounds.width || !bounds.height) return;
+            event.preventDefault(); event.stopPropagation();
+            event.target.focus();
+            this.remember();
+            this.cropDrag = { id: event.pointerId, x: event.clientX, y: event.clientY,
+                edge: event.target.dataset.edge || "move", rect: this.cropRect(), bounds };
+            this.cropFrame.setPointerCapture(event.pointerId);
+        });
+        this.cropFrame.addEventListener("pointermove", event => {
+            if (this.cropDrag?.id !== event.pointerId) return;
+            event.preventDefault(); event.stopPropagation();
+            const drag = this.cropDrag;
+            this.adjustCrop(drag.rect, drag.edge, (event.clientX - drag.x) / drag.bounds.width * 100, (event.clientY - drag.y) / drag.bounds.height * 100);
+        });
+        const end = event => {
+            if (this.cropDrag?.id !== event.pointerId) return;
+            if (this.cropFrame.hasPointerCapture(event.pointerId)) this.cropFrame.releasePointerCapture(event.pointerId);
+            this.cropDrag = null;
+        };
+        this.cropFrame.addEventListener("pointerup", end);
+        this.cropFrame.addEventListener("pointercancel", end);
+        this.cropFrame.addEventListener("lostpointercapture", () => { this.cropDrag = null; });
+        this.cropFrame.addEventListener("click", event => event.stopPropagation());
+        this.cropFrame.addEventListener("keydown", event => {
+            if (!this.cropEditing || !this.cropReady || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+            event.preventDefault(); event.stopPropagation();
+            if (!event.repeat) this.remember();
+            const step = event.shiftKey ? 2 : .2;
+            this.adjustCrop(this.cropRect(), event.target.dataset.edge || "move",
+                event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0,
+                event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0);
+        });
+    }
+
+    adjustCrop(start, edge, dx, dy) {
+        let { left, top, right, bottom } = start;
+        const clamp = (v, low, high) => Math.max(low, Math.min(high, v));
+        const minW = Math.max(.1, 100 / this.sourceWidth), minH = Math.max(.1, 100 / this.sourceHeight);
+        if (edge === "move") {
+            dx = clamp(dx, -left, 100 - right); dy = clamp(dy, -top, 100 - bottom);
+            left += dx; right += dx; top += dy; bottom += dy;
+        } else {
+            const ratio = this.cropRatio();
+            if (!ratio) {
+                if (edge.includes("w")) left = clamp(left + dx, 0, right - minW);
+                if (edge.includes("e")) right = clamp(right + dx, left + minW, 100);
+                if (edge.includes("n")) top = clamp(top + dy, 0, bottom - minH);
+                if (edge.includes("s")) bottom = clamp(bottom + dy, top + minH, 100);
+            } else {
+                const corner = edge.length === 2;
+                const horizontal = edge.includes("e") || edge.includes("w");
+                const west = edge.includes("w"), north = edge.includes("n");
+                const anchorX = horizontal ? (west ? right : left) : (left + right) / 2;
+                const anchorY = edge.includes("n") || edge.includes("s") ? (north ? bottom : top) : (top + bottom) / 2;
+                let w = horizontal ? right - left + (west ? -dx : dx) : (bottom - top + (north ? -dy : dy)) * ratio;
+                if (corner && Math.abs(dy * ratio) > Math.abs(dx)) w = (bottom - top + (north ? -dy : dy)) * ratio;
+                const maxW = horizontal ? (west ? anchorX : 100 - anchorX) : 2 * Math.min(anchorX, 100 - anchorX);
+                const maxH = edge.includes("n") || edge.includes("s") ? (north ? anchorY : 100 - anchorY) : 2 * Math.min(anchorY, 100 - anchorY);
+                w = clamp(w, Math.max(minW, minH * ratio), Math.min(maxW, maxH * ratio));
+                const h = w / ratio;
+                left = horizontal ? (west ? anchorX - w : anchorX) : anchorX - w / 2;
+                right = left + w;
+                top = edge.includes("n") || edge.includes("s") ? (north ? anchorY - h : anchorY) : anchorY - h / 2;
+                bottom = top + h;
+            }
+        }
+        Object.assign(this.draft, { crop_left: left, crop_top: top, crop_right: right, crop_bottom: bottom });
+        this.focusPoint = null; this.focusMarker.hidden = true;
+        this.preset.value = "Custom";
+        this.sync();
+        // The image itself stays uncropped during this gesture; only the frame
+        // changes. Re-render after Done to show the actual cropped image.
+    }
+
     buildControls() {
-        const groups = [["light_", "Light"], ["color_", "Color"], ["effects_", "Effects"], ["detail_", "Detail"], ["optics_", "Optics"], ["lens_blur_", "Lens Blur"]];
+        const groups = [["light_", "Light"], ["color_", "Color"], ["effects_", "Effects"], ["detail_", "Detail"], ["optics_", "Optics"], ["geometry_", "Geometry"], ["crop_", "Crop"], ["lens_blur_", "Lens Blur"]];
         for (const [prefix, title] of groups) {
             const panel = element("details", "", null, this.panels);
             panel.open = title === "Light" || title === "Color";
             element("summary", "", title, panel);
+            if (title === "Geometry") {
+                const tools = element("div", "dkst-photo-panel-tools", null, panel);
+                button("Auto straighten", tools, () => this.change({ ...this.draft, geometry_auto: 100 })).disabled = this.isConnected("geometry_auto");
+                const grid = button("Grid", tools, () => { this.geometryGrid.hidden = !this.geometryGrid.hidden; grid.classList.toggle("selected", !this.geometryGrid.hidden); grid.setAttribute("aria-pressed", String(!this.geometryGrid.hidden)); });
+                grid.setAttribute("aria-pressed", "false");
+                button("Reset geometry", tools, () => this.resetGroup("geometry_"));
+                element("small", "dkst-photo-panel-hint", "Apply lens corrections first. Crop or zoom to remove empty edges.", panel);
+            }
+            if (title === "Crop") {
+                this.cropPanel = panel;
+                const tools = element("div", "dkst-photo-panel-tools", null, panel);
+                this.editCropButton = button("Edit crop", tools, () => this.setCropEditing(!this.cropEditing));
+                button("Reset crop", tools, () => this.resetGroup("crop_"));
+                element("small", "dkst-photo-panel-hint", "Drag the frame or its handles. Arrow keys move a focused frame or handle. Crop keeps native pixels.", panel);
+                this.cropSize = element("small", "dkst-photo-panel-hint", "", panel);
+            }
             const names = Object.keys(this.defaults).filter(name => name.startsWith(prefix) || (title === "Effects" && name === "grain_seed") || (title === "Lens Blur" && name === "depth_near_is_white"));
             for (const name of names) {
                 const spec = this.schema[name];
@@ -581,7 +777,7 @@ export class PhotoStudioEditor {
                 } else if (spec.kind === "bool") input.type = "checkbox";
                 else {
                     input.type = "number";
-                    input.min = spec.min; input.max = spec.max; input.step = spec.step;
+                    input.min = spec.min; input.max = spec.max; input.step = name.startsWith("crop_") ? "any" : spec.step;
                     const slider = element("input", "dkst-photo-slider", null, row);
                     slider.type = "range"; slider.min = spec.min; slider.max = spec.max; slider.step = spec.step;
                     slider.setAttribute("aria-label", `${labelFor(name)} slider`);
@@ -627,9 +823,11 @@ export class PhotoStudioEditor {
     }
     beginGesture() { if (!this.gesture) { this.remember(); this.gesture = true; } }
     controlChange(name, value, remember, preserveInput = false) {
+        if (name.startsWith("crop_") && this.isConnected(name)) return;
         if (remember) this.remember();
-        if (name.startsWith("lens_blur_") || name === "depth_near_is_white" || name === "optics_distortion") { this.focusPoint = null; this.focusMarker.hidden = true; }
+        if (name.startsWith("lens_blur_") || name.startsWith("geometry_") || name.startsWith("crop_") || name === "depth_near_is_white" || name === "optics_distortion") { this.focusPoint = null; this.focusMarker.hidden = true; }
         this.draft[name] = value;
+        if (name.startsWith("crop_")) this.normalizeCrop(name);
         if (name === "color_temperature" || name === "color_tint") this.draft.color_white_balance = "Custom";
         this.preset.value = "Custom";
         this.sync(preserveInput ? name : null); this.schedule();
@@ -638,6 +836,7 @@ export class PhotoStudioEditor {
         this.remember();
         this.focusPoint = null; this.focusMarker.hidden = true;
         for (const name of Object.keys(settings)) if (!this.isConnected(name)) this.draft[name] = settings[name];
+        this.normalizeCrop();
         this.preset.value = preset;
         this.sync(); this.schedule();
     }
@@ -659,11 +858,15 @@ export class PhotoStudioEditor {
     }
     sync(preserveInput = null) {
         for (const [name, { input, slider }] of this.controls) {
-            if (name !== preserveInput) { if (input.type === "checkbox") input.checked = !!this.draft[name]; else input.value = this.draft[name]; }
+            if (name !== preserveInput) {
+                if (input.type === "checkbox") input.checked = !!this.draft[name];
+                else input.value = name.startsWith("crop_") && typeof this.draft[name] === "number" ? Number(this.draft[name].toFixed(3)) : this.draft[name];
+            }
             if (slider) slider.value = this.draft[name];
         }
         this.undoButton.disabled = !this.history.length;
         this.redoButton.disabled = !this.redoHistory.length;
+        this.updateCropOverlay();
     }
 
     async savePreset(asNew = false) {
@@ -743,17 +946,20 @@ export class PhotoStudioEditor {
             });
             if (this.closed || generation !== this.sourceSequence) { request("release", { session: data.session }).catch(() => {}); return; }
             this.session = data.session; this.auto = data.auto; this.hasDepth = data.has_depth;
-            this.width = data.width; this.height = data.height;
+            this.beforeKey = null;
+            this.sourceWidth = this.width = data.width; this.sourceHeight = this.height = data.height;
             this.before.src = data.original; this.after.src = data.original;
             this.empty.hidden = true;
             this.pair.classList.remove("show-depth");
             this.applyButton.disabled = false;
             this.openImageButton.disabled = this.saveImageButton.disabled = !!this.exporting;
             this.showDepth.disabled = this.focusButton.disabled = !data.has_depth;
+            this.cropButton.disabled = false;
             this.imageLabel.textContent = `${this.capture ? "Captured node input" : this.imageCandidate?.label || "Image file"} · ${data.width} × ${data.height} · first frame`;
             this.depthLabel.textContent = data.has_depth ? this.depthCandidate?.label || "Connected depth input" : "No depth map · Lens Blur requires one";
             this.viewport.scrollLeft = this.viewport.scrollTop = 0;
             this.setZoom(this.zoomValue); this.navigate(.5, .5); this.updateComparison();
+            this.updateCropOverlay();
             this.schedule(0);
         } catch (error) {
             if (generation !== this.sourceSequence || this.closed) return;
@@ -777,9 +983,17 @@ export class PhotoStudioEditor {
         const session = this.session;
         this.message("Updating preview…");
         try {
-            const data = await request("preview", { session, settings: { ...this.draft }, quality: this.quality.value });
+            const data = await request("preview", { session, settings: { ...this.draft }, quality: this.quality.value, crop_edit: !!this.cropEditing, before_key: this.beforeKey });
             if (this.closed || sequence !== this.sequence || session !== this.session) return;
             this.after.src = data.preview;
+            this.cropReady = !!this.cropEditing;
+            this.updateCropOverlay();
+            if (data.before) this.before.src = data.before;
+            if (data.before_key) this.beforeKey = data.before_key;
+            if (data.width && data.height && (this.width !== data.width || this.height !== data.height)) {
+                this.width = data.width; this.height = data.height;
+                this.setZoom(this.zoomValue);
+            }
             this.updateMinimap();
             this.renderedSequence = sequence;
             if (data.depth_preview) this.depth.src = data.depth_preview;
@@ -803,7 +1017,7 @@ export class PhotoStudioEditor {
         });
     }
     async focusAt(event) {
-        if (!this.pickFocus || !this.hasDepth || !this.session || this.isConnected("lens_blur_focus")) return;
+        if (this.cropEditing || !this.pickFocus || !this.hasDepth || !this.session || this.isConnected("lens_blur_focus")) return;
         if (this.renderedSequence !== undefined && this.renderedSequence !== this.sequence) { this.message("Wait for the current preview before picking focus."); return; }
         const image = this.pair.classList.contains("show-depth") ? this.depth : this.after;
         if (event.target !== image || !this.width) return;
@@ -843,6 +1057,16 @@ export class PhotoStudioEditor {
         this.applyButton.disabled = true;
 
         try {
+            // A crop-edit preview shows the entire frame. Fetch the final crop
+            // before storing the compact node's thumbnail.
+            if (this.cropEditing || this.renderedSequence !== this.sequence) {
+                this.setCropEditing(false);
+                clearTimeout(this.timer);
+                const session = this.session, sequence = this.sequence;
+                const preview = await request("preview", { session, settings: { ...this.draft }, quality: this.quality.value });
+                if (this.closed || session !== this.session || sequence !== this.sequence) { this.applyButton.disabled = false; return; }
+                this.after.src = preview.preview;
+            }
             for (const name of ["imageCandidate", "depthCandidate"]) {
                 const candidate = this[name];
                 if (candidate && !candidate.direct && candidate.descriptor.type !== "input") {

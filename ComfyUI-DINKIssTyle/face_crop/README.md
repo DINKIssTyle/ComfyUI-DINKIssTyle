@@ -112,6 +112,10 @@ partial results before sending them downstream.
 
 ## OpenCV dependency
 
+The pack's installer and startup checks prepare OpenCV with YuNet support in
+ComfyUI's own Python. Compatible existing OpenCV/headless/contrib builds are
+reused; fresh installs use headless OpenCV. No CUDA training environment is needed.
+
 Most image-processing installations already have OpenCV. If Execute reports
 OpenCV missing, install [requirements-face-crop.txt](../requirements-face-crop.txt)
 using **ComfyUI's actual Python** and restart ComfyUI. The separate Qwen/H3 training

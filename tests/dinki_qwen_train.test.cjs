@@ -68,6 +68,72 @@ function fixture(handler, family = 'qwen') {
 const state = { id: 'a'.repeat(32), status: 'training', project_name: 'person', num_images: 8,
     output_dir: '/loras/DKST_Qwen21/person', checkpoints: [], samples: [], log: 'working' };
 
+test('Runtime setup displays progress, selects prepared Python and stops polling on close', async () => {
+    for (const family of ['qwen', 'h3']) {
+        const endpoint = family === 'qwen' ? '/dinki/qwen21' : '/dinki/minimax_h3';
+        let runtime = { status: 'idle' };
+        const f = fixture(async (path, body) => {
+            if (path.endsWith('/models')) return { choices: { python: runtime.status === 'ready' ? [{ label: 'Training', path: '/venv/bin/python' }] : [] } };
+            if (path.endsWith('/runtime/setup')) {
+                if (body) runtime = { status: 'installing', message: 'Installing dependencies', log: 'Downloading torch' };
+                return runtime;
+            }
+            return {};
+        }, family);
+        await f.buttons.find(button => button.textContent === 'Configure Models').onclick();
+        const dialog = f.body.children.at(-1);
+        const prepare = dialog.children.find(child => child.textContent === 'Prepare Runtime');
+        const check = dialog.children.find(child => child.textContent === 'Check Runtime');
+        await prepare.onclick();
+        assert.equal(prepare.disabled, true);
+        assert.equal(check.disabled, true);
+        assert.match(dialog.children.find(child => child.tag === 'pre').textContent, /Downloading torch/);
+        assert.equal(f.requests.at(-1).path, endpoint + '/runtime/setup');
+        runtime = { status: 'ready', message: 'Ready', python: '/venv/bin/python' };
+        await f.intervals.get(1)();
+        assert.equal(prepare.disabled, false);
+        assert.equal(check.disabled, false);
+        await dialog.children.find(child => child.textContent === 'Save').onclick();
+        assert.equal(f.requests.at(-1).body.python, '/venv/bin/python');
+        dialog.children.find(child => child.textContent === 'Close').onclick();
+        assert.equal(dialog.removed, true);
+        assert.equal(f.cleared, true);
+    }
+});
+
+test('Runtime setup failures are visible and can be retried; closing clears active polling', async () => {
+    let runtime = { status: 'failed', message: 'Install Python 3.12 with venv' };
+    const f = fixture(async (path, body) => {
+        if (path.endsWith('/models')) return { choices: {} };
+        if (path.endsWith('/runtime/setup')) {
+            if (body) runtime = { status: 'installing', message: 'Installing' };
+            return runtime;
+        }
+        return {};
+    });
+    await f.buttons.find(button => button.textContent === 'Configure Models').onclick();
+    const dialog = f.body.children.at(-1);
+    assert.match(dialog.children.find(child => child.tag === 'pre').textContent, /Python 3.12/);
+    const prepare = dialog.children.find(child => child.textContent === 'Prepare Runtime');
+    assert.equal(prepare.disabled, false);
+    await prepare.onclick();
+    dialog.children.find(child => child.textContent === 'Close').onclick();
+    assert.equal(f.intervals.size, 0);
+});
+
+test('Reopening configuration after setup preserves a saved external Training Python', async () => {
+    const f = fixture(async path => {
+        if (path.endsWith('/settings')) return { python: '/custom/venv/python' };
+        if (path.endsWith('/models')) return { choices: {} };
+        if (path.endsWith('/runtime/setup')) return { status: 'ready', message: 'Ready', python: '/prepared/python' };
+        return {};
+    });
+    await f.buttons.find(button => button.textContent === 'Configure Models').onclick();
+    const dialog = f.body.children.at(-1);
+    await dialog.children.find(child => child.textContent === 'Save').onclick();
+    assert.equal(f.requests.at(-1).body.python, '/custom/venv/python');
+});
+
 test('Full log opens from its first line and offers worker selection and a download', async () => {
     const text = 'Traceback: error header\n' + 'decoder.weight\n'.repeat(3000);
     const f = fixture(async path => ({ text: path.includes('kind=worker') ? 'Worker error' : text }));

@@ -1,0 +1,10 @@
+# ComfyUI host dependencies. CUDA trainer pins belong in their separate venv.
+numpy
+Pillow
+safetensors
+requests
+imageio
+imageio-ffmpeg
+av
+psutil
+# OpenCV is checked by install.py/bootstrap.py to reuse compatible cv2 builds.

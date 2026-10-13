@@ -1,223 +1,47 @@
 # ComfyUI/custom_nodes/ComfyUI-DINKIssTyle/__init__.py
+from .bootstrap import ensure_dependencies
+from .node_loader import load_nodes
 
-import os
-import importlib.util
-import subprocess
-import sys
+# Installation failures are logged; individual modules can still register nodes.
+DEPENDENCY_ERRORS = ensure_dependencies()
 
-# --- Package Installation Checks ---
-packages = ["imageio"]
-
-def is_installed(package):
-    try:
-        spec = importlib.util.find_spec(package)
-    except ModuleNotFoundError:
-        return False
-    return spec is not None
-
-def install_package(package):
-    print(f"## 🅳INKIssTyle: Installing missing package: {package}")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-
-for package in packages:
-    if not is_installed(package):
-        install_package(package)
-
-
-# --- Node Imports ---
-
-# 1. Prompt 관련 노드
-from .dinki_prompt import (
-    PromptLoader,
-    DINKI_PromptSelector,
-    DINKI_PromptSelectorLive,
-    DINKI_random_prompt,
-    prompt_loader,
-    DINKI_Sampler_Preset,
-)
-from .dinki_prompt_csv_library import DINKI_PromptCsvLibrary
-
-# 2. Color & Correction 관련 노드 (dinki_color.py)
-from .dinki_color import (
-    DINKI_adobe_xmp,
-    DINKI_Adobe_XMP_Preview,
-    DINKI_AIOversaturationFix,
-    DINKI_Auto_Adjustment,
-    DINKI_Color_Lut,
-    DINKI_Color_Lut_Preview,
-    DINKI_Deband,
+NODE_MODULES = (
+    ('dinki_prompt', ('DINKI_PromptSelector', 'DINKI_PromptSelectorLive', 'DINKI_random_prompt', 'DINKI_Sampler_Preset')),
+    ('dinki_prompt_csv_library', ('DINKI_PromptCsvLibrary',)),
+    ('dinki_color', ('DINKI_adobe_xmp', 'DINKI_Adobe_XMP_Preview', 'DINKI_AIOversaturationFix', 'DINKI_Auto_Adjustment', 'DINKI_Color_Lut', 'DINKI_Color_Lut_Preview', 'DINKI_Deband')),
+    ('dinki_ps', ('DINKI_Upscale_Latent_By', 'DINKI_Mask_Weighted_Mix', 'DINKI_Resize_And_Pad', 'DINKI_Remove_Pad_From_Image', 'DINKI_ToggleUNetLoader', 'DINKI_Empty_Or_Image_Latent')),
+    ('dinki_image', ('DINKI_ImageSelector', 'DINKI_CrossOutputSwitch', 'DINKI_ImagePreview', 'DINKI_Image_Resize')),
+    ('dinki_viewer', ('DINKI_Video_Player', 'DINKI_Video_Viewer')),
+    ('dinki_video_combine', ('DINKI_Video_Combine',)),
+    ('dinki_switch', ('DINKI_IfElseBranch', 'DINKI_IfElseImageSwitch', 'DINKI_IfElseSwitch', 'DINKI_Node_Switch', 'DINKI_Node_Change', 'DINKI_String_Switch_RT')),
+    ('dinki_tool', ('DINKI_Arrange', 'DINKI_Workflow_Lock', 'DINKI_Note', 'DINKI_Node_Check', 'DINKI_Anchor', 'DINKI_Auto_Focus')),
+    ('dinki_lmstudio', ('DINKI_LMStudio',)),
+    ('dinki_batchImages', ('DINKI_BatchImages',)),
+    ('dinki_image_size', ('DINKI_GetImageSize',)),
+    ('dinki_photo_specs', ('DINKI_photo_specifications',)),
+    ('dinki_photo_studio', ('DINKI_Photo_Studio', 'DINKI_Photo_Studio_Source')),
+    ('dinki_multi_lora', ('DINKI_Multi_LoRA_Loader',)),
+    ('dinki_ref', ('DINKI_Create_Image_Ref',)),
+    ('dinki_qwen_train', ('DINKI_Qwen21_LoRA_Trainer',)),
+    ('dinki_minimax_train', ('DINKI_Minimax_H3_LoRA_Trainer',)),
+    ('dinki_face_crop', ('DINKI_Face_Crop_Export',)),
+    ('dinki_overlay', ('DINKI_Overlay',)),
+    ('dinki_comparer', ('DINKI_Image_Comparer_MOV',)),
+    ('dinki_grid', ('DINKI_Grid',)),
+    ('dinki_base64', ('DINKI_Img2Base64', 'DINKI_Base64Input', 'DINKI_Base64Viewer')),
+    ('dinki_depth_parallax', ('DINKI_DepthParallax_MOV',)),
+    ('dinki_text', ('DINKI_Text_Note', 'DINKI_Text_Multiline', 'DINKI_Text_Concatenate', 'DINKI_Text_Split')),
+    ('dinki_preview', ('DINKI_Preview_Image',)),
+    ('dinki_image_comparison', ('DINKI_Image_Comparison',)),
+    ('dinki_image_crop', ('DINKI_Image_Crop',)),
+    ('dinki_load', ('DINKI_Image_Load',)),
+    ('dinki_load_crop', ('DINKI_Image_Load_Crop',)),
+    ('dinki_video_load', ('DINKI_Video_Load_Crop',)),
+    ('dinki_monitor', ()),
+    ('dinki_execution_report', ('DINKI_Execution_Report',)),
 )
 
-# 3. Processing 관련 노드 (통합됨: dinki_ps.py)
-from .dinki_ps import (
-    DINKI_Upscale_Latent_By,
-    DINKI_Mask_Weighted_Mix,
-    DINKI_Resize_And_Pad,
-    DINKI_Remove_Pad_From_Image,
-    DINKI_ToggleUNetLoader,
-    DINKI_Empty_Or_Image_Latent,
-)
-
-# 4. 이미지 관련 노드 (통합됨: dinki_image.py)
-from .dinki_image import (
-    DINKI_ImageSelector,
-    DINKI_CrossOutputSwitch,
-    DINKI_ImagePreview,
-    DINKI_Image_Resize,
-)
-
-# 5. 뷰어 관련 노드
-from .dinki_viewer import (
-    DINKI_Video_Player,
-    DINKI_Video_Viewer,
-)
-from .dinki_video_combine import DINKI_Video_Combine
-
-# 6. 스위치 관련
-from .dinki_switch import (
-    DINKI_IfElseBranch,
-    DINKI_IfElseImageSwitch,
-    DINKI_IfElseSwitch,
-    DINKI_Node_Switch,
-    DINKI_Node_Change,
-    DINKI_String_Switch_RT,
-)
-
-# 7. 도구 관련
-from .dinki_tool import (
-    DINKI_Arrange,
-    DINKI_Workflow_Lock,
-    DINKI_Note,
-    DINKI_Node_Check,
-    DINKI_Anchor,
-    DINKI_Auto_Focus,
-)
-
-
-from .dinki_lmstudio import DINKI_LMStudio
-from .dinki_batchImages import DINKI_BatchImages
-from .dinki_image_size import DINKI_GetImageSize
-from .dinki_photo_specs import DINKI_photo_specifications
-from .dinki_photo_studio import DINKI_Photo_Studio, DINKI_Photo_Studio_Source
-from .dinki_multi_lora import DINKI_Multi_LoRA_Loader
-from .dinki_ref import DINKI_Create_Image_Ref
-from .dinki_qwen_train import DINKI_Qwen21_LoRA_Trainer
-from .dinki_minimax_train import DINKI_Minimax_H3_LoRA_Trainer
-from .dinki_face_crop import DINKI_Face_Crop_Export
-from .dinki_overlay import DINKI_Overlay
-from .dinki_comparer import DINKI_Image_Comparer_MOV
-from .dinki_grid import DINKI_Grid
-from .dinki_base64 import DINKI_Img2Base64, DINKI_Base64Input, DINKI_Base64Viewer
-from .dinki_depth_parallax import DINKI_DepthParallax_MOV
-from .dinki_text import DINKI_Text_Note, DINKI_Text_Multiline, DINKI_Text_Concatenate, DINKI_Text_Split
-from .dinki_preview import DINKI_Preview_Image
-from .dinki_image_comparison import DINKI_Image_Comparison
-from .dinki_image_crop import DINKI_Image_Crop
-from .dinki_load import DINKI_Image_Load
-from .dinki_load_crop import DINKI_Image_Load_Crop
-from .dinki_video_load import DINKI_Video_Load_Crop
-from . import dinki_monitor  # Register host telemetry endpoint.
-from .dinki_execution_report import DINKI_Execution_Report, install_execution_report_hooks
-
-
-
-
-
-"""
-@author: DINKIssTyle
-@title: DINKIssTyle Nodes
-@nickname: DINKIssTyle
-@description: A collection of useful utility nodes for ComfyUI.
-"""
-
-# --- Node Registration ---
-
-NODE_CLASS_MAPPINGS = {
-    # Prompt
-    "DINKI_PromptSelector": DINKI_PromptSelector,
-    "DINKI_PromptSelectorLive": DINKI_PromptSelectorLive,
-    "DINKI_random_prompt": DINKI_random_prompt,
-    "DINKI_PromptCsvLibrary": DINKI_PromptCsvLibrary,
-    "DINKI_Sampler_Preset": DINKI_Sampler_Preset,
-
-    # Color & Correction
-    "DINKI_adobe_xmp": DINKI_adobe_xmp,
-    "DINKI_Adobe_XMP_Preview": DINKI_Adobe_XMP_Preview,
-    "DINKI_AIOversaturationFix": DINKI_AIOversaturationFix,
-    "DINKI_Auto_Adjustment": DINKI_Auto_Adjustment,
-    "DINKI_Color_Lut": DINKI_Color_Lut,
-    "DINKI_Color_Lut_Preview": DINKI_Color_Lut_Preview,
-    "DINKI_Deband": DINKI_Deband,
-    "DINKI_Photo_Studio": DINKI_Photo_Studio,
-    "DINKI_Photo_Studio_Source": DINKI_Photo_Studio_Source,
-
-    # Photoshop/Processing (dinki_ps)
-    "DINKI_Upscale_Latent_By": DINKI_Upscale_Latent_By,
-    "DINKI_Mask_Weighted_Mix": DINKI_Mask_Weighted_Mix,
-    "DINKI_Resize_And_Pad": DINKI_Resize_And_Pad,
-    "DINKI_Remove_Pad_From_Image": DINKI_Remove_Pad_From_Image,
-    "DINKI_ToggleUNetLoader": DINKI_ToggleUNetLoader,
-    "DINKI_Empty_Or_Image_Latent": DINKI_Empty_Or_Image_Latent,
-    "DINKI_Multi_LoRA_Loader": DINKI_Multi_LoRA_Loader,
-    "DINKI_Create_Image_Ref": DINKI_Create_Image_Ref,
-    "DINKI_Qwen21_LoRA_Trainer": DINKI_Qwen21_LoRA_Trainer,
-    "DINKI_Minimax_H3_LoRA_Trainer": DINKI_Minimax_H3_LoRA_Trainer,
-    "DINKI_Face_Crop_Export": DINKI_Face_Crop_Export,
-
-    # Viewer
-    "DINKI_Video_Player": DINKI_Video_Player,
-    "DINKI_Video_Viewer": DINKI_Video_Viewer,
-    "DINKI_Video_Combine": DINKI_Video_Combine,
-
-    # Switch
-    "DINKI_IfElseBranch": DINKI_IfElseBranch,
-    "DINKI_IfElseImageSwitch": DINKI_IfElseImageSwitch,
-    "DINKI_IfElseSwitch": DINKI_IfElseSwitch,
-    "DINKI_Node_Switch": DINKI_Node_Switch,
-    "DINKI_Node_Change": DINKI_Node_Change,
-    "DINKI_String_Switch_RT": DINKI_String_Switch_RT,
-
-    # Tool
-    "DINKI_Arrange": DINKI_Arrange,
-    "DINKI_Workflow_Lock": DINKI_Workflow_Lock,
-    "DINKI_Note": DINKI_Note,
-    "DINKI_Node_Check": DINKI_Node_Check,
-    "DINKI_Anchor": DINKI_Anchor,
-    "DINKI_Auto_Focus": DINKI_Auto_Focus,
-    "DINKI_Execution_Report": DINKI_Execution_Report,
-
-
-    # Others
-    "DINKI_ImageSelector": DINKI_ImageSelector,
-    "DINKI_CrossOutputSwitch": DINKI_CrossOutputSwitch,
-    "DINKI_ImagePreview": DINKI_ImagePreview,
-    "DINKI_LMStudio": DINKI_LMStudio,
-    "DINKI_BatchImages": DINKI_BatchImages,
-    "DINKI_photo_specifications": DINKI_photo_specifications,
-    "DINKI_Overlay": DINKI_Overlay,
-    "DINKI_Image_Comparer_MOV": DINKI_Image_Comparer_MOV,
-    "DINKI_Grid": DINKI_Grid,
-    "DINKI_Img2Base64": DINKI_Img2Base64,
-    "DINKI_Base64Input": DINKI_Base64Input,
-    "DINKI_Base64Viewer": DINKI_Base64Viewer,
-    "DINKI_DepthParallax_MOV": DINKI_DepthParallax_MOV,
-    "DINKI_Image_Resize": DINKI_Image_Resize,
-    "DINKI_GetImageSize": DINKI_GetImageSize,
-
-    # Text
-    "DINKI_Text_Note": DINKI_Text_Note,
-    "DINKI_Text_Multiline": DINKI_Text_Multiline,
-    "DINKI_Text_Concatenate": DINKI_Text_Concatenate,
-    "DINKI_Text_Split": DINKI_Text_Split,
-    "DINKI_Preview_Image": DINKI_Preview_Image,
-    "DINKI_Image_Comparison": DINKI_Image_Comparison,
-    "DINKI_Image_Crop": DINKI_Image_Crop,
-    "DINKI_Image_Load": DINKI_Image_Load,
-    "DINKI_Image_Load_Crop": DINKI_Image_Load_Crop,
-    "DINKI_Video_Load_Crop": DINKI_Video_Load_Crop,
-
-
-}
+NODE_CLASS_MAPPINGS, _loaded_modules, NODE_IMPORT_ERRORS = load_nodes(__name__, NODE_MODULES)
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     # Prompt
@@ -307,7 +131,15 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 WEB_DIRECTORY = "./js"
+NODE_DISPLAY_NAME_MAPPINGS = {
+    name: display for name, display in NODE_DISPLAY_NAME_MAPPINGS.items() if name in NODE_CLASS_MAPPINGS
+}
 
-install_execution_report_hooks()
+if "dinki_execution_report" in _loaded_modules:
+    try:
+        _loaded_modules["dinki_execution_report"].install_execution_report_hooks()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("DKST: could not install execution report hooks")
 
-__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY']
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]

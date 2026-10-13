@@ -9,8 +9,17 @@ pooled `.safetensors` reference files are not training datasets.
 Qwen's engine and shared job management live in `qwen21_trainer`. H3's engine
 lives separately in `minimax_trainer` and can reuse the Qwen training Python.
 
-An NVIDIA CUDA GPU is required for the full trainer. Use a separate Python 3.12
-environment, keeping ComfyUI's packages unchanged. From this directory on Windows:
+An NVIDIA CUDA GPU is required for the full trainer. Open **Configure Models →
+Prepare Runtime** to install the separate `.venv` on the ComfyUI server, view its
+installation log and select the resulting Training Python. Save the model paths
+and use **Check Runtime**, which validates pinned dependency versions and CUDA.
+The installer needs Python with `venv` and pip; it prefers Python 3.12 when found
+and reports how to install it if portable ComfyUI lacks those modules. Downloading
+the CUDA packages can take several minutes and several GB. Close/reopen the dialog
+to reconnect to an installation running in the same ComfyUI session.
+
+Alternatively, use a separate Python 3.12 environment, keeping ComfyUI's packages
+unchanged. From this directory on Windows:
 
 ```powershell
 py -3.12 setup_runtime.py

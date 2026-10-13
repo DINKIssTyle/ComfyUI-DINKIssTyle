@@ -9,6 +9,7 @@ import folder_paths
 from server import PromptServer
 
 from .training_guard import GPU_LOCK, active_training, require_other_trainers_idle
+from .runtime_setup import SETUP
 
 
 @PromptServer.instance.routes.get("/dinki/training")
@@ -19,6 +20,7 @@ async def all_training(request):
 
 def start_exclusive(name, get_service, data, resume_id=None):
     with GPU_LOCK:
+        require_runtime_idle()
         running, queued = PromptServer.instance.prompt_queue.get_current_queue()
         if running or queued:
             raise ValueError("Finish or clear the ComfyUI generation queue before starting training.")
@@ -34,6 +36,29 @@ def start_exclusive(name, get_service, data, resume_id=None):
             comfy.model_management.soft_empty_cache()
 
         return service.resume(resume_id, release_models) if resume_id else service.start(data, release_models)
+
+
+def require_runtime_idle():
+    if SETUP.active():
+        raise ValueError("Wait for training runtime preparation to finish.")
+
+
+def register_runtime_setup(endpoint, name, runner):
+    routes = PromptServer.instance.routes
+
+    @routes.get(endpoint + "/runtime/setup")
+    async def setup_status(request):
+        return web.json_response(SETUP.status(name))
+
+    @routes.post(endpoint + "/runtime/setup")
+    async def setup_runtime(request):
+        try:
+            with GPU_LOCK:
+                if active_training():
+                    raise ValueError("Finish or pause training before preparing its runtime.")
+                return web.json_response(SETUP.start(name, runner))
+        except (ValueError, OSError) as error:
+            return web.json_response({"error": str(error)}, status=400)
 
 
 def runtime_choices(runtime_dir, extra_groups=None, fallback_runtime=None):
@@ -71,6 +96,7 @@ def runtime_choices(runtime_dir, extra_groups=None, fallback_runtime=None):
 
 def register_training_routes(endpoint, name, get_service, runner, read_payload, model_choices, generate_caption):
     routes = PromptServer.instance.routes
+    register_runtime_setup(endpoint, name, runner)
 
     def response_error(error, status=400):
         return web.json_response({"error": str(error)}, status=status)
@@ -132,6 +158,7 @@ def register_training_routes(endpoint, name, get_service, runner, read_payload, 
     @routes.post(endpoint + "/check")
     async def check(request):
         try:
+            require_runtime_idle()
             if active_training():
                 raise ValueError("Finish or pause the active job before checking the runtime.")
             python = get_service().settings().get("python")

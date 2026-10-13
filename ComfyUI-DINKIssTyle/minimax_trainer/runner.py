@@ -17,6 +17,7 @@ VENDOR = Path(__file__).resolve().parent / "vendor"
 
 
 def check_environment():
+    coordinator.check_requirements(Path(__file__).parent / "requirements.txt")
     import torch
     import accelerate
     import transformers

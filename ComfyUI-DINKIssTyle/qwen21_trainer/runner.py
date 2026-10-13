@@ -16,9 +16,11 @@ import traceback
 
 if __package__:
     from .config import commands, model_signature, validate_runtime
+    from .dependencies import check_requirements
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from config import commands, model_signature, validate_runtime
+    from dependencies import check_requirements
 
 VENDOR = Path(__file__).resolve().parent / "vendor"
 
@@ -44,6 +46,7 @@ def write_json(path, data):
 
 
 def check_environment():
+    check_requirements(Path(__file__).parent / "requirements.txt")
     import torch
     import accelerate
     import transformers

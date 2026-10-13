@@ -20,6 +20,7 @@ def main():
     subprocess.run([str(python), "-m", "pip", "install", "-r", str(root / "requirements.txt")], check=True)
     if args.optional_kernels:
         subprocess.run([str(python), "-m", "pip", "install", "-r", str(root / "requirements-optional.txt")], check=True)
+    subprocess.run([str(python), "-m", "pip", "check"], check=True)
     print(f"Training Python: {python}")
     subprocess.run([str(python), str(root / "runner.py"), "--check"], check=True)
 

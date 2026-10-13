@@ -11,9 +11,11 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const defaults = Object.fromEntries([
     ...['light_exposure','light_contrast','light_highlights','light_shadows','light_whites','light_blacks','color_temperature','color_tint','color_vibrance','color_saturation','effects_texture','effects_clarity','effects_dehaze','effects_vignette','effects_grain','effects_glow','detail_sharpening','detail_noise_reduction','detail_color_noise_reduction','optics_distortion','optics_vignette','lens_blur_bokeh_boost','grain_seed'].map(name => [name, 0]),
     ['color_white_balance','Off'], ['lens_blur_apply',false], ['lens_blur_focus',.5], ['lens_blur_amount',50], ['lens_blur_bokeh',4], ['lens_blur_aperture_blades',9], ['lens_blur_depth_blur_radius',5], ['lens_blur_depth_sigma',2], ['depth_near_is_white',true],
+    ...['geometry_auto','geometry_vertical','geometry_horizontal','geometry_rotate','geometry_aspect','geometry_offset_x','geometry_offset_y','crop_left','crop_top'].map(name=>[name,0]),
+    ['geometry_scale',100], ['crop_enabled',false], ['crop_aspect','Free'], ['crop_right',100], ['crop_bottom',100],
 ]);
 const schema = Object.fromEntries(Object.entries(defaults).map(([name, value]) => [name,
-    typeof value === 'boolean' ? {kind:'bool'} : typeof value === 'string' ? {kind:'choice',values:['Off','Auto','Custom']} : { kind: ['grain_seed','lens_blur_aperture_blades','lens_blur_depth_blur_radius'].includes(name) ? 'int' : 'float', min: name === 'light_exposure' ? -5 : name === 'lens_blur_focus' ? 0 : -100, max: name === 'light_exposure' ? 5 : name === 'lens_blur_focus' ? 1 : 100, step: name === 'light_exposure' ? .05 : name === 'lens_blur_focus' ? .01 : 1 },
+    typeof value === 'boolean' ? {kind:'bool'} : typeof value === 'string' ? {kind:'choice',values:name==='crop_aspect'?['Free','Original','1:1','4:3','3:2','16:9','9:16']:['Off','Auto','Custom']} : { kind: ['grain_seed','lens_blur_aperture_blades','lens_blur_depth_blur_radius'].includes(name) ? 'int' : 'float', min: name === 'light_exposure' ? -5 : name === 'geometry_scale' ? 25 : name.startsWith('crop_') || name==='geometry_auto' || name === 'lens_blur_focus' ? 0 : -100, max: name === 'geometry_scale' ? 200 : name === 'light_exposure' ? 5 : name === 'lens_blur_focus' ? 1 : 100, step: name === 'light_exposure' ? .05 : name.startsWith('crop_') ? .1 : name === 'lens_blur_focus' ? .01 : 1 },
 ]));
 const tiny = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==';
 
@@ -274,7 +276,7 @@ test('modal uses detached draft; Cancel leaves values, links and graph unchanged
     const f=await fixture();
     try {
         const editor=await f.editorModule.openPhotoStudio(f.node);
-        assert.equal(editor.controls.size,32);
+        assert.equal(editor.controls.size,Object.keys(defaults).length);
         assert.equal(editor.root.parentElement,f.dom.window.document.body);
         assert.equal(editor.root.getAttribute('aria-modal'),'true');
         editor.controlChange('light_exposure',1.25,true);
@@ -364,6 +366,103 @@ test('Auto preserves custom white balance and creative settings and is undoable'
         editor.redo();assert.deepEqual({...editor.draft},after);
         assert.equal(f.node.widgets.find(w=>w.name==='color_white_balance').value,'Off');
         editor.close();
+    } finally {f.cleanup();}
+});
+
+test('Geometry and Crop are draft controls, crop gestures respect ratio and undo as one step',async()=>{
+    const f=await fixture();
+    try {
+        const editor=await f.editorModule.openPhotoStudio(f.node);
+        editor.controlChange('geometry_rotate',7,true);
+        assert.equal(f.node.widgets.find(w=>w.name==='geometry_rotate').value,0);
+        editor.setCropEditing(true);clearTimeout(editor.timer);await editor.render();
+        assert.equal(editor.cropFrame.hidden,false);
+        assert.equal(editor.compare.disabled,true);
+        editor.controlChange('crop_aspect','1:1',true);
+        const start=editor.cropRect();
+        assert.equal((start.right-start.left)*editor.sourceWidth,(start.bottom-start.top)*editor.sourceHeight);
+        editor.pair.getBoundingClientRect=()=>({left:100,top:50,width:640,height:480});
+        let captured=false;
+        editor.cropFrame.setPointerCapture=()=>{captured=true;};
+        editor.cropFrame.hasPointerCapture=()=>captured;
+        editor.cropFrame.releasePointerCapture=()=>{captured=false;};
+        const pointer=(type,x,y)=>new f.dom.window.MouseEvent(type,{bubbles:true,button:0,clientX:x,clientY:y});
+        const handle=editor.cropFrame.querySelector('.se');
+        const count=editor.history.length;
+        handle.dispatchEvent(pointer('pointerdown',600,450));
+        editor.cropFrame.dispatchEvent(pointer('pointermove',520,370));
+        editor.cropFrame.dispatchEvent(pointer('pointermove',500,350));
+        editor.cropFrame.dispatchEvent(pointer('pointerup',500,350));
+        assert.equal(editor.history.length,count+1);
+        assert.equal(captured,false);
+        const end=editor.cropRect();
+        assert.ok(end.right<start.right&&end.bottom<start.bottom);
+        assert.ok(Math.abs((end.right-end.left)*640-(end.bottom-end.top)*480)<1e-6);
+        editor.undo();assert.deepEqual({...editor.cropRect()},{...start});
+        editor.redo();assert.deepEqual({...editor.cropRect()},{...end});
+        assert.equal(f.node.widgets.find(w=>w.name==='crop_enabled').value,false);
+        editor.close();
+    } finally {f.cleanup();}
+});
+
+test('crop preview restores output dimensions and Apply saves final crop and geometry',async()=>{
+    const f=await fixture();
+    try {
+        f.setPreview(payload=>({preview:payload.crop_edit?'data:image/png;base64,full':'data:image/png;base64,cropped',
+            before:tiny,width:payload.crop_edit?640:320,height:payload.crop_edit?480:240,histogram:[[],[],[]]}));
+        const editor=await f.editorModule.openPhotoStudio(f.node);
+        editor.change({...editor.draft,geometry_vertical:20,crop_enabled:true,crop_left:25,crop_right:75,crop_top:25,crop_bottom:75});
+        clearTimeout(editor.timer);await editor.render();
+        assert.equal(editor.width,320);assert.equal(editor.height,240);
+        editor.setCropEditing(true);clearTimeout(editor.timer);await editor.render();
+        assert.equal(editor.width,640);assert.equal(editor.height,480);
+        editor.cropFrame.dispatchEvent(new f.dom.window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
+        assert.ok(editor.draft.crop_left>25);
+        await editor.apply();
+        assert.equal(editor.closed,true);
+        const request=f.calls.filter(c=>c.path.endsWith('/preview')).at(-1);
+        assert.ok(!request.payload.crop_edit);
+        assert.match(f.node.dkstPhotoStudioThumbnail.src,/cropped$/);
+        assert.equal(f.node.widgets.find(w=>w.name==='geometry_vertical').value,20);
+        assert.equal(f.node.widgets.find(w=>w.name==='crop_enabled').value,true);
+        const info={};f.node.onSerialize(info);
+        assert.equal(info.properties.dkstPhotoStudioSettings.geometry_vertical,20);
+        assert.ok(info.properties.dkstPhotoStudioSettings.crop_left>25);
+    } finally {f.cleanup();}
+});
+
+test('connected spatial controls stay locked and numeric crop boundaries cannot invert',async()=>{
+    const f=await fixture();
+    try {
+        f.node.inputs.push({name:'geometry_scale',widget:{name:'geometry_scale'},link:123},{name:'crop_right',widget:{name:'crop_right'},link:124});
+        const editor=await f.editorModule.openPhotoStudio(f.node);
+        assert.equal(editor.controls.get('geometry_scale').input.disabled,true);
+        assert.equal(editor.editCropButton.disabled,true);
+        editor.setCropEditing(true);assert.ok(!editor.cropEditing);
+        editor.controlChange('crop_right',20,true);assert.equal(editor.draft.crop_right,100);
+        editor.controlChange('crop_left',100,true);assert.ok(editor.draft.crop_left<editor.draft.crop_right);
+        editor.controlChange('crop_bottom',0,true);assert.ok(editor.draft.crop_bottom>editor.draft.crop_top);
+        editor.change({...editor.draft,geometry_scale:120,crop_right:40});
+        assert.equal(editor.draft.geometry_scale,100);assert.equal(editor.draft.crop_right,100);
+        editor.close();
+    } finally {f.cleanup();}
+});
+
+test('legacy named and positional workflows restore neutral geometry and crop',async()=>{
+    const f=await fixture();
+    try {
+        const widgets=f.node.widgets.filter(w=>w.serialize!==false&&!w.name.startsWith('geometry_')&&!w.name.startsWith('crop_')&&!['lens_blur_depth_blur_radius','lens_blur_depth_sigma'].includes(w.name));
+        const values=widgets.map(w=>w.name==='grain_seed'?33:w.name==='light_exposure'?.7:w.value);
+        f.node.widgets.find(w=>w.name==='geometry_scale').value=33;
+        f.node.onConfigure({widgets_values:values});
+        assert.equal(f.node.widgets.find(w=>w.name==='grain_seed').value,33);
+        assert.equal(f.node.widgets.find(w=>w.name==='light_exposure').value,.7);
+        assert.equal(f.node.widgets.find(w=>w.name==='geometry_scale').value,100);
+        assert.equal(f.node.widgets.find(w=>w.name==='crop_right').value,100);
+        assert.equal(f.node.widgets.find(w=>w.name==='crop_enabled').value,false);
+        f.node.widgets.find(w=>w.name==='crop_left').value=30;
+        f.node.onConfigure({properties:{dkstPhotoStudioSettings:{light_exposure:.4}}});
+        assert.equal(f.node.widgets.find(w=>w.name==='crop_left').value,0);
     } finally {f.cleanup();}
 });
 

@@ -51,6 +51,81 @@ class PhotoStudioTests(unittest.TestCase):
         settings["light_exposure"] = 1
         self.assertIs(self.node.apply(image, active=False, **settings)[0], image)
 
+    def test_geometry_rotation_translation_and_empty_alpha(self):
+        image = torch.arange(64).reshape(1, 8, 8, 1).float().expand(1, 8, 8, 3) / 64
+        rotated = self.apply(image, geometry_rotate=90)
+        self.assertTrue(torch.allclose(rotated, torch.rot90(image, -1, (1, 2)), atol=1e-6))
+        moved = self.apply(image, geometry_offset_x=25)
+        self.assertTrue(torch.allclose(moved[:, :, 2:], image[:, :, :-2], atol=1e-6))
+        self.assertTrue(torch.equal(moved[:, :, :2], torch.zeros_like(moved[:, :, :2])))
+        rgba = torch.cat((image, torch.ones_like(image[..., :1])), -1)
+        moved_rgba = self.apply(rgba, geometry_offset_y=25)
+        self.assertTrue(torch.equal(moved_rgba[:, :2, :, 3], torch.zeros_like(moved_rgba[:, :2, :, 3])))
+        self.assertTrue(torch.allclose(moved_rgba[:, 2:], rgba[:, :-2], atol=1e-6))
+        self.assertIs(self.apply(image, crop_left=20, crop_right=80), image)
+
+    def test_geometry_warps_perspective_and_handles_extreme_batch_values(self):
+        stripes = torch.zeros((1, 64, 64, 3))
+        stripes[:, :, 28:36] = 1
+        warped = self.apply(stripes, geometry_vertical=60)
+        self.assertGreater(float(warped[0, 8, :, 0].sum()), float(warped[0, 55, :, 0].sum()))
+        for name, value in (("geometry_horizontal", 50), ("geometry_aspect", 40), ("geometry_scale", 140)):
+            with self.subTest(name=name):
+                self.assertFalse(torch.allclose(self.apply(stripes, **{name: value}), stripes))
+        batch = torch.cat((stripes, stripes.flip(2)), 0)
+        result = self.apply(batch, geometry_vertical=100, geometry_horizontal=-100,
+                            geometry_scale=25, geometry_aspect=-100, geometry_rotate=170)
+        self.assertEqual(result.shape, batch.shape)
+        self.assertTrue(torch.isfinite(result).all())
+        self.assertTrue((result >= 0).all() and (result <= 1).all())
+
+    def test_geometry_auto_straightens_structured_scene_and_ignores_flat_scene(self):
+        image = torch.full((1, 128, 128, 3), .2)
+        for p in (24, 48, 80, 104):
+            image[:, 15:113, p:p + 3] = .9
+            image[:, p:p + 3, 15:113] = .9
+        tilted = self.apply(image, geometry_rotate=6)
+        angle = float(self.module["_auto_straighten"](tilted.permute(0, 3, 1, 2))[0])
+        self.assertAlmostEqual(angle, -6, delta=1.5)
+        corrected = self.apply(tilted, geometry_auto=100)
+        residual = float(self.module["_auto_straighten"](corrected.permute(0, 3, 1, 2))[0])
+        self.assertLess(abs(residual), abs(angle))
+        self.assertEqual(float(self.module["_auto_straighten"](torch.full((1, 3, 32, 32), .4))[0]), 0)
+
+    def test_crop_keeps_native_pixels_batch_and_alpha_and_checks_bounds(self):
+        image = torch.rand((2, 40, 60, 4))
+        result = self.apply(image, crop_enabled=True, crop_left=10, crop_top=25,
+                            crop_right=90, crop_bottom=75)
+        self.assertTrue(torch.equal(result, image[:, 10:30, 6:54]))
+        square = self.apply(image, crop_enabled=True, crop_aspect="1:1")
+        self.assertTrue(torch.equal(square, image[:, :, 10:50]))
+        original_ratio = self.apply(image, crop_enabled=True, crop_aspect="Original")
+        self.assertTrue(torch.equal(original_ratio, image))
+        for settings in ({"crop_left": 90, "crop_right": 10}, {"crop_top": 50, "crop_bottom": 50}, {"crop_aspect": "Bad"}):
+            with self.assertRaises(ValueError):
+                self.apply(image, **settings)
+        tiny = self.apply(image, crop_enabled=True, crop_right=.01, crop_bottom=.01)
+        self.assertEqual(tiny.shape, (2, 1, 1, 4))
+
+    def test_geometry_rgba_resampling_does_not_leak_hidden_colors(self):
+        image = torch.zeros((1, 32, 32, 4))
+        image[..., 0] = 1  # Hidden red pixels around an opaque blue subject.
+        image[:, 8:24, 8:24] = torch.tensor([0., 0., 1., 1.])
+        result = self.apply(image, geometry_rotate=12)
+        self.assertEqual(float(result[..., 0].max()), 0)
+        self.assertGreater(float(result[..., 3].max()), .99)
+        self.assertGreater(float(((result[..., 3] > 0) & (result[..., 3] < 1)).sum()), 0)
+
+    def test_geometry_crop_depth_preview_matches_image_coordinates(self):
+        depth = torch.linspace(0, 1, 64)[None, None, :, None].expand(1, 48, 64, 1).clone()
+        image = depth.expand(1, 48, 64, 3).clone()
+        settings = self.module["_validate_settings"]({"geometry_rotate": 7, "geometry_vertical": 20,
+            "geometry_offset_x": 5, "crop_enabled": True, "crop_left": 10, "crop_right": 90,
+            "crop_top": 20, "crop_bottom": 80, "lens_blur_depth_blur_radius": 0})
+        preview = self.module["_preview_depth"]({"image": image, "depth": depth}, settings).permute(0, 2, 3, 1)
+        result = self.apply(image, depth, **settings)
+        self.assertTrue(torch.allclose(preview[..., 0], result[..., 0], atol=1e-6))
+
     def test_controls_modify_image_and_preserve_alpha(self):
         torch.manual_seed(4)
         image = torch.rand((1, 24, 28, 4)) * 0.8 + 0.1
@@ -413,11 +488,14 @@ class PhotoStudioTests(unittest.TestCase):
         old_settings.pop("lens_blur_aperture_blades")
         old_settings.pop("lens_blur_depth_blur_radius")
         old_settings.pop("lens_blur_depth_sigma")
+        old_settings = {name: value for name, value in old_settings.items() if not name.startswith(("geometry_", "crop_"))}
         path.write_text(json.dumps({"version": 1, "presets": {"Old": old_settings}}))
         restored = self.module["_read_presets"](path)
         self.assertEqual(restored["Old"]["lens_blur_aperture_blades"], 9)
         self.assertEqual(restored["Old"]["lens_blur_depth_blur_radius"], 5)
         self.assertEqual(restored["Old"]["lens_blur_depth_sigma"], 2.0)
+        self.assertEqual(restored["Old"]["geometry_scale"], 100)
+        self.assertFalse(restored["Old"]["crop_enabled"])
         restored["Old"]["lens_blur_aperture_blades"] = 11
         self.module["_save_preset"](path, "New", restored["Old"], False)
         self.assertEqual(self.module["_read_presets"](path)["New"]["lens_blur_aperture_blades"], 11)
@@ -497,6 +575,42 @@ class PhotoStudioTests(unittest.TestCase):
         denied = self.preview_request("photo_studio_export", {"session": session}, "other-user")
         self.assertEqual(denied.status, 410)
         self.assertEqual(self.preview_request("photo_studio_export", {"session": session, "settings": {"light_exposure": 99}}).status, 400)
+
+    def test_crop_preview_export_node_output_and_focus_use_same_frame(self):
+        depth = torch.linspace(0, 1, 1600)[None, None, :, None].expand(1, 80, 1600, 1).clone()
+        image = torch.cat((depth.expand(1, 80, 1600, 3), torch.full_like(depth, .7)), -1)
+        settings = {"geometry_offset_x": 5, "crop_enabled": True, "crop_left": 25, "crop_right": 75,
+                    "crop_top": 25, "crop_bottom": 75, "lens_blur_depth_blur_radius": 0}
+        executed = self.node.execute(image, depth_image=depth, **settings)
+        descriptor = executed["ui"]["photo_studio_image"][0]
+        node_png = Image.open(Path(self.temp.name) / descriptor["subfolder"] / descriptor["filename"])
+        self.assertEqual(node_png.size, (800, 40))
+        session = json.loads(self.preview_request("photo_studio_session", {
+            "source_session": executed["ui"]["photo_studio_source"][0]}).text)["session"]
+        for quality in ("fast", "original"):
+            preview = json.loads(self.preview_request("photo_studio_preview", {
+                "session": session, "settings": settings, "quality": quality}).text)
+            self.assertEqual((preview["width"], preview["height"]), node_png.size)
+            after = Image.open(io.BytesIO(base64.b64decode(preview["preview"].split(",")[1])))
+            before = Image.open(io.BytesIO(base64.b64decode(preview["before"].split(",")[1])))
+            self.assertEqual(after.size, before.size)
+            self.assertEqual(after.mode, "RGBA")
+            cached = json.loads(self.preview_request("photo_studio_preview", {
+                "session": session, "settings": settings, "quality": quality, "before_key": preview["before_key"]}).text)
+            self.assertNotIn("before", cached)
+        editing = json.loads(self.preview_request("photo_studio_preview", {
+            "session": session, "settings": settings, "crop_edit": True}).text)
+        self.assertEqual((editing["width"], editing["height"]), (1600, 80))
+        self.assertNotEqual(editing["before_key"], preview["before_key"])
+        exported = self.preview_request("photo_studio_export", {"session": session, "settings": settings})
+        self.assertEqual(Image.open(io.BytesIO(exported.body)).tobytes(), node_png.tobytes())
+        original = self.preview_request("photo_studio_export", {"session": session, "settings": settings, "original": True})
+        self.assertEqual(Image.open(io.BytesIO(original.body)).size, (1600, 80))
+        focus = self.preview_request("photo_studio_focus", {"session": session, "settings": settings, "point": [.5, .5]})
+        # Output center maps to source x=800-80 after a 5% translation.
+        self.assertAlmostEqual(json.loads(focus.text)["focus"], float(depth[0, 40, 720, 0]), places=5)
+        invalid = self.preview_request("photo_studio_preview", {"session": session, "settings": {"crop_left": 80, "crop_right": 20}})
+        self.assertEqual(invalid.status, 400)
 
     def test_focus_samples_float_depth_with_polarity_and_distortion(self):
         image = torch.rand((1, 12, 16, 3))
