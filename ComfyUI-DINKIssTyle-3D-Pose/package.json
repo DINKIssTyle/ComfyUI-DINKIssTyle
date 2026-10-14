@@ -1,0 +1,6 @@
+{
+  "name": "comfyui-dinkisstyle-3d-pose",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test tests/*.test.mjs"}
+}

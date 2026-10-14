@@ -1,0 +1,5 @@
+# These dependencies are already provided by a standard ComfyUI installation.
+numpy
+Pillow
+aiohttp
+torch

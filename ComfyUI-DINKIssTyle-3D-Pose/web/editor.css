@@ -1,0 +1,35 @@
+.dkst-pose-overlay{position:fixed;inset:0;z-index:10000;background:#080c12b8;display:flex;align-items:center;justify-content:center;font:13px system-ui,sans-serif;color:#dce5ef}
+.dkst-pose-editor{width:min(1500px,96vw);height:92vh;background:#171e29;border:1px solid #45546a;border-radius:12px;box-shadow:0 24px 90px #000a;display:flex;flex-direction:column;overflow:hidden}
+.dkst-pose-editor *{box-sizing:border-box}
+.dkst-pose-editor header{padding:12px 16px;background:#202a38;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dkst-pose-editor header strong{font-size:16px;margin-right:auto}
+.dkst-pose-editor button,.dkst-pose-editor select,.dkst-pose-editor input{font:inherit;color:inherit;background:#293648;border:1px solid #48596e;border-radius:5px;padding:6px;min-width:0}
+.dkst-pose-editor button{cursor:pointer}
+.dkst-pose-editor button:hover{background:#3a4b62}
+.dkst-pose-editor button:disabled{opacity:.45;cursor:wait}
+.dkst-pose-editor .primary{background:#266a94;border-color:#48a6d4}
+.dkst-pose-body{flex:1;display:grid;grid-template-columns:minmax(220px,280px) minmax(0,1fr);min-height:0}
+.dkst-pose-panel{overflow:auto;padding:12px;border-right:1px solid #344154;background:#1c2532}
+.dkst-pose-panel details{border-bottom:1px solid #344154;padding:9px 0}
+.dkst-pose-panel summary{font-weight:650;cursor:pointer;margin-bottom:9px}
+.dkst-pose-row{display:flex;align-items:center;gap:6px;margin:7px 0}
+.dkst-pose-row>span{flex:1;color:#aebfd1}
+.dkst-pose-row input[type=number]{width:78px}
+.dkst-pose-row select{max-width:165px}
+.dkst-pose-row input[type=color]{width:54px;height:29px;padding:2px}
+.dkst-pose-triplet{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:6px 0}
+.dkst-pose-triplet label{font-size:11px;color:#91a6bd}
+.dkst-pose-triplet input{width:100%;margin-top:3px}
+.dkst-pose-actions{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}
+.dkst-pose-view{position:relative;min-width:0;min-height:0;background:#0d131c;display:flex;flex-direction:column}
+.dkst-pose-toolbar{display:flex;gap:6px;padding:8px;background:#1b2533;flex-wrap:wrap;align-items:center}
+.dkst-pose-canvas{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none}
+.dkst-pose-canvas canvas{display:block;outline:none;touch-action:none}
+.dkst-pose-preview{position:absolute;right:16px;bottom:16px;width:180px;background:#111b27;border:1px solid #62738a;border-radius:8px;overflow:hidden;pointer-events:none;box-shadow:0 8px 25px #0006}
+.dkst-pose-preview .caption{padding:6px 8px;background:#253447;color:#c8dded;font-size:11px}
+.dkst-pose-preview canvas{max-width:100%;max-height:240px;width:auto;height:auto;display:block;margin:auto}
+.dkst-pose-help{position:absolute;left:12px;top:10px;max-width:70%;color:#b4c7da;background:#101924cf;padding:7px 9px;border-radius:5px;font-size:11px;pointer-events:none}
+.dkst-pose-editor footer{padding:9px 14px;border-top:1px solid #354359;color:#9fb5ca;display:flex;gap:8px;align-items:center;min-height:38px}
+.dkst-pose-editor .status{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dkst-pose-editor .error{color:#ffaaa5}
+@media(max-width:720px){.dkst-pose-body{grid-template-columns:190px minmax(0,1fr)}.dkst-pose-preview{width:100px;right:8px;bottom:8px}.dkst-pose-editor{width:100vw;height:100dvh;border-radius:0}.dkst-pose-help{display:none}.dkst-pose-editor header{padding:8px}.dkst-pose-panel{padding:8px}.dkst-pose-row{flex-wrap:wrap}.dkst-pose-toolbar button{padding:4px}}
