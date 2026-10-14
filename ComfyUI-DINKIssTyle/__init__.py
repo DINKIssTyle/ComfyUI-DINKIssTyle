@@ -13,7 +13,7 @@ NODE_MODULES = (
     ('dinki_image', ('DINKI_ImageSelector', 'DINKI_CrossOutputSwitch', 'DINKI_ImagePreview', 'DINKI_Image_Resize')),
     ('dinki_viewer', ('DINKI_Video_Player', 'DINKI_Video_Viewer')),
     ('dinki_video_combine', ('DINKI_Video_Combine',)),
-    ('dinki_switch', ('DINKI_IfElseBranch', 'DINKI_IfElseImageSwitch', 'DINKI_IfElseSwitch', 'DINKI_Node_Switch', 'DINKI_Node_Change', 'DINKI_Auto_Node_Change', 'DINKI_String_Switch_RT')),
+    ('dinki_switch', ('DINKI_IfElseBranch', 'DINKI_IfElseImageSwitch', 'DINKI_IfElseSwitch', 'DINKI_Node_Switch', 'DINKI_Node_Change', 'DINKI_Node_Change_3', 'DINKI_Node_Change_4', 'DINKI_Auto_Node_Change', 'DINKI_String_Switch_RT')),
     ('dinki_tool', ('DINKI_Arrange', 'DINKI_Workflow_Lock', 'DINKI_Note', 'DINKI_Node_Check', 'DINKI_Anchor', 'DINKI_Auto_Focus')),
     ('dinki_lmstudio', ('DINKI_LMStudio',)),
     ('dinki_batchImages', ('DINKI_BatchImages',)),
@@ -87,6 +87,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_IfElseSwitch": "DKST Util (If/Else Switch)",
     "DINKI_Node_Switch": "DKST Util (Node Switch)",
     "DINKI_Node_Change": "DKST Util (Node Change)",
+    "DINKI_Node_Change_3": "DKST Util (Node Change 3 Groups)",
+    "DINKI_Node_Change_4": "DKST Util (Node Change 4 Groups)",
     "DINKI_Auto_Node_Change": "DKST Util (Auto Node Change)",
     "DINKI_String_Switch_RT": "DKST Util (String Switch)",
 

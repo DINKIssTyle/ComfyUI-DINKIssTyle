@@ -703,6 +703,53 @@ function applyNodeChange(node, changedName, changedValue, values = {}) {
     }
 }
 
+function setIndexedNodeChangeLabel(node, widget, label) {
+    if (!widget || widget.label === label) return;
+    widget.label = label;
+    node.graph?.incrementVersion?.();
+    node.setDirtyCanvas?.(true, true);
+}
+
+function syncIndexedNodeChangeLabel(node, count, changedName, changedValue, values = {}) {
+    const value = name => name === changedName ? changedValue : (values[name] ?? getWidget(node, name)?.value);
+    const active = value("active");
+    const valid = Number.isInteger(active) && active >= 1 && active <= count;
+    const label = valid ? (String(value(`group_${active}_label`) ?? "").trim() || `Group ${active}`) : `1–${count}`;
+    setIndexedNodeChangeLabel(node, getWidget(node, "active"), `active · ${label}`);
+}
+
+function applyIndexedNodeChange(node, count, changedName, changedValue, values = {}) {
+    const value = name => name === changedName ? changedValue : (values[name] ?? getWidget(node, name)?.value);
+    syncIndexedNodeChangeLabel(node, count, changedName, changedValue, values);
+    if (/^group_\d+_label$/.test(changedName ?? "")) return;
+    const graph = node.graph;
+    if (!graph || app.configuringGraph) return;
+    const names = Array.from({ length: count }, (_, index) => `node_ids_${index + 1}`);
+    if (!getWidget(node, "active") || names.some(name => !getWidget(node, name))) return;
+    const active = value("active");
+    // Do not silently choose another group while the user is editing an invalid index.
+    if (!Number.isInteger(active) || active < 1 || active > count) return;
+    const groups = names.map(name => new Set(String(value(name) ?? "").split(",").map(id => id.trim()).filter(Boolean)));
+    const enabled = groups[active - 1];
+    const controlled = new Set(groups.flatMap(group => [...group]));
+    const disabledMode = value("disable_mode") === "Mute" ? 2 : 4;
+    let changed = false;
+    for (const target of graph.nodes ?? graph._nodes ?? []) {
+        if (target === node) continue;
+        const id = String(target.id);
+        // Membership in the selected group takes priority over other groups.
+        const mode = enabled.has(id) ? 0 : controlled.has(id) ? disabledMode : target.mode;
+        if (target.mode !== mode) {
+            target.mode = mode;
+            changed = true;
+        }
+    }
+    if (changed) {
+        graph.change?.();
+        graph.setDirtyCanvas?.(true, true);
+    }
+}
+
 // LiteGraph's advanced toggle expands to fit visible widgets, but does not
 // shrink again when they are hidden. Keep mode controls' compact size separately
 // so hidden advanced controls cannot leave a permanent empty area.
@@ -873,8 +920,11 @@ function nodeModePromotedValues(host, inherited, onSource) {
 }
 
 // These controls share classic/Nodes 2.0 and workflow lifecycle hooks.
-function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
-    const isNodeChange = nodeClass === "DINKI_Node_Change" || nodeClass === "DINKI_Auto_Node_Change";
+function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply, control = {}) {
+    const isBooleanNodeChange = nodeClass === "DINKI_Node_Change" || nodeClass === "DINKI_Auto_Node_Change";
+    const stateOutput = control.output ?? (isBooleanNodeChange ? ["switch", "BOOLEAN"] : null);
+    const isNodeChange = !!stateOutput;
+    const syncLabels = control.syncLabels ?? (isBooleanNodeChange ? syncNodeChangeLabels : null);
     const previous = new WeakMap();
     const compactSizes = new WeakMap();
     const watchedHosts = new WeakSet();
@@ -923,9 +973,9 @@ function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
                 // refreshing them must not toggle any target node modes.
                 if (node.comfyClass === nodeClass) {
                     compactSizes.get(node)?.sync();
-                    if (isNodeChange) syncNodeChangeLabels(node, undefined, undefined, values);
+                    syncLabels?.(node, undefined, undefined, values);
                 }
-                if (nested && node.comfyClass === nodeClass) {
+                if ((nested || control.observeRoot) && node.comfyClass === nodeClass) {
                     const effective = Object.fromEntries(widgetNames.map(name => [name, values[name] ?? getWidget(node, name)?.value]));
                     const old = previous.get(node);
                     // A tab switch or workflow load can restore target modes without
@@ -944,7 +994,9 @@ function registerNodeModeControl(extensionName, nodeClass, widgetNames, apply) {
                         nodeModePromotedValues(node, values, (widget, target, name) => {
                             if (!(target.subgraph || (target.comfyClass === nodeClass && name === "active"))) return;
                             const source = getWidget(target, name);
-                            if (source?.options?.on != null && source.options.off != null) {
+                            if (control.copyLabels) {
+                                control.copyLabels(node, widget, source);
+                            } else if (source?.options?.on != null && source.options.off != null) {
                                 setNodeChangeLabels(node, widget, source.options.on, source.options.off);
                             }
                         });
@@ -974,8 +1026,8 @@ app.registerExtension({
         }
         if (node.comfyClass !== nodeClass) return;
         const restoreStateOutput = target => {
-            if (isNodeChange && !target.outputs?.some(output => output.name === "switch")) {
-                target.addOutput?.("switch", "BOOLEAN");
+            if (stateOutput && !target.outputs?.some(output => output.name === stateOutput[0])) {
+                target.addOutput?.(...stateOutput);
             }
         };
         restoreStateOutput(node);
@@ -1046,6 +1098,20 @@ registerNodeModeControl("DINKI.NodeChange", "DINKI_Node_Change",
     ["node_ids_1", "node_ids_2", "active", "disable_mode", "group_1_label", "group_2_label"], applyNodeChange);
 registerNodeModeControl("DINKI.AutoNodeChange", "DINKI_Auto_Node_Change",
     ["node_ids_1", "node_ids_2", "active", "disable_mode", "group_1_label", "group_2_label", "auto_mode"], applyNodeChange);
+
+for (const count of [3, 4]) {
+    const numbers = Array.from({ length: count }, (_, index) => index + 1);
+    registerNodeModeControl(`DINKI.NodeChange${count}`, `DINKI_Node_Change_${count}`,
+        [...numbers.map(index => `node_ids_${index}`), "active", "disable_mode", ...numbers.map(index => `group_${index}_label`)],
+        (node, name, value, values) => applyIndexedNodeChange(node, count, name, value, values), {
+            output: ["index", "INT"],
+            observeRoot: true,
+            syncLabels: (node, name, value, values) => syncIndexedNodeChangeLabel(node, count, name, value, values),
+            copyLabels: (node, widget, source) => {
+                if (source?.label?.startsWith("active · ")) setIndexedNodeChangeLabel(node, widget, source.label);
+            },
+        });
+}
 
 // Include the widgets which actually own promoted values, all the way to the
 // outermost host. Updating only the inner widget would be undone by the monitor.

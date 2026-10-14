@@ -136,6 +136,41 @@ has exported the workflow and cannot synchronize Mute/Bypass for that queued run
 
 ---
 
+## 🔀 DKST Util (Node Change 3 Groups / 4 Groups)
+
+Select one of three or four node groups with the integer `active` control.
+`active` starts at **1**: the 3 Groups version accepts 1–3, and the 4 Groups
+version accepts 1–4. Only `active` is shown by default, with the selected group's
+name as its label. Expand **Show advanced inputs** to edit `node_ids_1` through
+`node_ids_3` or `node_ids_4`, `disable_mode`, and each `group_N_label`.
+Empty names fall back to `Group N`; renaming a group keeps its selected number.
+
+* The selected group's IDs use normal execution mode; IDs only in other groups
+  use Bypass (default) or Mute. Use Mute for incompatible decoder branches.
+* An ID shared by several groups is enabled when it belongs to the selected group.
+  For example, an ID in groups 1 and 2 is disabled when group 3 is selected.
+  Put always-enabled shared nodes in every group, or leave them outside the control.
+* Unknown IDs, empty entries and the control's own ID are ignored. Nodes outside
+  all groups keep their current mode, including IDs removed from all fields.
+* Supports classic widgets, Nodes 2.0, saved workflows, compact advanced controls
+  and nested promoted subgraph controls. Targets are local to the control's graph.
+* Invalid indices leave target modes unchanged and fail backend validation.
+
+The single **`index: INT`** output equals `active`; there are no per-group Boolean
+outputs. For example, `active=3` enables group 3 and outputs `index=3`. Connect
+`index` to a selector accepting a 1-based integer index. If a selector requires
+0-based indices, subtract 1 before connecting it. Existing Boolean If/Else sockets
+require a separate comparison/conversion. A selector used with muted branches
+must support evaluation of only the selected branch.
+
+Keep `active` as a manual widget or a promoted subgraph widget. Backend-computed
+indices arrive after frontend prompt export and cannot synchronize Mute/Bypass
+for that queued run. Changing selection also does not modify already queued prompts.
+The existing two-group Node Change and Auto Node Change keep their Boolean inputs
+and outputs. These new versions do not automatically advance after execution.
+
+---
+
 ## 🔁 DKST Util (Auto Node Change)
 
 Uses the same two groups, custom labels, Mute/Bypass settings and Boolean `switch`

@@ -263,6 +263,64 @@ class DINKI_Node_Change:
         return (bool(active),)
 
 
+class _DINKI_IndexedNodeChange:
+    """Select one frontend node group and return its one-based index."""
+
+    GROUP_COUNT = 0
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("index",)
+    OUTPUT_TOOLTIPS = ("Selected group index, starting at 1. Matches active.",)
+    FUNCTION = "select_group"
+    CATEGORY = "DINKIssTyle/Util"
+    OUTPUT_NODE = True
+    DESCRIPTION = (
+        "Select one group with active and return its 1-based INT index. "
+        "Other groups are bypassed or muted in the browser before queueing. "
+        "Use a manual or promoted subgraph widget; backend-computed selection "
+        "cannot synchronize node modes for that run."
+    )
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        required = {
+            f"node_ids_{index}": ("STRING", {
+                "default": "", "multiline": False, "advanced": True,
+                "tooltip": f"Group {index}. Node IDs separated by commas; active={index} enables this group.",
+            }) for index in range(1, cls.GROUP_COUNT + 1)
+        }
+        required["active"] = ("INT", {
+            "default": 1, "min": 1, "max": cls.GROUP_COUNT, "step": 1,
+            "tooltip": f"Select Group 1–{cls.GROUP_COUNT} before queueing. The index output matches this number.",
+        })
+        required["disable_mode"] = (["Bypass", "Mute"], {"default": "Bypass", "advanced": True})
+        for index in range(1, cls.GROUP_COUNT + 1):
+            required[f"group_{index}_label"] = ("STRING", {
+                "default": f"Group {index}", "multiline": False,
+                "dynamicPrompts": False, "advanced": True,
+            })
+        return {"required": required}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, active):
+        if type(active) is not int or not 1 <= active <= cls.GROUP_COUNT:
+            return f"active must be an integer from 1 to {cls.GROUP_COUNT}."
+        return True
+
+    def select_group(self, active, disable_mode="Bypass", **group_fields):
+        valid = self.VALIDATE_INPUTS(active)
+        if valid is not True:
+            raise ValueError(valid)
+        return (active,)
+
+
+class DINKI_Node_Change_3(_DINKI_IndexedNodeChange):
+    GROUP_COUNT = 3
+
+
+class DINKI_Node_Change_4(_DINKI_IndexedNodeChange):
+    GROUP_COUNT = 4
+
+
 class DINKI_Auto_Node_Change(DINKI_Node_Change):
     """Use the current group, then prepare the next run after frontend completion."""
 

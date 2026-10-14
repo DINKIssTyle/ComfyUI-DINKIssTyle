@@ -27,6 +27,7 @@ with patch.dict(sys.modules, {"comfy_execution": types.ModuleType("comfy_executi
     Branch = nodes["DINKI_IfElseBranch"]
     NodeSwitch = nodes["DINKI_Node_Switch"]
     NodeChange = nodes["DINKI_Node_Change"]
+    IndexedNodeChanges = (nodes["DINKI_Node_Change_3"], nodes["DINKI_Node_Change_4"])
     AutoNodeChange = nodes["DINKI_Auto_Node_Change"]
 
 
@@ -40,6 +41,41 @@ class FakeExecutionList:
 
 
 class IfElseSwitchTests(unittest.TestCase):
+    def test_indexed_node_change_schema_and_every_group_output(self):
+        for node_class in IndexedNodeChanges:
+            count = node_class.GROUP_COUNT
+            with self.subTest(count=count):
+                required = node_class.INPUT_TYPES()["required"]
+                self.assertEqual(list(required),
+                    [f"node_ids_{i}" for i in range(1, count + 1)]
+                    + ["active", "disable_mode"]
+                    + [f"group_{i}_label" for i in range(1, count + 1)])
+                kind, options = required["active"]
+                self.assertEqual(kind, "INT")
+                self.assertEqual((options["default"], options["min"], options["max"], options["step"]),
+                                 (1, 1, count, 1))
+                self.assertNotIn("advanced", options)
+                self.assertTrue(all(config[1]["advanced"] for name, config in required.items()
+                                    if name != "active"))
+                self.assertEqual(node_class.RETURN_TYPES, ("INT",))
+                self.assertEqual(node_class.RETURN_NAMES, ("index",))
+                self.assertTrue(node_class.OUTPUT_NODE)
+                for active in range(1, count + 1):
+                    kwargs = {name: config[1]["default"] for name, config in required.items()}
+                    kwargs["active"] = active
+                    for mode in ("Bypass", "Mute"):
+                        kwargs["disable_mode"] = mode
+                        self.assertIs(node_class.VALIDATE_INPUTS(active), True)
+                        self.assertEqual(node_class().select_group(**kwargs), (active,))
+
+    def test_indexed_node_change_rejects_invalid_indices_without_coercion(self):
+        for node_class in IndexedNodeChanges:
+            for active in (0, -1, node_class.GROUP_COUNT + 1, True, False, "2", 2.5, None):
+                with self.subTest(count=node_class.GROUP_COUNT, active=active):
+                    self.assertIsInstance(node_class.VALIDATE_INPUTS(active), str)
+                    with self.assertRaisesRegex(ValueError, "active must be an integer"):
+                        node_class().select_group(active)
+
     def test_node_switch_disable_mode_is_advanced_and_defaults_to_bypass(self):
         modes, options = NodeSwitch.INPUT_TYPES()["required"]["disable_mode"]
         self.assertEqual(modes, ["Bypass", "Mute"])

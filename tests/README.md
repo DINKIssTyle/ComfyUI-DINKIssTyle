@@ -36,7 +36,7 @@ muting its source; verify the received text is shown and saved in the workflow.
 Auto Node Change completion switching, group routing and workflow lifecycle:
 
 ```sh
-node --test tests/dinki_auto_node_change.test.cjs tests/dinki_node_change.test.cjs tests/dinki_node_switch.test.cjs
+node --test tests/dinki_auto_node_change.test.cjs tests/dinki_node_change.test.cjs tests/dinki_node_change_index.test.cjs tests/dinki_node_switch.test.cjs
 python3 -m unittest discover -s tests -p test_if_else_switch.py
 ```
 
@@ -45,6 +45,10 @@ cached completion before HTTP responds, errors/cancellation, manual changes,
 workflow replacement, nested promoted controls, duplicate events and unsupported
 overlapping submissions. Confirm sequential runs with a live ComfyUI frontend;
 this node is not supported for queued/batch or API-only execution.
+Indexed Node Change tests cover all three/four group selections, the single 1-based
+INT output, invalid indices, partial/shared IDs, Mute/Bypass, nested promoted values,
+label changes, output-link restoration and compact sizing. Confirm the numeric
+control and selected group label in classic and Nodes 2.0 on a live ComfyUI frontend.
 
 Host dependency installation, isolated node loading and trainer runtime setup:
 
