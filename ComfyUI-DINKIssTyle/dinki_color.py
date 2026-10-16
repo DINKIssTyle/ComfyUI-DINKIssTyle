@@ -12,6 +12,10 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import xml.etree.ElementTree as ET
+try:
+    from defusedxml import ElementTree as DefusedET
+except ImportError:
+    DefusedET = None
 import folder_paths
 from PIL import Image
 from server import PromptServer
@@ -248,8 +252,9 @@ class DINKI_adobe_xmp:
             raise ValueError("XMP preset must use UTF-8 or BOM-marked UTF-16 encoding") from exc
         if "<!DOCTYPE" in xml_text.upper() or "<!ENTITY" in xml_text.upper():
             raise ValueError("XMP preset cannot contain DTD or entity declarations")
+        parser = DefusedET if DefusedET is not None else ET
         try:
-            root = ET.fromstring(xml_text)
+            root = parser.fromstring(xml_text)
         except ET.ParseError as exc:
             raise ValueError(f"Invalid XMP preset: {exc}") from exc
 
