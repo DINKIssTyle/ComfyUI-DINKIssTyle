@@ -7,10 +7,8 @@ const errors=[];page.on('pageerror',e=>errors.push(e.message));
 page.on('console',m=>{if(m.type()==='error'&&m.text().includes('THREE.WebGLProgram'))errors.push(m.text());});
 try {
     await page.goto(process.env.POSE_TEST_URL||'http://127.0.0.1:28993');await page.waitForFunction(()=>globalThis.harnessReady);
-    // A workflow saved with the first mannequin must open with the revised model.
-    await page.evaluate(()=>{const w=poseNode.widgets.find(w=>w.name==='scene_json');const old=JSON.parse(w.value);old.renderer='dkst-pose-1-three-180';w.value=JSON.stringify(old);});
     await page.getByRole('button',{name:'Open 3D Pose Editor'}).click();await page.getByLabel('3D editing canvas').waitFor();
-    assert.equal(await page.evaluate(()=>poseNode.dkstPoseEditor.state.renderer),'dkst-pose-3-three-180');
+    assert.equal(await page.evaluate(()=>poseNode.dkstPoseEditor.state.renderer),'dkst-pose-5-makehuman');
     await page.waitForFunction(()=>poseNode.dkstPoseEditor?.renderer.domElement.width>100);
     assert.equal(/[가-힣]/.test(await page.locator('.dkst-pose-editor').innerText()),false,'Editor interface must be English');
     await fs.mkdir('/private/tmp/dkst-pose-smoke',{recursive:true});
@@ -70,12 +68,6 @@ try {
     assert.ok(Math.abs(pixels.pose_keypoints_2d[index]-person.pose_keypoints_2d[index]*768)<.0001);
     const posePNG=await page.request.get('/test/openpose.png');assert.equal(posePNG.status(),200);
     await fs.writeFile('/private/tmp/dkst-pose-smoke/openpose.png',await posePNG.body());
-    // Cached images without projection metadata must rebuild before conversion.
-    const legacy=await (await page.request.post(`/test/legacy/${firstID}`)).json();
-    await page.evaluate(id=>{poseNode.widgets.find(w=>w.name==='render_id').value=id;},legacy.render_id);
-    await page.evaluate(()=>queue(true));assert.equal(await page.evaluate(()=>lastResult.results[0].render_id),firstID);
-    await page.evaluate(()=>{poseNode.outputs=poseNode.outputs.slice(0,2);poseNode.onConfigure();});
-    assert.equal(await page.evaluate(()=>poseNode.outputs[2].type),'DKST_POSE');
     await page.getByRole('button',{name:'Save / reload workflow',exact:true}).click();
     await page.evaluate(()=>queue());assert.equal(await page.evaluate(()=>lastResult.results[0].render_id),firstID);
     // Re-opened workflow starts a new editor at exactly the saved pose.

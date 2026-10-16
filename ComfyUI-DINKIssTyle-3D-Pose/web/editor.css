@@ -27,6 +27,7 @@
 .dkst-pose-canvas canvas{display:block;outline:none;touch-action:none}
 .dkst-pose-preview{position:absolute;right:16px;bottom:16px;width:180px;background:#111b27;border:1px solid #62738a;border-radius:8px;overflow:hidden;pointer-events:none;box-shadow:0 8px 25px #0006}
 .dkst-pose-preview .caption{padding:6px 8px;background:#253447;color:#c8dded;font-size:11px}
+.dkst-pose-preview select{pointer-events:auto;width:100%;border:0;border-radius:0;background:#253447;color:#c8dded;font-size:11px}
 .dkst-pose-preview canvas{max-width:100%;max-height:240px;width:auto;height:auto;display:block;margin:auto}
 .dkst-pose-help{position:absolute;left:12px;top:10px;max-width:70%;color:#b4c7da;background:#101924cf;padding:7px 9px;border-radius:5px;font-size:11px;pointer-events:none}
 .dkst-pose-editor footer{padding:9px 14px;border-top:1px solid #354359;color:#9fb5ca;display:flex;gap:8px;align-items:center;min-height:38px}

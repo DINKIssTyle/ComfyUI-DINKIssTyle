@@ -3,6 +3,7 @@ import {api} from '../../scripts/api.js';
 import {clone,DEFAULT,validate,sceneString,hash} from './state.mjs';
 import {PoseEditor} from './editor.mjs';
 import {renderArtifact} from './renderer.mjs';
+import {attachCameraPreview,updateCameraPreview,visitCameraNodes} from './camera_preview.mjs';
 
 export const NODE_CLASS='DKST_3D_Pose';
 const widget=(node,name)=>node.widgets?.find(w=>w.name===name);
@@ -27,13 +28,14 @@ async function requestRender(raw,previousID='') {
     if(previousID && /^[a-f\d]{64}$/.test(previousID)) {
         // The immutable ID is useful only for the exact snapshot recorded on this client.
         // Imported workflow artifacts are verified by the backend during execution.
-        const check=await api.fetchApi(`/dkst/3d-pose/render/${previousID}?require_pose=1`,{method:'HEAD'});
+        const check=await api.fetchApi(`/dkst/3d-pose/render/${previousID}?require_pose=1&require_depth=1`,{method:'HEAD'});
         if(check.ok)return {render_id:previousID};
     }
     if(renders.has(raw))return renders.get(raw);
     const pending=(async()=>{
         const scene=validate(JSON.parse(raw)),artifact=await renderArtifact(scene);
         const form=new FormData();form.append('scene',raw);form.append('image',artifact.image,'pose.png');form.append('pose',JSON.stringify(artifact.pose));
+        form.append('depth',artifact.depth,'depth.f32');
         const response=await api.fetchApi('/dkst/3d-pose/render',{method:'POST',body:form});
         const result=await response.json();if(!response.ok)throw Error(result.error||'Unable to save the 3D pose render.');
         const digest=await hash(raw);if(digest&&digest!==result.scene_hash)throw Error('The saved render does not match this scene.');
@@ -51,10 +53,23 @@ function walk(graph,visit,seen=new Set()) {
     if(!graph||seen.has(graph))return;seen.add(graph);
     for(const node of graph._nodes||[]){visit(node);if(node.subgraph)walk(node.subgraph,visit,seen);}
 }
+function refreshCameraPreviews(outputs=app.nodeOutputs){
+    if(app.configuringGraph)return;
+    visitCameraNodes(app.rootGraph||app.graph,(node,ids)=>{
+        for(const id of ids)if(updateCameraPreview(node,outputs?.[id]))return;
+        node.dkstRestoreCameraDescription?.();
+    });
+}
 
 app.registerExtension({
     name:'DINKIssTyle.3DPose',
     setup() {
+        api.addEventListener?.('executed',({detail})=>{
+            if(!detail?.output||app.configuringGraph)return;
+            const id=String(detail.display_node??detail.node);
+            visitCameraNodes(app.rootGraph||app.graph,(node,ids)=>{if(ids.includes(id))updateCameraPreview(node,detail.output);});
+        });
+        api.addEventListener?.('execution_cached',()=>refreshCameraPreviews());
         const original=api.queuePrompt;
         api.queuePrompt=async function(number,prompt,...rest) {
             const entries=Object.entries(prompt?.output||{}).filter(([,n])=>n.class_type===NODE_CLASS);
@@ -81,7 +96,24 @@ app.registerExtension({
             return original.call(this,number,frozen,...rest);
         };
     },
+    onNodeOutputsUpdated(outputs){refreshCameraPreviews(outputs);},
+    afterConfigureGraph(){refreshCameraPreviews();},
     async beforeRegisterNodeDef(nodeType,nodeData) {
+        if(nodeData.name==='DKST_3D_CameraInfo'){
+            const created=nodeType.prototype.onNodeCreated,executed=nodeType.prototype.onExecuted,configured=nodeType.prototype.onConfigure;
+            nodeType.prototype.onNodeCreated=function(...args){
+                const result=created?.apply(this,args);
+                attachCameraPreview(this);
+                this.setSize?.([390,270]);return result;
+            };
+            nodeType.prototype.onExecuted=function(message,...args){const result=executed?.call(this,message,...args);updateCameraPreview(this,message);return result;};
+            nodeType.prototype.onConfigure=function(...args){const result=configured?.apply(this,args);this.dkstRestoreCameraDescription?.();return result;};
+            return;
+        }
+        if(nodeData.name==='DKST_3D_Depth'){
+            const created=nodeType.prototype.onNodeCreated;
+            nodeType.prototype.onNodeCreated=function(...args){const result=created?.apply(this,args);for(const [name,label] of Object.entries({range_mode:'Depth range',near_distance:'Near distance',far_distance:'Far distance',invert:'Invert depth'})){const w=widget(this,name);if(w)w.label=label;}return result;};return;
+        }
         if(nodeData.name==='DKST_3D_OpenPose'){
             const created=nodeType.prototype.onNodeCreated;
             nodeType.prototype.onNodeCreated=function(...args){
@@ -130,7 +162,6 @@ app.registerExtension({
         const configured=nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure=function(...args){
             const r=configured?.apply(this,args);
-            if(!this.outputs?.some(o=>o.type==='DKST_POSE'))this.addOutput?.('pose','DKST_POSE');
             this.dkstPoseRenderedRaw=null;this.dkstPosePreview?.(widget(this,'render_id')?.value);return r;
         };
         const removed=nodeType.prototype.onRemoved;

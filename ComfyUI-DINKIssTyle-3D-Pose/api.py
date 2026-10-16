@@ -3,7 +3,7 @@ import json
 from aiohttp import web
 from server import PromptServer
 from .schema import MAX_BYTES, validate_scene
-from .storage import save_render, artifact_path, load_render, load_pose
+from .storage import save_render, artifact_path, load_render, load_pose, load_depth
 
 routes = PromptServer.instance.routes
 
@@ -15,16 +15,17 @@ async def upload_render(request):
         raw = None
         data = None
         pose = None
+        depth = None
         total = 0
         while (part := await reader.next()) is not None:
-            limits={"scene":128*1024,"pose":32*1024,"image":MAX_BYTES}
+            limits={"scene":128*1024,"pose":32*1024,"image":MAX_BYTES,"depth":64*1024*1024}
             if part.name not in limits:raise ValueError("Unexpected upload field")
             limit=limits[part.name]
             chunks = bytearray()
             while chunk := await part.read_chunk():
                 chunks.extend(chunk)
                 total += len(chunk)
-                if len(chunks) > limit or total > MAX_BYTES + 160*1024:
+                if len(chunks) > limit or total > MAX_BYTES + 64*1024*1024 + 160*1024:
                     raise ValueError("Pose upload too large")
             if part.name == "scene" and raw is None:
                 raw = chunks.decode("utf-8")
@@ -33,10 +34,12 @@ async def upload_render(request):
             elif part.name == "pose" and pose is None:
                 pose=json.loads(chunks.decode("utf-8"))
                 if pose is None:raise ValueError("Invalid OpenPose document")
+            elif part.name == 'depth' and depth is None:depth=bytes(chunks)
             else:
                 raise ValueError("Unexpected upload field")
         validate_scene(raw)
-        result = await asyncio.to_thread(save_render, raw, data, pose)
+        if pose is None or depth is None:raise ValueError('Image, OpenPose and depth data are required.')
+        result = await asyncio.to_thread(save_render, raw, data, pose, depth)
         return web.json_response(result)
     except (ValueError, TypeError, UnicodeError, OSError) as exc:
         return web.json_response({"error": str(exc)}, status=400)
@@ -53,6 +56,7 @@ async def view_render(request):
         metadata = json.loads(path.with_suffix(".json").read_text())
         if request.query.get("require_pose")=="1":
             await asyncio.to_thread(load_pose,metadata["scene"],request.match_info["render_id"])
+        if request.query.get('require_depth')=='1':await asyncio.to_thread(load_depth,metadata['scene'],request.match_info['render_id'])
         image = await asyncio.to_thread(load_render, metadata["scene"], request.match_info["render_id"])
         image.close()
         return web.FileResponse(path, headers={"Cache-Control": "private, max-age=31536000, immutable"})

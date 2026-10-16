@@ -29,17 +29,23 @@ export async function hash(raw) {
     return null;
 }
 export function validate(scene) {
-    if (!scene || scene.version !== DEFAULT.version || ![DEFAULT.renderer,'dkst-pose-1-three-180','dkst-pose-2-three-180'].includes(scene.renderer)) throw Error('Unsupported scene version.');
+    if (!scene || scene.version !== DEFAULT.version || scene.renderer!==DEFAULT.renderer) throw Error('Unsupported scene version. Create a new scene with this development build.');
     if (!RATIOS.includes(scene.ratio)) throw Error('Invalid body proportion.');
     const vec = (v,n,lo,hi) => Array.isArray(v) && v.length === n && v.every(x => typeof x==='number' && Number.isFinite(x) && x>=lo && x<=hi);
     const quat = q => vec(q,4,-1.001,1.001) && Math.abs(q.reduce((n,x)=>n+x*x,0)-1)<.002;
     if (!vec(scene.root,3,-100,100) || !scene.joints || Object.keys(scene.joints).length!==JOINTS.length || !JOINTS.every(j=>quat(scene.joints[j]))) throw Error('Invalid joint data.');
-    const c=scene.camera, a=scene.appearance&&{...scene.appearance,simple_hands:scene.appearance.simple_hands??false,simple_feet:scene.appearance.simple_feet??false}, o=scene.output;
-    if (!c || !['perspective','orthographic'].includes(c.projection) || !vec(c.position,3,-100,100) || !vec(c.target,3,-100,100) || !quat(c.quaternion) || !vec([c.fov],1,10,120) || !vec([c.ortho],1,.1,50)) throw Error('Invalid camera data.');
-    if (!a || !['body','background'].every(k=>/^#[a-f\d]{6}$/i.test(a[k])) || !['transparent','face','floor','simple_hands','simple_feet'].every(k=>typeof a[k]==='boolean') || !vec([a.light],1,.1,5)) throw Error('Invalid appearance data.');
+    const c=scene.camera,a=scene.appearance,o=scene.output;
+    if (!c || !['perspective','orthographic'].includes(c.projection) || !vec(c.position,3,-100,100) || !vec(c.target,3,-100,100) || !quat(c.quaternion) || !vec([c.focal_mm],1,8,300) || !vec([c.ortho],1,.1,50)) throw Error('Invalid camera data.');
+    if (!a || !['body','background','guide_color'].every(k=>/^#[a-f\d]{6}$/i.test(a[k])) || !['transparent','face','floor','simple_hands','simple_feet','centerlines','contours','joint_markers','outline'].every(k=>typeof a[k]==='boolean') || !vec([a.light],1,.1,5)|| !vec([a.line_width],1,.5,8)) throw Error('Invalid appearance data.');
+    const ids=new Set();
+    if(!Array.isArray(scene.objects)||scene.objects.length>32)throw Error('Use at most 32 objects.');
+    for(const b of scene.objects){
+        if(!b||typeof b.id!=='string'||! /^[a-zA-Z0-9_-]{1,64}$/.test(b.id)||ids.has(b.id)||b.type!=='box'||typeof b.name!=='string'||b.name.length<1||b.name.length>80||!/^#[a-f\d]{6}$/i.test(b.color)||!vec(b.position,3,-100,100)||!vec(b.size,3,.01,50)||!quat(b.quaternion)||typeof b.visible!=='boolean')throw Error('Invalid box data.');
+        ids.add(b.id);
+    }
     if (!o || !['width','height'].every(k=>Number.isInteger(o[k]) && o[k]>=64 && o[k]<=4096)) throw Error('Resolution must be an integer between 64 and 4096.');
     // Discard unexpected fields and rebuild the versioned schema.
-    return clone({version:scene.version,renderer:DEFAULT.renderer,ratio:scene.ratio,root:scene.root,joints:Object.fromEntries(JOINTS.map(j=>[j,scene.joints[j]])),camera:{projection:c.projection,position:c.position,quaternion:c.quaternion,target:c.target,fov:c.fov,ortho:c.ortho},appearance:{background:a.background,body:a.body,transparent:a.transparent,face:a.face,floor:a.floor,light:a.light,simple_hands:a.simple_hands,simple_feet:a.simple_feet},output:{width:o.width,height:o.height}});
+    return clone({version:scene.version,renderer:DEFAULT.renderer,ratio:scene.ratio,root:scene.root,joints:Object.fromEntries(JOINTS.map(j=>[j,scene.joints[j]])),camera:{projection:c.projection,position:c.position,quaternion:c.quaternion,target:c.target,focal_mm:c.focal_mm,ortho:c.ortho},appearance:Object.fromEntries(Object.keys(DEFAULT.appearance).map(k=>[k,a[k]])),output:{width:o.width,height:o.height},objects:scene.objects.map(b=>Object.fromEntries(['id','type','name','color','position','quaternion','size','visible'].map(k=>[k,b[k]])))});
 }
 export const PRESETS = {
     'T-pose': {L_shoulder:[0,0,90],R_shoulder:[0,0,-90]},

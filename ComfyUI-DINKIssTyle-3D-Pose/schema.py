@@ -5,8 +5,8 @@ import math
 import re
 from pathlib import Path
 
-VERSION = 1
-RENDERER_VERSION = "dkst-pose-3-three-180"
+VERSION = 2
+RENDERER_VERSION = "dkst-pose-5-makehuman"
 RATIOS = (2, 3, 6, 7, 8, 9)
 BASE_JOINTS = ("root", "pelvis", "waist", "chest", "neck", "head")
 LIMBS = ("clavicle", "shoulder", "elbow", "wrist", "hip", "knee", "ankle", "toe")
@@ -44,9 +44,9 @@ def validate_scene(raw):
         scene = json.loads(raw)
     except (ValueError, TypeError) as exc:
         raise ValueError("Invalid scene JSON") from exc
-    _keys(scene, ("version", "renderer", "ratio", "root", "joints", "camera", "appearance", "output"), "scene")
+    _keys(scene, ("version", "renderer", "ratio", "root", "joints", "camera", "appearance", "output", "objects"), "scene")
     if type(scene["version"]) is not int or scene["version"] != VERSION or scene["renderer"] != RENDERER_VERSION:
-        raise ValueError("Unsupported pose scene version; open the editor to migrate the scene")
+        raise ValueError("Unsupported scene version. Create a new scene with this development build.")
     if type(scene["ratio"]) is not int or scene["ratio"] not in RATIOS:
         raise ValueError("Choose 2, 3, 6, 7, 8 or 9 heads")
     _vector(scene["root"], 3, -100, 100, "root position")
@@ -56,7 +56,7 @@ def validate_scene(raw):
         if abs(sum(x*x for x in q) - 1) > .002:
             raise ValueError(f"Non-unit joint rotation: {name}")
     cam = scene["camera"]
-    _keys(cam, ("projection", "position", "quaternion", "target", "fov", "ortho"), "camera")
+    _keys(cam, ("projection", "position", "quaternion", "target", "focal_mm", "ortho"), "camera")
     if cam["projection"] not in ("perspective", "orthographic"):
         raise ValueError("Invalid projection")
     _vector(cam["position"], 3, -100, 100, "camera position")
@@ -64,17 +64,30 @@ def validate_scene(raw):
     _vector(cam["quaternion"], 4, -1.001, 1.001, "camera rotation")
     if abs(sum(x*x for x in cam["quaternion"]) - 1) > .002:
         raise ValueError("Non-unit camera rotation")
-    _number(cam["fov"], 10, 120, "FOV")
+    _number(cam["focal_mm"], 8, 300, "focal length")
     _number(cam["ortho"], .1, 50, "orthographic size")
     appearance = scene["appearance"]
-    _keys(appearance, ("background", "body", "transparent", "face", "floor", "light", "simple_hands", "simple_feet"), "appearance")
-    for key in ("background", "body"):
+    _keys(appearance, ("background", "body", "transparent", "face", "floor", "light", "simple_hands", "simple_feet", "centerlines", "contours", "joint_markers", "outline", "guide_color", "line_width"), "appearance")
+    for key in ("background", "body", "guide_color"):
         if not isinstance(appearance[key], str) or not re.fullmatch(r"#[a-fA-F0-9]{6}", appearance[key]):
             raise ValueError(f"Invalid {key} color")
-    for key in ("transparent", "face", "floor", "simple_hands", "simple_feet"):
+    for key in ("transparent", "face", "floor", "simple_hands", "simple_feet", "centerlines", "contours", "joint_markers", "outline"):
         if type(appearance[key]) is not bool:
             raise ValueError(f"Invalid {key}")
     _number(appearance["light"], .1, 5, "light intensity")
+    _number(appearance["line_width"], .5, 8, "guide line width")
+    if not isinstance(scene['objects'],list) or len(scene['objects'])>32:raise ValueError('Use at most 32 objects')
+    ids=set()
+    for obj in scene['objects']:
+        _keys(obj,('id','type','name','color','position','quaternion','size','visible'),'object')
+        if not isinstance(obj['id'],str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,64}',obj['id']) or obj['id'] in ids:raise ValueError('Invalid or duplicate object ID')
+        ids.add(obj['id'])
+        if obj['type']!='box' or not isinstance(obj['name'],str) or not 1<=len(obj['name'])<=80:raise ValueError('Invalid box name/type')
+        if not isinstance(obj['color'],str) or not re.fullmatch(r'#[a-fA-F0-9]{6}',obj['color']):raise ValueError('Invalid box color')
+        _vector(obj['position'],3,-100,100,'box position');_vector(obj['size'],3,.01,50,'box size')
+        _vector(obj['quaternion'],4,-1.001,1.001,'box rotation')
+        if abs(sum(x*x for x in obj['quaternion'])-1)>.002:raise ValueError('Invalid box rotation')
+        if type(obj['visible']) is not bool:raise ValueError('Invalid box visibility')
     _keys(scene["output"], ("width", "height"), "output")
     for key in ("width", "height"):
         n = scene["output"][key]

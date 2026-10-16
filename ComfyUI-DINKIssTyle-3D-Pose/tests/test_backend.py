@@ -27,7 +27,9 @@ def fixture(transparent=True):
 
 def test_standalone_registration():
     import pose_pack
-    assert pose_pack.NODE_CLASS_MAPPINGS == {"DKST_3D_Pose":PoseImage,"DKST_3D_OpenPose":OpenPoseImage}
+    assert pose_pack.NODE_CLASS_MAPPINGS['DKST_3D_Pose'] is PoseImage
+    assert pose_pack.NODE_CLASS_MAPPINGS['DKST_3D_OpenPose'] is OpenPoseImage
+    assert set(pose_pack.NODE_CLASS_MAPPINGS)=={'DKST_3D_Pose','DKST_3D_OpenPose','DKST_3D_Depth','DKST_3D_CameraInfo'}
     assert pose_pack.WEB_DIRECTORY == "./web"
 
 
@@ -38,11 +40,11 @@ def test_ratios(ratio):
 
 
 @pytest.mark.parametrize("mutation", [
-    lambda s: s.update(ratio=5), lambda s:s.update(ratio=True), lambda s:s.update(version=2),
+    lambda s: s.update(ratio=5), lambda s:s.update(ratio=True), lambda s:s.update(version=1),
     lambda s:s["joints"].update(head=[0,0,0,0]), lambda s:s["joints"].update(head=[float('nan'),0,0,1]),
     lambda s:s["output"].update(width=4097), lambda s:s["output"].update(width=64.5),
     lambda s:s["appearance"].update(transparent="false"), lambda s:s["appearance"].update(body="red"),
-    lambda s:s["camera"].update(fov=0), lambda s:s["camera"].update(quaternion=[0,0,0,0]),
+    lambda s:s["camera"].update(focal_mm=0), lambda s:s["camera"].update(quaternion=[0,0,0,0]),
     lambda s:s.update(extra="unknown"), lambda s:s["joints"].pop("head"),
 ])
 def test_bad_scenes(mutation):

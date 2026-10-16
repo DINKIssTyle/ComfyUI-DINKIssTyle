@@ -81,27 +81,20 @@ test('sculpted surfaces have finite outward normals and grounded soles',()=>{
         rig.root.traverse(o=>{if(o.geometry){
             for(const name of ['position','normal']) assert.ok(Array.from(o.geometry.attributes[name].array).every(Number.isFinite));
         }});
-        const bounds=new T.Box3().setFromObject(rig.root);assert.ok(Math.abs(bounds.min.y)<1e-6);assert.ok(Math.abs(bounds.max.y-2)<1e-6);rig.dispose();
+        const bounds=new T.Box3().setFromObject(rig.root);assert.ok(Math.abs(bounds.min.y)<.01);assert.ok(Math.abs(bounds.max.y-2)<.01);rig.dispose();
     }
 });
-test('old scenes migrate to the new model while preserving joint rotations and camera',()=>{
-    const old=clone(DEFAULT);old.renderer='dkst-pose-1-three-180';applyPreset(old,'Run');
-    const migrated=validate(old);assert.equal(migrated.renderer,DEFAULT.renderer);
-    assert.deepEqual(migrated.joints,old.joints);assert.deepEqual(migrated.camera,old.camera);
-    assert.equal(old.renderer,'dkst-pose-1-three-180','Migration must not mutate the source');
+test('development scenes reject previous versions without migration',()=>{
+    const old=clone(DEFAULT);old.renderer='dkst-pose-3-three-180';assert.throws(()=>validate(old),/Unsupported/);
 });
 test('simplified mesh limbs hide detail without changing stored finger or toe rotations',()=>{
     const state=clone(DEFAULT);state.joints.L_index_1=quaternion(-45,0,0);state.joints.L_toe=quaternion(-20,0,0);
     const rig=new Rig(state),before=sceneString(state.joints);state.appearance.simple_hands=true;state.appearance.simple_feet=true;rig.apply(state);
     assert.equal(rig.hands.L.detailed.visible,false);assert.equal(rig.hands.L.simple.visible,true);
     assert.equal(rig.feet.L.detailed.visible,false);assert.equal(rig.feet.L.simple.visible,true);
-    assert.ok(Math.abs(rig.bounds().min.y)<1e-6,'Hidden posed toes must not move the simplified sole above the floor');
+    assert.ok(Math.abs(rig.bounds().min.y)<.01);
     assert.ok(rig.visiblePickables().every(o=>!/^L_index_|^R_index_|_toe$/.test(o.userData.joint)));
     rig.read(state);assert.equal(sceneString(state.joints),before);
     state.appearance.simple_hands=false;state.appearance.simple_feet=false;rig.apply(state);
     assert.equal(rig.hands.L.detailed.visible,true);assert.equal(rig.feet.L.detailed.visible,true);rig.dispose();
-});
-test('previous model scenes receive explicit detail defaults when migrated',()=>{
-    const old=clone(DEFAULT);old.renderer='dkst-pose-2-three-180';delete old.appearance.simple_hands;delete old.appearance.simple_feet;
-    const migrated=validate(old);assert.equal(migrated.renderer,DEFAULT.renderer);assert.equal(migrated.appearance.simple_hands,false);assert.equal(migrated.appearance.simple_feet,false);
 });

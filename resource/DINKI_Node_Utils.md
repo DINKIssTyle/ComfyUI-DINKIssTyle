@@ -182,6 +182,37 @@ output as Node Change. Choose the initial group with `active`, then expand
 | `Manual` | Keep the current selection. |
 | `After run: Group 2` (default) | Select Group 2 for the next run, then keep Group 2 selected. |
 | `After run: Toggle 1 / 2` | Select the opposite group for the next run. Starting at Group 1 gives 1 → 2 → 1 → 2. |
+| `Generate on Change` | Use Group 1 for new watched settings, then select Group 2 after success. Unchanged settings keep using Group 2. |
+
+For **Generate on Change**, set the advanced `watch_node_ids` field to the IDs
+of nodes whose settings should trigger regeneration, for example `12, 25` for an
+image loader and a prompt node. These IDs refer to nodes in the **same graph** as
+the Auto Node Change control. No input cable is required. The comparison happens
+before prompt export so that the selected group's Mute/Bypass modes and Boolean
+output agree for that run.
+
+The first run after loading the workflow or reloading the browser uses Group 1.
+After the whole workflow succeeds, the browser remembers the watched settings
+and selects Group 2. Changing any watched widget value (including seed) or input
+connection selects Group 1 on the next submission. Changes to group membership or
+disable mode also trigger Group 1. Promoted widget values and settings inside a
+watched subgraph node are included. Position, size, title and node mode are ignored.
+Selecting Group 1 manually forces another run even with unchanged settings.
+Errors, interruptions and rejected submissions do not record new successful settings.
+
+This compares **widget settings and connections**, not actual image/text outputs.
+List every source node you want to watch; settings on unlisted upstream nodes
+are not automatically included. Replacing an image file's contents under the same
+filename or changing external data without a widget edit is not detected.
+Custom state stored only in node properties is also outside this comparison.
+Empty IDs, missing nodes, the control's own ID or unreadable settings keep Group 1
+selected so that generation remains available. Successful settings are held in
+browser memory; saving a workflow does not retain this comparison history.
+
+For example, put a caption generator in Group 1 and use Group 2 to reuse a
+previous caption. Keep the [Multiline Cache](DINKI_Prompt_and_String.md) enabled
+in both groups to retain its text when the generator is muted. Auto Node Change
+controls groups; the cache node retains the generated result.
 
 **Not supported for queued/batch runs. Finish one run before submitting the next.**
 **큐/배치 처리에는 사용할 수 없습니다. 한 번의 실행이 완료된 후 다음 실행을 시작하세요.**
@@ -189,8 +220,8 @@ Already queued prompts contain a fixed group selection. Changing the control
 cannot change their execution. Overlapping submissions involving the same auto
 control skip automatic updates; queued work is not rescheduled or altered.
 
-Changes happen after the **whole workflow succeeds**, including successful runs
-using cached outputs. Errors, interruptions and failed queue submissions do not
+Completion-based changes happen after the **whole workflow succeeds**, including
+successful runs using cached outputs. Errors, interruptions and failed queue submissions do not
 advance the selection. The current run's `switch` output stays fixed; the new
 selection applies to the next run. Manual selection or mode changes during a run
 are preserved if they differ from the submitted settings.

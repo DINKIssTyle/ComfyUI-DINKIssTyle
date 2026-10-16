@@ -117,6 +117,14 @@ class IfElseSwitchTests(unittest.TestCase):
                     self.assertEqual(AutoNodeChange().do_nothing("1", "2", active,
                         auto_mode=mode), (active,))
         self.assertEqual(AutoNodeChange().do_nothing("1", "2", True), (True,))
+        self.assertIn("Generate on Change", modes)
+        kind, watch = schema["optional"]["watch_node_ids"]
+        self.assertEqual(kind, "STRING")
+        self.assertEqual(watch["default"], "")
+        self.assertTrue(watch["advanced"])
+        self.assertFalse(watch["dynamicPrompts"])
+        self.assertEqual(AutoNodeChange().do_nothing("1", "2", False,
+            auto_mode="Generate on Change", watch_node_ids="3,4"), (False,))
 
     def test_node_change_selection_requests_the_matching_decoder_only(self):
         self.assertEqual(NodeChange.RETURN_TYPES, ("BOOLEAN",))

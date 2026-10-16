@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "renderer": "dkst-pose-3-three-180",
+  "version": 2,
+  "renderer": "dkst-pose-5-makehuman",
   "ratio": 7,
   "root": [
     0,
@@ -339,21 +339,28 @@
       1.1,
       0
     ],
-    "fov": 35,
-    "ortho": 2.8
+    "ortho": 2.8,
+    "focal_mm": 50
   },
   "appearance": {
     "background": "#232936",
-    "body": "#c7cbd2",
+    "body": "#e0e3e8",
     "transparent": false,
     "face": true,
     "floor": false,
     "light": 1.5,
     "simple_hands": false,
-    "simple_feet": false
+    "simple_feet": false,
+    "centerlines": true,
+    "contours": true,
+    "joint_markers": true,
+    "outline": true,
+    "guide_color": "#e87930",
+    "line_width": 1.4
   },
   "output": {
     "width": 768,
     "height": 1024
-  }
+  },
+  "objects": []
 }

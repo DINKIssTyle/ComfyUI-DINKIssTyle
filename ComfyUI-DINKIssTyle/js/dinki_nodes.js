@@ -1097,7 +1097,7 @@ registerNodeModeControl("DINKI.NodeSwitch", "DINKI_Node_Switch", ["node_ids", "a
 registerNodeModeControl("DINKI.NodeChange", "DINKI_Node_Change",
     ["node_ids_1", "node_ids_2", "active", "disable_mode", "group_1_label", "group_2_label"], applyNodeChange);
 registerNodeModeControl("DINKI.AutoNodeChange", "DINKI_Auto_Node_Change",
-    ["node_ids_1", "node_ids_2", "active", "disable_mode", "group_1_label", "group_2_label", "auto_mode"], applyNodeChange);
+    ["node_ids_1", "node_ids_2", "active", "disable_mode", "group_1_label", "group_2_label", "auto_mode", "watch_node_ids"], applyNodeChange);
 
 for (const count of [3, 4]) {
     const numbers = Array.from({ length: count }, (_, index) => index + 1);
@@ -1118,7 +1118,7 @@ for (const count of [3, 4]) {
 function autoNodeChangeBindings(root) {
     const bindings = new Map();
     const visiting = new Set();
-    const names = ["node_ids_1", "node_ids_2", "active", "disable_mode", "group_1_label", "group_2_label", "auto_mode"];
+    const names = ["node_ids_1", "node_ids_2", "active", "disable_mode", "group_1_label", "group_2_label", "auto_mode", "watch_node_ids"];
     const visit = (graph, overrides = new Map(), writers = new Map(), path = []) => {
         if (!graph || visiting.has(graph)) return;
         visiting.add(graph);
@@ -1128,7 +1128,7 @@ function autoNodeChangeBindings(root) {
             const sources = writers.get(node) ?? {};
             const id = [...path, String(node.id)].join(":");
             if (node.comfyClass === "DINKI_Auto_Node_Change") {
-                bindings.set(id, { node, graph, sources,
+                bindings.set(id, { node, graph, sources, overrides,
                     values: Object.fromEntries(names.map(name => [name, values[name] ?? getWidget(node, name)?.value])) });
             }
             if (node.subgraph) {
@@ -1146,6 +1146,75 @@ function autoNodeChangeBindings(root) {
     return bindings;
 }
 
+// Inspect settings even when a watched producer is muted and absent from the API
+// prompt. Never include geometry, labels or modes changed by this controller.
+function autoNodeChangeSignature(binding) {
+    const ids = [...new Set(String(binding.values.watch_node_ids ?? "").split(",")
+        .map(id => id.trim()).filter(Boolean))].sort();
+    if (!ids.length) return null;
+    const visiting = new Set();
+    const snapshot = (node, graph, values = {}) => {
+        if (visiting.has(node) || node === binding.node) throw new Error("Invalid watch target");
+        visiting.add(node);
+        const widgets = (node.widgets ?? [])
+            .filter(widget => widget.options?.serialize !== false && widget.type !== "button")
+            .map(widget => [widget.name, values[widget.name] ?? widget.value]);
+        const inputs = (node.inputs ?? []).map(input => {
+            const link = input.link == null ? null
+                : graph.getLink?.(input.link) ?? graph.links?.get?.(input.link) ?? graph.links?.[input.link];
+            return [input.name, input.type, link
+                ? [link.origin_id ?? link[1], link.origin_slot ?? link[2]] : input.link ?? null];
+        });
+        let children;
+        if (node.subgraph) {
+            const overrides = nodeModePromotedValues(node, values);
+            children = (node.subgraph.nodes ?? node.subgraph._nodes ?? [])
+                .map(child => snapshot(child, node.subgraph, overrides.get(child)))
+                .sort((left, right) => left[0].localeCompare(right[0]));
+        }
+        visiting.delete(node);
+        return [String(node.id), node.comfyClass ?? node.type, widgets, inputs, children];
+    };
+    try {
+        const nodes = binding.graph.nodes ?? binding.graph._nodes ?? [];
+        const watched = ids.map(id => {
+            const target = nodes.find(node => String(node.id) === id);
+            if (!target) throw new Error("Missing watch target");
+            return snapshot(target, binding.graph, binding.overrides.get(target));
+        });
+        // Group membership or disable mode changes also require a fresh run.
+        return JSON.stringify([binding.values.node_ids_1, binding.values.node_ids_2,
+            binding.values.disable_mode, watched]);
+    } catch {
+        // Unknown/cyclic settings must never silently suppress generation.
+        return null;
+    }
+}
+
+function setAutoNodeChangeActive(binding, active, root) {
+    const writers = [...(binding.sources.active ?? []),
+        { node: binding.node, widget: getWidget(binding.node, "active") }];
+    const changed = new Map();
+    // Commit all promoted owners before callbacks read their effective values.
+    for (const owner of writers) {
+        if (!owner.widget || changed.has(owner.widget)) continue;
+        if (owner.widget.value !== active) {
+            owner.widget.value = active;
+            changed.set(owner.widget, owner.node);
+        }
+    }
+    for (const [widget, node] of changed) {
+        widget.callback?.call(widget, active);
+        node.onWidgetChanged?.(widget.name, active);
+    }
+    applyNodeChange(binding.node, "active", active, binding.values);
+    if (changed.size) {
+        binding.graph.change?.();
+        if (root !== binding.graph) root.change?.();
+        root.setDirtyCanvas?.(true, true);
+    }
+}
+
 function installAutoNodeChanges(app, api) {
     const exports = new WeakMap();
     const jobs = new Map();
@@ -1153,6 +1222,7 @@ function installAutoNodeChanges(app, api) {
     const ended = new Set();
     const pending = new WeakMap();
     const listeners = [];
+    let successful = new WeakMap();
     const graphToPrompt = app.graphToPrompt;
     const queuePrompt = api.queuePrompt;
     let generation = 0;
@@ -1189,27 +1259,13 @@ function installAutoNodeChanges(app, api) {
             if (entry.overlap || now?.node !== entry.node || now.graph !== entry.graph ||
                 now.values.active !== entry.active ||
                 (now.values.auto_mode ?? "After run: Group 2") !== entry.autoMode) continue;
-            const active = entry.autoMode === "After run: Group 2" ? false : !entry.active;
-            const writers = [...(now.sources.active ?? []), { node: now.node, widget: getWidget(now.node, "active") }];
-            // Commit every owning widget first, before any callback reads them.
-            const changed = new Map();
-            for (const owner of writers) {
-                if (!owner.widget || changed.has(owner.widget)) continue;
-                if (owner.widget.value !== active) {
-                    owner.widget.value = active;
-                    changed.set(owner.widget, owner.node);
-                }
+            if (entry.autoMode === "Generate on Change") {
+                if (entry.signature === null || autoNodeChangeSignature(now) !== entry.signature) continue;
+                if (entry.active) successful.set(entry.node,
+                    { root: job.root, graph: entry.graph, signature: entry.signature });
             }
-            for (const [widget, node] of changed) {
-                widget.callback?.call(widget, active);
-                node.onWidgetChanged?.(widget.name, active);
-            }
-            applyNodeChange(now.node, "active", active, now.values);
-            if (changed.size) {
-                now.graph.change?.();
-                if (job.root !== now.graph) job.root.change?.();
-                job.root.setDirtyCanvas?.(true, true);
-            }
+            const active = entry.autoMode === "After run: Toggle 1 / 2" ? !entry.active : false;
+            setAutoNodeChangeActive(now, active, job.root);
         }
     };
     for (const name of ["execution_success", "execution_error", "execution_interrupted"]) {
@@ -1220,6 +1276,18 @@ function installAutoNodeChanges(app, api) {
     const wrappedExport = async function (...args) {
         const root = args[0] ?? app.rootGraph ?? app.graph;
         let bindings = disposed || app.configuringGraph ? new Map() : autoNodeChangeBindings(root);
+        const signatures = new Map();
+        for (const [id, binding] of bindings) {
+            if (binding.values.auto_mode !== "Generate on Change") continue;
+            const signature = autoNodeChangeSignature(binding);
+            signatures.set(id, signature);
+            const previous = successful.get(binding.node);
+            const changed = signature === null || previous?.root !== root ||
+                previous.graph !== binding.graph || previous.signature !== signature;
+            // Selecting Group 1 manually forces a refresh even for unchanged settings.
+            setAutoNodeChangeActive(binding, changed || binding.values.active === true, root);
+        }
+        bindings = disposed || app.configuringGraph ? new Map() : autoNodeChangeBindings(root);
         // Modes must be synchronized BEFORE the frontend builds the API prompt.
         for (const { node, values } of bindings.values()) applyNodeChange(node, undefined, undefined, values);
         bindings = disposed || app.configuringGraph ? new Map() : autoNodeChangeBindings(root);
@@ -1232,8 +1300,9 @@ function installAutoNodeChanges(app, api) {
                 const autoMode = input?.inputs?.auto_mode ?? binding.values.auto_mode ?? "After run: Group 2";
                 const active = input?.inputs?.active ?? binding.values.active;
                 if (input?.class_type !== "DINKI_Auto_Node_Change" || typeof active !== "boolean" ||
-                    !["After run: Group 2", "After run: Toggle 1 / 2"].includes(autoMode)) continue;
-                entries.push({ id, node: binding.node, graph: binding.graph, active, autoMode, overlap: false });
+                    !["After run: Group 2", "After run: Toggle 1 / 2", "Generate on Change"].includes(autoMode)) continue;
+                entries.push({ id, node: binding.node, graph: binding.graph, active, autoMode,
+                    signature: signatures.get(id) ?? null, overlap: false });
             }
             exports.set(result, { root, generation: exportGeneration, entries });
         }
@@ -1275,7 +1344,7 @@ function installAutoNodeChanges(app, api) {
     if (typeof graphToPrompt === "function") app.graphToPrompt = wrappedExport;
     if (typeof queuePrompt === "function") api.queuePrompt = wrappedQueue;
     return {
-        invalidate() { generation++; },
+        invalidate() { generation++; successful = new WeakMap(); },
         destroy() {
             disposed = true;
             for (const [name, listener] of listeners) api.removeEventListener(name, listener);

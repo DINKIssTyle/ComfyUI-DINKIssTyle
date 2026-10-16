@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/makehumancommunity/makehuman",
+  "sources": {
+    "base.obj": "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c",
+    "rig.json": "99f179bce0aa850b45d4191a1d0d234c5851f881c057439470ded3bddf729a24",
+    "weights.json": "0f3641d651ae3d00ad6b4ccee43142edb109d3bd909d27d9e4139ef1beed8625"
+  },
+  "body_vertices": 13380,
+  "body_quads": 13378
+}

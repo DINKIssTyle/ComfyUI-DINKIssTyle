@@ -1,5 +1,6 @@
 import * as T from './vendor/three.module.mjs';
 import {JOINTS, limits, euler, quaternion} from './state.mjs';
+import {installSurface,updateSurface} from './surface.mjs';
 
 export const LABELS = {root:'Root',pelvis:'Pelvis',waist:'Waist',chest:'Chest',neck:'Neck',head:'Head',clavicle:'Clavicle',shoulder:'Shoulder',elbow:'Elbow',wrist:'Wrist',hip:'Hip',knee:'Knee',ankle:'Ankle',toe:'Toes',thumb:'Thumb',index:'Index',middle:'Middle',ring:'Ring',pinky:'Pinky'};
 export function label(j) {
@@ -77,7 +78,7 @@ export class Rig {
         this.resources.push(this.material,this.socketMaterial,this.jointMat,this.faceMat);
         this.p=proportions(state.ratio);const p=this.p;
         const group=(name,parent,pos,restZ=0)=>{
-            const g=new T.Group();g.name=name;
+            const g=new T.Bone();g.name=name;
             if(restZ){const bind=new T.Group();bind.position.fromArray(pos);bind.rotation.z=restZ;parent.add(bind);bind.add(g);}
             else{g.position.fromArray(pos);parent.add(g);}
             this.joints[name]=g;return g;
@@ -184,13 +185,14 @@ export class Rig {
             const mark=new T.Mesh(geometry,this.jointMat);mark.userData.joint=j;this.joints[j].add(mark);this.pickables.push(mark);this.marks.push(mark);
         }
         this.apply(state);
+        installSurface(this,state);
     }
     mesh(parent,geometry,joint,material=this.material){
         this.resources.push(geometry);const mesh=new T.Mesh(geometry,material);mesh.userData.joint=joint;parent.add(mesh);this.pickables.push(mesh);return mesh;
     }
-    form(parent,profile,joint,radial=40,samples=5){return this.mesh(parent,sculptGeometry(profile,radial,samples),joint);}
+    form(parent,profile,joint,radial=40,samples=5){const m=this.mesh(parent,sculptGeometry(profile,radial,samples),joint);m.userData.form={profile:profile.map(r=>[...r]).sort((a,b)=>a[0]-b[0])};return m;}
     ellipsoid(parent,pos,scale,joint,material=this.material){
-        const mesh=this.mesh(parent,new T.SphereGeometry(1,28,20),joint,material);mesh.position.fromArray(pos);mesh.scale.fromArray(scale);return mesh;
+        const mesh=this.mesh(parent,new T.SphereGeometry(1,28,20),joint,material);mesh.position.fromArray(pos);mesh.scale.fromArray(scale);mesh.userData.form={};return mesh;
     }
     ball(parent,radius,joint){return this.ellipsoid(parent,[0,0,0],[radius,radius,radius],joint,this.socketMaterial);}
     limb(parent,length,profile,radius,joint,radial=40){
@@ -205,22 +207,29 @@ export class Rig {
             this.feet[side].detailed.visible=!state.appearance.simple_feet;this.feet[side].simple.visible=!!state.appearance.simple_feet;
         }
         this.root.updateMatrixWorld(true);
+        updateSurface(this,state);
     }
     visiblePickables() {
         return this.pickables.filter(mesh=>{for(let o=mesh;o;o=o.parent)if(!o.visible)return false;return true;});
+    }
+    jointAt(hit){
+        const indices=this.surface.geometry.attributes.skinIndex,weights=this.surface.geometry.attributes.skinWeight,influence=new Map();
+        for(const index of [hit.face.a,hit.face.b,hit.face.c])for(let j=0;j<4;j++){const bone=indices.array[index*4+j],weight=weights.array[index*4+j];influence.set(bone,(influence.get(bone)||0)+weight);}
+        const bone=[...influence].sort((a,b)=>b[1]-a[1])[0][0];return this.surface.skeleton.bones[bone].name;
     }
     bounds() {
         this.root.updateMatrixWorld(true);const bounds=new T.Box3(),markers=new Set(this.marks);
         for(const mesh of this.visiblePickables()){
             if(markers.has(mesh))continue;
-            if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
-            bounds.union(mesh.geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld));
+            if(mesh.isSkinnedMesh){mesh.computeBoundingBox();bounds.union(mesh.boundingBox.clone().applyMatrix4(mesh.matrixWorld));}
+            else {if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();bounds.union(mesh.geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld));}
         }
         return bounds;
     }
     read(state) {
         state.root=this.root.position.toArray();
         for(const j of JOINTS) state.joints[j]=this.joints[j].quaternion.clone().normalize().toArray();
+        this.root.updateMatrixWorld(true);updateSurface(this,state);
     }
     constrain(joint) {
         const angles=euler(this.joints[joint].quaternion.toArray()), ranges=limits(joint);

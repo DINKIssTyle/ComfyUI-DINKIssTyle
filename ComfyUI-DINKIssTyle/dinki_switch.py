@@ -327,6 +327,8 @@ class DINKI_Auto_Node_Change(DINKI_Node_Change):
     DESCRIPTION = (
         "Like Node Change, with automatic selection after a successful workflow run. "
         "After run: Group 2 selects Group 2; After run: Toggle 1 / 2 alternates groups. "
+        "Generate on Change runs Group 1 when watched node settings change, then uses Group 2. "
+        "Set watch_node_ids to nodes in the same graph; actual output contents are not compared. "
         "Errors and interruptions keep the selection. Requires the ComfyUI browser to stay open. "
         "Not supported for queued/batch runs: finish one run before submitting the next. "
         "큐/배치 처리에는 사용할 수 없습니다. 한 번의 실행이 완료된 후 다음 실행을 시작하세요."
@@ -336,16 +338,19 @@ class DINKI_Auto_Node_Change(DINKI_Node_Change):
     def INPUT_TYPES(cls):
         inputs = super().INPUT_TYPES()
         inputs["optional"] = {
-            "auto_mode": (["Manual", "After run: Group 2", "After run: Toggle 1 / 2"], {
+            "auto_mode": (["Manual", "After run: Group 2", "After run: Toggle 1 / 2", "Generate on Change"], {
                 "default": "After run: Group 2", "advanced": True,
-                "tooltip": "Change selection only after successful completion. Not supported for queued/batch runs. 큐/배치 처리에는 사용할 수 없습니다. Run one workflow at a time.",
+                "tooltip": "Select the next group after success. Generate on Change selects Group 1 before execution when watched settings change, then Group 2 after success. Not supported for queued/batch runs. 큐/배치 처리에는 사용할 수 없습니다. Run one workflow at a time.",
             }),
+            "watch_node_ids": ("STRING", {"default": "", "multiline": False,
+                "dynamicPrompts": False, "advanced": True,
+                "tooltip": "Generate on Change: comma-separated node IDs in the same graph. Compare widget settings (including seeds) and input connections, not output contents. First run after loading uses Group 1. Empty or missing IDs always use Group 1."}),
         }
         return inputs
 
     def do_nothing(self, node_ids_1, node_ids_2, active, disable_mode="Bypass",
                    group_1_label="Group 1", group_2_label="Group 2",
-                   auto_mode="After run: Group 2"):
+                   auto_mode="After run: Group 2", watch_node_ids=""):
         # This run's output stays fixed; the browser updates only the next run.
         return super().do_nothing(node_ids_1, node_ids_2, active, disable_mode,
                                   group_1_label, group_2_label)

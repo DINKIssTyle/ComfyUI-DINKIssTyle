@@ -45,6 +45,12 @@ cached completion before HTTP responds, errors/cancellation, manual changes,
 workflow replacement, nested promoted controls, duplicate events and unsupported
 overlapping submissions. Confirm sequential runs with a live ComfyUI frontend;
 this node is not supported for queued/batch or API-only execution.
+Generate on Change tests also cover first-run regeneration, watched prompt/seed
+edits, multiple targets, input rewiring, ignored layout changes, failure retries,
+edits during execution, invalid targets, workflow reset and promoted source values.
+On ComfyUI, set `watch_node_ids` to source nodes in the same graph, run sequentially,
+then edit a watched widget and confirm Group 1 is exported before it returns to
+Group 2 after success. Reloading the workflow starts a fresh comparison history.
 Indexed Node Change tests cover all three/four group selections, the single 1-based
 INT output, invalid indices, partial/shared IDs, Mute/Bypass, nested promoted values,
 label changes, output-link restoration and compact sizing. Confirm the numeric

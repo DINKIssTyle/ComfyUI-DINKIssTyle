@@ -11,7 +11,7 @@ class DetailEvent extends Event {
     constructor(name, detail) { super(name); this.detail = detail; }
 }
 
-function fixture({ autoMode = TOGGLE, active = true, disableMode = 'Mute' } = {}) {
+function fixture({ autoMode = TOGGLE, active = true, disableMode = 'Mute', watchNodeIds = '' } = {}) {
     const extensions = new Map(), ticks = [], calls = [];
     let nextId = 0, queueHandler, unload;
     const api = new EventTarget();
@@ -47,7 +47,8 @@ function fixture({ autoMode = TOGGLE, active = true, disableMode = 'Mute' } = {}
     function addNode(owner = graph, id = '1', values = {}) {
         const node = { id, graph: owner, mode: 0, comfyClass: AUTO, properties: {}, outputs: [],
             widgets: Object.entries({ node_ids_1: '2', node_ids_2: '3', active, disable_mode: disableMode,
-                group_1_label: 'First', group_2_label: 'Second', auto_mode: autoMode, ...values })
+                group_1_label: 'First', group_2_label: 'Second', auto_mode: autoMode,
+                watch_node_ids: watchNodeIds, ...values })
                 .map(([name, value]) => ({ name, value })),
             addOutput(name, type) { this.outputs.push({ name, type }); }, setDirtyCanvas() {} };
         owner._nodes.push(node);
@@ -110,6 +111,193 @@ test('Group 2 mode changes once and keeps Group 2 selected', async () => {
         f.emit('execution_success', response.prompt_id);
         assert.equal(f.widget('active').value, false);
     }
+});
+
+function changeFixture(options = {}) {
+    const f = fixture({ autoMode: 'Generate on Change', watchNodeIds: '2', active: false, ...options });
+    f.targets[0].widgets = [{ name: 'prompt', value: 'A' }, { name: 'seed', value: 12 }];
+    f.setup();
+    return f;
+}
+
+test('watched settings generate once, reuse Group 2, and regenerate when prompt or seed changes', async () => {
+    const f = changeFixture();
+    for (const [index, edit, expected] of [
+        [0, () => {}, true],
+        [1, () => {}, false],
+        [2, () => { f.targets[0].widgets[0].value = 'B'; }, true],
+        [3, () => {}, false],
+        [4, () => { f.targets[0].widgets[1].value++; }, true],
+    ]) {
+        edit();
+        const response = await f.queue();
+        const prompt = f.calls[index].args[1];
+        assert.equal(prompt.output['1'].inputs.active, expected);
+        assert.equal(prompt.workflow.selection[0], expected);
+        assert.equal(!!prompt.output['2'], expected, 'modes are set before prompt export');
+        assert.equal(!!prompt.output['3'], !expected);
+        f.emit('execution_success', response.prompt_id);
+        assert.equal(f.widget('active').value, false);
+    }
+});
+
+test('watching all listed nodes ignores layout, title, mode, and nonserialized buttons', async () => {
+    const f = changeFixture({ watchNodeIds: '2, 3, 2' });
+    f.targets[1].widgets = [{ name: 'text', value: 'one' }];
+    const initial = await f.queue();
+    f.emit('execution_success', initial.prompt_id);
+    Object.assign(f.targets[0], { pos: [100, 200], size: [500, 800], title: 'Renamed' });
+    f.targets[0].widgets.push({ name: 'upload', type: 'button', value: 'new label' },
+        { name: 'preview', options: { serialize: false }, value: 'transient' });
+    f.targets[1].mode = 4;
+    const reused = await f.queue();
+    assert.equal(f.calls[1].args[1].output['1'].inputs.active, false);
+    f.emit('execution_success', reused.prompt_id);
+    f.targets[1].widgets[0].value = 'two';
+    await f.queue();
+    assert.equal(f.calls[2].args[1].output['1'].inputs.active, true);
+});
+
+test('rewiring watched input sources triggers regeneration without depending on link IDs', async () => {
+    const f = changeFixture();
+    f.targets[0].inputs = [{ name: 'image', type: 'IMAGE', link: 10 }];
+    f.graph.links = new Map([[10, { origin_id: 'source', origin_slot: 0 }]]);
+    const response = await f.queue();
+    f.emit('execution_success', response.prompt_id);
+    f.graph.links.set(11, { origin_id: 'source', origin_slot: 0 });
+    f.targets[0].inputs[0].link = 11;
+    const same = await f.queue();
+    assert.equal(f.calls[1].args[1].output['1'].inputs.active, false);
+    f.emit('execution_success', same.prompt_id);
+    f.graph.links.set(11, { origin_id: 'other', origin_slot: 0 });
+    await f.queue();
+    assert.equal(f.calls[2].args[1].output['1'].inputs.active, true);
+});
+
+test('errors, interruptions and rejected queues never mark changed settings as generated', async () => {
+    for (const failure of ['execution_error', 'execution_interrupted', 'queue']) {
+        const f = changeFixture();
+        const first = await f.queue();
+        f.emit('execution_success', first.prompt_id);
+        f.targets[0].widgets[0].value = 'changed';
+        if (failure === 'queue') {
+            f.handler(async () => { throw new Error('rejected'); });
+            await assert.rejects(f.queue(), /rejected/);
+            f.handler(undefined);
+        } else {
+            const response = await f.queue();
+            f.emit(failure, response.prompt_id);
+        }
+        // Even a manual Group 2 selection cannot consume a failed change.
+        f.widget('active').value = false;
+        const retry = await f.queue();
+        assert.equal(f.calls.at(-1).args[1].output['1'].inputs.active, true);
+        f.emit('execution_success', retry.prompt_id);
+        await f.queue();
+        assert.equal(f.calls.at(-1).args[1].output['1'].inputs.active, false);
+    }
+});
+
+test('edits during a run require another Group 1 run, and manual Group 1 forces refresh', async () => {
+    const f = changeFixture();
+    const first = await f.queue();
+    f.targets[0].widgets[0].value = 'B';
+    f.emit('execution_success', first.prompt_id);
+    assert.equal(f.widget('active').value, true);
+    const second = await f.queue();
+    f.emit('execution_success', second.prompt_id);
+    f.widget('active').value = true;
+    const forced = await f.queue();
+    assert.equal(f.calls[2].args[1].output['1'].inputs.active, true);
+    f.emit('execution_success', forced.prompt_id);
+    await f.queue();
+    assert.equal(f.calls[3].args[1].output['1'].inputs.active, false);
+});
+
+test('workflow reconfiguration resets successful settings and exporting alone never records success', async () => {
+    const f = changeFixture();
+    await f.app.graphToPrompt();
+    f.widget('active').value = false;
+    const first = await f.queue();
+    assert.equal(f.calls[0].args[1].output['1'].inputs.active, true);
+    f.emit('execution_success', first.prompt_id);
+    f.execution.afterConfigureGraph();
+    await f.queue();
+    assert.equal(f.calls[1].args[1].output['1'].inputs.active, true);
+});
+
+test('missing, empty, self and cyclic watch targets keep Group 1 available', async () => {
+    for (const ids of ['', 'missing', '1', '2, missing', '2']) {
+        const f = changeFixture({ watchNodeIds: ids });
+        if (ids === '2') {
+            const cyclic = {}; cyclic.self = cyclic;
+            f.targets[0].widgets[0].value = cyclic;
+        }
+        for (let run = 0; run < 2; run++) {
+            const response = await f.queue();
+            assert.equal(f.calls[run].args[1].output['1'].inputs.active, true);
+            f.emit('execution_success', response.prompt_id);
+            assert.equal(f.widget('active').value, true);
+        }
+    }
+});
+
+test('nested watched settings and promoted selectors use the outer owning values', async () => {
+    const f = changeFixture();
+    const host = promote(f.graph, f.targets[0], 'prompt', 'source text', 'outer A', '10');
+    const selectorHost = promote(f.graph, f.node, 'active', 'group', false, 'ignored');
+    host.widgets.push(...selectorHost.widgets);
+    host.inputs.push(...selectorHost.inputs);
+    f.app.rootGraph = f.app.graph = { _nodes: [host] };
+    host.graph = f.app.rootGraph;
+    const first = await f.queue();
+    assert.equal(f.calls[0].args[1].output['10:1'].inputs.active, true);
+    assert.equal(host.widgets[1].value, true);
+    f.emit('execution_success', first.prompt_id);
+    f.tick();
+    assert.equal(host.widgets[1].value, false);
+    const same = await f.queue();
+    assert.equal(f.calls[1].args[1].output['10:1'].inputs.active, false);
+    f.emit('execution_success', same.prompt_id);
+    host.widgets[0].value = 'outer B';
+    await f.queue();
+    assert.equal(f.calls[2].args[1].output['10:1'].inputs.active, true);
+    assert.equal(host.widgets[1].value, true);
+});
+
+test('watching a subgraph includes its inner settings while ignoring canvas node order', async () => {
+    const f = changeFixture();
+    const children = [{ id: 'child', widgets: [{ name: 'text', value: 'A' }] }, { id: 'other' }];
+    f.targets[0].subgraph = { _nodes: children };
+    const first = await f.queue();
+    f.emit('execution_success', first.prompt_id);
+    children.reverse();
+    const same = await f.queue();
+    assert.equal(f.calls[1].args[1].output['1'].inputs.active, false);
+    f.emit('execution_success', same.prompt_id);
+    children.find(n => n.id === 'child').widgets[0].value = 'B';
+    await f.queue();
+    assert.equal(f.calls[2].args[1].output['1'].inputs.active, true);
+});
+
+test('early success records changed settings but overlapping generation never consumes them', async () => {
+    const f = changeFixture();
+    f.handler(async () => { f.emit('execution_success', 'early'); return { prompt_id: 'early' }; });
+    await f.queue();
+    assert.equal(f.widget('active').value, false);
+    f.handler(undefined);
+    f.targets[0].widgets[0].value = 'B';
+    const first = await f.queue();
+    const second = await f.queue();
+    f.emit('execution_success', first.prompt_id);
+    f.emit('execution_success', second.prompt_id);
+    assert.equal(f.widget('active').value, true);
+    f.widget('active').value = false;
+    const retry = await f.queue();
+    assert.equal(f.calls.at(-1).args[1].output['1'].inputs.active, true);
+    f.emit('execution_success', retry.prompt_id);
+    await f.queue();
+    assert.equal(f.calls.at(-1).args[1].output['1'].inputs.active, false);
 });
 
 test('Manual mode keeps its group, labels and Boolean socket', async () => {

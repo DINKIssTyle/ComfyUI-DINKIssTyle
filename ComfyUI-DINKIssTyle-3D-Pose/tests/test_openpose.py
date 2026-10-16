@@ -56,7 +56,7 @@ def test_invalid_projection_rejected(mutation):
     with pytest.raises(ValueError):validate_pose(doc,64,80)
 
 
-def test_legacy_render_requires_browser_rebuild_and_projection_is_immutable():
+def test_missing_projection_is_rejected_and_saved_projection_is_immutable():
     ref=artifact()
     with pytest.raises(ValueError,match="missing"):OpenPoseImage().render(ref)
     old_path=artifact_path(ref["render_id"]).with_suffix(".json")
