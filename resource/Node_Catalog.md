@@ -2,7 +2,7 @@
 
 [Home](../README.md)
 
-71 nodes across 9 categories. Display names use `DKST Category (Function)`.
+72 nodes across 9 categories. Display names use `DKST Category (Function)`.
 Internal node IDs are unchanged for workflow compatibility. `DINKIssTyle/Utils` is now `DINKIssTyle/Util`.
 
 Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · [LM Studio](DINKI_LM_Studio_Assistant.md) · [Processing](DINKI_PS.md) · [Prompts and Text](DINKI_Prompt_and_String.md) · [Utilities](DINKI_Node_Utils.md) · [Video and Player](DINKI_Video_Tools.md). [System Monitor](DKST_System_Monitor.md) is a frontend feature and does not register a workflow node.
@@ -56,6 +56,7 @@ Details: [Color](DINKI_Color_Nodes.md) · [Image and Base64](DINKI_Image.md) · 
 | `DINKIssTyle/Util` | DKST Util (Auto Focus) | `DINKI_Auto_Focus` |
 | `DINKIssTyle/Util` | DKST Util (Auto Node Change) | `DINKI_Auto_Node_Change` |
 | `DINKIssTyle/Util` | DKST Util (Execution Report) | `DINKI_Execution_Report` |
+| `DINKIssTyle/Util` | DKST Util (Fit Node) | `DINKI_Fit_Node` |
 | `DINKIssTyle/Util` | DKST Util (Base64 Input) | `DINKI_Base64Input` |
 | `DINKIssTyle/Util` | DKST Util (Base64 Viewer) | `DINKI_Base64Viewer` |
 | `DINKIssTyle/Util` | DKST Util (Cross Switch) | `DINKI_CrossOutputSwitch` |

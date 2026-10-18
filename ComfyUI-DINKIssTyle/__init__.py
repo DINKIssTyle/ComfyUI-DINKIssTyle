@@ -14,7 +14,7 @@ NODE_MODULES = (
     ('dinki_viewer', ('DINKI_Video_Player', 'DINKI_Video_Viewer')),
     ('dinki_video_combine', ('DINKI_Video_Combine',)),
     ('dinki_switch', ('DINKI_IfElseBranch', 'DINKI_IfElseImageSwitch', 'DINKI_IfElseSwitch', 'DINKI_Node_Switch', 'DINKI_Node_Change', 'DINKI_Node_Change_3', 'DINKI_Node_Change_4', 'DINKI_Auto_Node_Change', 'DINKI_String_Switch_RT')),
-    ('dinki_tool', ('DINKI_Arrange', 'DINKI_Workflow_Lock', 'DINKI_Note', 'DINKI_Node_Check', 'DINKI_Anchor', 'DINKI_Auto_Focus')),
+    ('dinki_tool', ('DINKI_Arrange', 'DINKI_Workflow_Lock', 'DINKI_Note', 'DINKI_Node_Check', 'DINKI_Anchor', 'DINKI_Fit_Node', 'DINKI_Auto_Focus')),
     ('dinki_lmstudio', ('DINKI_LMStudio',)),
     ('dinki_batchImages', ('DINKI_BatchImages',)),
     ('dinki_image_size', ('DINKI_GetImageSize',)),
@@ -98,6 +98,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DINKI_Note": "DKST Util (Note)",
     "DINKI_Node_Check": "DKST Util (Node Check)",
     "DINKI_Anchor": "DKST Util (Anchor)",
+    "DINKI_Fit_Node": "DKST Util (Fit Node)",
     "DINKI_Auto_Focus": "DKST Util (Auto Focus)",
     "DINKI_Execution_Report": "DKST Util (Execution Report)",
 

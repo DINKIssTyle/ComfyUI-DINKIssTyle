@@ -2624,6 +2624,7 @@ app.registerExtension({
     setup() {
         // 전역 키다운 이벤트 리스너 추가
         window.addEventListener("keydown", (e) => {
+            if (e.defaultPrevented) return;
             // 1. 텍스트 입력 중일 때는 단축키 무시
             const activeTag = document.activeElement.tagName.toUpperCase();
             if (activeTag === "INPUT" || activeTag === "TEXTAREA") {
@@ -2649,6 +2650,121 @@ app.registerExtension({
             });
         });
     }
+});
+
+
+// Fit Node keeps the return view in memory, outside workflow serialization.
+const fitNodeSessions = new WeakMap();
+const viewportShortcutClasses = new Set(["DINKI_Fit_Node", "DINKI_Anchor", "DINKI_Auto_Focus"]);
+const shortcutKey = value => String(value ?? "").trim().toLowerCase();
+
+function resetFitNodeSession(canvas) {
+    const session = canvas && fitNodeSessions.get(canvas);
+    if (!session) return;
+    if (session.move && targetState === session.move) targetState = null;
+    fitNodeSessions.delete(canvas);
+}
+
+function fitNodeBounds(node) {
+    const titleHeight = typeof LiteGraph !== "undefined" ? LiteGraph.NODE_TITLE_HEIGHT ?? 30 : 30;
+    const box = node.getBounding?.() ?? [
+        node.pos?.[0], node.pos?.[1] - titleHeight,
+        node.flags?.collapsed ? node._collapsed_width ?? node.size?.[0] : node.size?.[0],
+        node.flags?.collapsed ? titleHeight : node.size?.[1] + titleHeight,
+    ];
+    const bounds = Array.from(box).slice(0, 4).map(Number);
+    return bounds.length === 4 && bounds.every(Number.isFinite) && bounds[2] > 0 && bounds[3] > 0
+        ? bounds : null;
+}
+
+function warnFitNodeShortcut(key) {
+    const detail = `Shortcut "${key}" is assigned to multiple DKST viewport controls. Choose a unique key for Fit Node.`;
+    if (app.extensionManager?.toast?.add) {
+        app.extensionManager.toast.add({ severity: "warn", summary: "DKST Fit Node", detail, life: 5000 });
+    } else {
+        window.alert?.(detail);
+    }
+}
+
+app.registerExtension({
+    name: "Dinki.FitNode",
+    setup() {
+        const canvas = app.canvas;
+        if (!canvas || canvas.__dinki_fit_node_attached) return;
+        canvas.__dinki_fit_node_attached = true;
+
+        // Subgraph navigation uses setGraph, including leaving and returning
+        // without pressing a shortcut in the intermediate graph.
+        const setGraph = canvas.setGraph;
+        if (typeof setGraph === "function") {
+            canvas.setGraph = function(...args) {
+                resetFitNodeSession(this);
+                return setGraph.apply(this, args);
+            };
+        }
+
+        window.addEventListener("keydown", e => {
+            const active = document.activeElement;
+            if (e.defaultPrevented || e.isComposing ||
+                active?.matches?.("input, textarea, select, [contenteditable='true']") ||
+                active?.isContentEditable) return;
+            // Plain keys only: preserve browser/system Ctrl/Cmd/Alt combinations.
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            const graph = canvas.graph || app.graph;
+            if (fitNodeSessions.get(canvas)?.graph !== graph) resetFitNodeSession(canvas);
+            if (!graph || app.configuringGraph) return;
+            const nodes = graph.nodes ?? graph._nodes ?? [];
+            const key = shortcutKey(e.key);
+            if (!key) return;
+            const matchesKey = node => shortcutKey(getWidget(node, "shortcut_key")?.value) === key;
+            const controls = nodes.filter(node =>
+                (node.comfyClass ?? node.type) === "DINKI_Fit_Node" && matchesKey(node));
+            if (!controls.length) return;
+
+            // Run before Anchor/Auto Focus's bubbling listeners. Claim a matched
+            // key even on repeats or conflicts so no second viewport action runs.
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            if (e.repeat) return;
+            const contenders = new Set(nodes.filter(node =>
+                viewportShortcutClasses.has(node.comfyClass ?? node.type) && matchesKey(node)));
+            // Anchor currently listens on app.graph rather than canvas.graph.
+            for (const node of app.graph?.nodes ?? app.graph?._nodes ?? []) {
+                if ((node.comfyClass ?? node.type) === "DINKI_Anchor" && matchesKey(node)) contenders.add(node);
+            }
+            if (contenders.size > 1) {
+                warnFitNodeShortcut(e.key);
+                return;
+            }
+
+            const control = controls[0];
+            const smoothness = Number(getWidget(control, "smoothness")?.value);
+            if (!Number.isFinite(smoothness) || smoothness <= 0) return;
+            const session = fitNodeSessions.get(canvas);
+            if (session?.control === control) {
+                const { x, y, scale } = session.view;
+                startViewportMove(canvas, x, y, scale, Math.min(1, smoothness));
+                // Keep ownership of the return animation until it ends or a
+                // graph reset cancels it; a new press starts a fresh session.
+                fitNodeSessions.set(canvas, { graph, move: targetState });
+                return;
+            }
+
+            const targetId = String(getWidget(control, "target_node_id")?.value ?? "").trim();
+            const target = targetId && nodes.find(node => String(node.id) === targetId);
+            const bounds = target && fitNodeBounds(target);
+            if (!bounds) return;
+            const scale = canvas.ds?.scale;
+            const x = canvas.ds?.offset?.[0], y = canvas.ds?.offset?.[1];
+            if (![scale, x, y].every(Number.isFinite) || scale <= 0) return;
+            const view = session?.view ?? { x, y, scale };
+            if (startSmoothMove(canvas, target, 1, Math.min(1, smoothness), true, bounds)) {
+                fitNodeSessions.set(canvas, { graph, control, view, move: targetState });
+            }
+        }, true);
+    },
+    beforeConfigureGraph() { resetFitNodeSession(app.canvas); },
+    afterConfigureGraph() { resetFitNodeSession(app.canvas); },
 });
 
 
@@ -3543,6 +3659,7 @@ app.registerExtension({
         };
 
         window.addEventListener("keydown", (e) => {
+            if (e.defaultPrevented) return;
             const active = document.activeElement;
             if (active?.matches?.("input, textarea, [contenteditable='true']") ||
                 active?.isContentEditable) return;
@@ -3630,12 +3747,14 @@ app.registerExtension({
 /**
  * 부드러운 이동을 위한 애니메이션 함수
  */
-function startSmoothMove(canvas, node, targetZoom, smoothness, fit = false) {
-    const nodeWidth = Number(node.size?.[0]);
-    const nodeHeight = Number(node.size?.[1]);
+function startSmoothMove(canvas, node, targetZoom, smoothness, fit = false, bounds = null) {
+    const nodeWidth = Number(bounds ? bounds[2] : node.size?.[0]);
+    const nodeHeight = Number(bounds ? bounds[3] : node.size?.[1]);
+    const nodeX = Number(bounds ? bounds[0] : node.pos?.[0]);
+    const nodeY = Number(bounds ? bounds[1] : node.pos?.[1]);
     const rect = canvas.canvas?.getBoundingClientRect();
     if (!rect?.width || !rect?.height || !Number.isFinite(nodeWidth) || !Number.isFinite(nodeHeight) ||
-        nodeWidth <= 0 || nodeHeight <= 0) return false;
+        nodeWidth <= 0 || nodeHeight <= 0 || !Number.isFinite(nodeX) || !Number.isFinite(nodeY)) return false;
     const visibleWidth = rect.width;
     const visibleHeight = rect.height;
     if (fit) {
@@ -3645,8 +3764,8 @@ function startSmoothMove(canvas, node, targetZoom, smoothness, fit = false) {
             visibleHeight * 0.9 / nodeHeight, maxScale);
     }
     if (!Number.isFinite(targetZoom) || targetZoom <= 0) return false;
-    const nodeCenterX = node.pos[0] + nodeWidth / 2;
-    const nodeCenterY = node.pos[1] + nodeHeight / 2;
+    const nodeCenterX = nodeX + nodeWidth / 2;
+    const nodeCenterY = nodeY + nodeHeight / 2;
 
     // Center the node at the chosen scale, leaving a 5% margin in Fit mode.
     const targetOffsetX = (visibleWidth / 2) / targetZoom - nodeCenterX;

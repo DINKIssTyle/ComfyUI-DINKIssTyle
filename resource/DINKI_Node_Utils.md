@@ -16,6 +16,41 @@ This node lets you quickly jump to any desired location using a hotkey, and also
 
 ---
 
+## DKST Util (Fit Node)
+
+Assign a shortcut to fit a specific node inside the visible canvas. Press the same
+key again to restore **both the canvas position and zoom** from before the first
+Fit. This acts immediately, without running the workflow or selecting the target.
+
+| Parameter | Description |
+| :--- | :--- |
+| **shortcut_key** | A single key, such as `f` or `F2`. Empty by default; set a unique key to activate the control. Letters are case-insensitive. |
+| **target_node_id** | One node ID in the currently displayed graph or subgraph. Use **DKST Util (Node Check)** to find it. Empty by default. |
+| **smoothness** | Movement interpolation, default `0.2`. Smaller values move more slowly; `1.0` moves directly to the destination on the next frame. |
+
+Fit uses the target's current visible bounds, including its title and collapsed
+state, with a 5% margin on each side and the canvas maximum zoom (3× if unavailable).
+Moving or resizing the target is reflected the next time it is fitted. Blank or
+unknown target IDs and invalid bounds leave the view unchanged. The return shortcut
+still works if the target is deleted after fitting.
+
+You can create several Fit Node controls with different keys. Switching from A to B
+keeps the original return view; pressing B again restores that view. Manual pan/zoom
+after fitting does not overwrite it. Pressing again during an animation redirects
+the movement back to the saved view.
+
+Typing in inputs, text areas, selectors or editable text does not activate Fit.
+Held-key repeats, text composition and Ctrl/Cmd/Alt combinations are ignored.
+If a key is shared with another Fit Node, Anchor or Auto Focus control, a warning
+appears and none of those controls acts on that key. Assign a unique key to resolve it.
+
+The return view is temporary browser state. Loading a workflow or navigating to
+another graph/subgraph clears it; saving the workflow retains only the settings.
+Unlike Auto Focus's **restore_on_deselect**, Fit Node restores the original position
+as well as the zoom.
+
+---
+
 ## DKST Util (Arrange)
 
 <div align="center"><img src="DINKI_Util_Arrange.gif" alt="" width="650"><br><br></div>

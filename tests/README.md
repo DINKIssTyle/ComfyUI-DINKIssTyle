@@ -1,5 +1,21 @@
 # Tests
 
+Fit Node shortcut navigation, exact viewport restoration and utility regressions:
+
+```sh
+python3 -m unittest discover -s tests -p test_fit_node.py
+node --test tests/dinki_fit_node.test.cjs tests/dinki_auto_focus.test.cjs tests/dinki_arrange.test.cjs tests/dinki_workflow_lock.test.cjs
+```
+
+Checks cover full visible bounds, collapsed nodes, maximum zoom, copied viewport
+snapshots, interrupted animations, multiple controls, invalid targets, input/repeat
+guards, DKST shortcut conflicts, subgraph IDs, graph changes and workflow reloads.
+Existing Auto Focus zoom-only restoration stays unchanged. On a live ComfyUI
+frontend, add **DKST Util (Fit Node)**, set a unique key and a target node ID, then
+press twice to verify Fit and full position/zoom restoration in classic and Nodes
+2.0. Also check key conflicts with Anchor/Auto Focus and navigation into/out of a
+subgraph. Return snapshots are not saved in workflow JSON.
+
 Preview Cache snapshots, producer skipping and viewer restoration:
 
 ```sh

@@ -111,6 +111,28 @@ class DINKI_Anchor:
 
 
 
+class DINKI_Fit_Node:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "shortcut_key": ("STRING", {"default": "", "multiline": False,
+                "tooltip": "Key to fit the target node; press again to restore the previous view."}),
+            "target_node_id": ("STRING", {"default": "", "multiline": False,
+                "tooltip": "Target node ID in the currently displayed graph. Use Node Check to find it."}),
+            "smoothness": ("FLOAT", {"default": 0.2, "min": 0.01, "max": 1.0,
+                "step": 0.01, "display": "slider"}),
+        }}
+
+    RETURN_TYPES = ()
+    FUNCTION = "do_nothing"
+    CATEGORY = "DINKIssTyle/Util"
+    DESCRIPTION = "Fit a target node with a shortcut; press again to restore the previous canvas position and zoom."
+
+    def do_nothing(self, shortcut_key, target_node_id, smoothness):
+        # View navigation is an immediate frontend action, without a queued run.
+        return ()
+
+
 class DINKI_Auto_Focus:
     def __init__(self):
         pass
