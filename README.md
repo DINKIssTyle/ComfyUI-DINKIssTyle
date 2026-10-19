@@ -11,6 +11,10 @@ The repository entry point loads the main node pack. Copying just the inner
 `ComfyUI-DINKIssTyle` directory into `custom_nodes` also works. CPH and VoxCPM2
 remain separate packs; install their directories separately when needed.
 
+**[Face Morph Studio](ComfyUI-DINKIssTyle-Facemorph/README.md)** is also a separate pack.
+Install `ComfyUI-DINKIssTyle-Facemorph` directly inside `custom_nodes` for automatic
+face correspondence, interactive morph mixing and original-image rendering.
+
 ComfyUI Manager reads the root `requirements.txt` and runs `install.py`.
 For a manual install, run this with **the Python that runs ComfyUI** from the
 installed pack directory (repository root or inner node directory):

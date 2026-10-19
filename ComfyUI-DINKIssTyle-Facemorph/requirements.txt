@@ -1,0 +1,6 @@
+# MediaPipe and OpenCV are managed conditionally by install.py/bootstrap.py.
+# This avoids replacing a working cv2 distribution with a second provider.
+numpy>=1.26
+Pillow>=10
+scipy>=1.11
+packaging>=20
