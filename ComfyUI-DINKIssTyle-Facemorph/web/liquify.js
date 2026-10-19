@@ -43,10 +43,20 @@ export function buildWarp(target,size,settings={}){
  add(mean([234,454]),[1.65,2.0],1+.20*get('face_width'));
  return ops.length?{origin,axis,scale,size,ops}:null;
 }
+export const HAIR_PIN=`
+uniform sampler2D protectionMask;uniform vec2 protectionSize;uniform float protectHair;
+float distanceAt(vec2 p){return texture2D(protectionMask,(clamp(p,0.,1.)*(protectionSize-1.)+.5)/protectionSize).b*max(protectionSize.x,protectionSize.y)*.25;}
+vec2 pinHair(vec2 dst,vec2 src){
+ if(protectHair<.5)return src;
+ float distance=min(min(distanceAt(dst),distanceAt(src)),min(distanceAt(mix(dst,src,.25)),min(distanceAt(mix(dst,src,.5)),distanceAt(mix(dst,src,.75)))));
+ float travel=length((src-dst)*(protectionSize-1.));
+ return mix(dst,src,smoothstep(0.,max(3.,3.*travel),distance));
+}`;
 export const WARP_FRAGMENT=`precision highp float;
 uniform sampler2D photo;uniform vec2 outputSize;uniform vec2 referenceSize;
 uniform vec2 origin;uniform vec2 axis;uniform float scale;uniform int opCount;
 uniform vec4 regions[16];uniform vec4 matrices[16];uniform vec2 shifts[16];varying vec2 vUV;
+${HAIR_PIN}
 void main(){
  vec2 uv=(vUV*outputSize-0.5)/(outputSize-1.0),down=vec2(-axis.y,axis.x);
  vec2 d=uv*(referenceSize-1.0)-origin;
@@ -60,6 +70,7 @@ void main(){
  }
  float pin=clamp(min(min(uv.x,1.-uv.x),min(uv.y,1.-uv.y))*25.,0.,1.);
  vec2 src=clamp(uv+(axis*displacement.x+down*displacement.y)*scale*pin/(referenceSize-1.),0.,1.);
+ src=pinHair(uv,src);
  vec2 sampleUV=(src*(outputSize-1.)+0.5)/outputSize;
  gl_FragColor=texture2D(photo,vec2(sampleUV.x,1.-sampleUV.y));
 }`;

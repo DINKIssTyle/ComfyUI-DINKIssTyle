@@ -13,7 +13,7 @@ class FaceMorphStudio:
     RETURN_NAMES = ('image','face_mask')
     FUNCTION = 'execute'
     CATEGORY = 'DINKIssTyle/Facemorph'
-    DESCRIPTION = 'Open Face Morph Studio. Upload 2–10 photos, edit automatic correspondence points and blend in real time. Face Liquify adjusts the completed morph. Run renders from original photos. The standalone folder must be installed in custom_nodes.'
+    DESCRIPTION = 'Open Face Morph Studio. Upload 1–10 photos, edit automatic correspondence points and blend in real time. Face Liquify also works with a single photo. Run renders from original photos. The standalone folder must be installed in custom_nodes.'
 
     def execute(self,project,output_size='Base photo',color_match=False):
         import numpy as np

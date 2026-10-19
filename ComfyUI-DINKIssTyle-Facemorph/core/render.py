@@ -9,6 +9,13 @@ def render(images, assets, base, mesh, size, color_match=False, check_cancel=Non
     tris = np.asarray(mesh['triangles'])
     output = np.empty((h,w,3),np.float32)
     mask = np.empty((h,w),np.float32)
+    context = np.empty((h,w,3),np.float32)
+    from .liquify import pin_hair
+    from .hair import distance_field
+    context_points=np.concatenate([np.asarray(assets[base]['points'])[:468],np.asarray(mesh['target'])[:468]])
+    context_lo,context_hi=context_points.min(0),context_points.max(0)
+    context_span=np.maximum(context_hi-context_lo,1e-5)
+    protection=np.floor(distance_field(masks[base][:,:,1])*255+.5)/255 if masks is not None and mesh.get('protect_base',True) and np.any(masks[base][:,:,1]>.02) else None
     # Match colors once per source, never independently per tile (avoids tile seams).
     corrections = [(np.ones(3),np.zeros(3)) for _ in images]
     if color_match:
@@ -65,6 +72,8 @@ def render(images, assets, base, mesh, size, color_match=False, check_cancel=Non
         mixed = np.zeros((th,w,3),np.float32)
         total = np.zeros((th,w),np.float32)
         uncovered = np.ones((th,w),np.float32)
+        xx,yy=np.meshgrid(np.arange(w)/max(w-1,1),np.arange(top,bottom)/max(h-1,1))
+        destination=np.stack((xx,yy),-1).astype(np.float32)
         for i,image in enumerate(images):
             if check_cancel:
                 check_cancel()
@@ -83,6 +92,15 @@ def render(images, assets, base, mesh, size, color_match=False, check_cancel=Non
                                     uv[:,:,1]*(mh-1)/max(sh-1,1),cv2.INTER_LINEAR,borderMode=cv2.BORDER_REPLICATE)
             uncovered *= 1-visibility*(weight>1e-8)
             weight *= visibility
+            if i==base:
+                mapped=uv/np.array([sw-1,sh-1],np.float32)
+                mapped=np.where(valid[:,:,None],mapped,destination)
+                outside=np.maximum(np.maximum(context_lo-destination,destination-context_hi),0)/context_span
+                fade=np.clip(np.max(outside,axis=-1)/.25,0,1)
+                influence=1-fade*fade*(3-2*fade)
+                mapped=destination+(mapped-destination)*influence[:,:,None]
+                mapped=pin_hair(destination,mapped,protection).astype(np.float32)
+                context[top:bottom]=cv2.remap(image,mapped[:,:,0]*(sw-1),mapped[:,:,1]*(sh-1),cv2.INTER_CUBIC,borderMode=cv2.BORDER_REPLICATE).astype(np.float32)/255
             gain,offset = corrections[i]
             mixed += (warped*gain+offset)*weight[:,:,None]
             total += weight
@@ -90,9 +108,13 @@ def render(images, assets, base, mesh, size, color_match=False, check_cancel=Non
         alpha *= (1-uncovered)*(total>1e-8)
         output[top:bottom] = np.clip(mixed,0,1)*alpha[:,:,None]
         mask[top:bottom] = np.clip(alpha,0,1)
-    # Liquify a premultiplied face layer before compositing the unchanged base.
+    # The backing follows the same geometry: shrinking alpha must not reveal the old jaw.
     from .liquify import apply_liquify
-    output,mask=apply_liquify(output,mask,mesh['target'],mesh.get('sizes',[size]*len(images))[base],liquify or {},check_cancel)
+    active=bool(np.any(mask>1e-8))
+    reference=mesh.get('sizes',[size]*len(images))[base]
+    output,mask=apply_liquify(output,mask,mesh['target'],reference,liquify or {},check_cancel,protection,premultiplied=True)
+    if active:
+        context,_=apply_liquify(context,None,mesh['target'],reference,liquify or {},check_cancel,protection)
     output=np.minimum(np.maximum(output,0),mask[:,:,None])
     bh,bw=images[base].shape[:2]
     for top in range(0,h,192):
@@ -104,6 +126,10 @@ def render(images, assets, base, mesh, size, color_match=False, check_cancel=Non
         if masks is not None and mesh.get('protect_base',True):
             mh,mw=masks[base].shape[:2]
             hair=cv2.remap(masks[base][:,:,1],u*(mw-1)/max(bw-1,1),v*(mh-1)/max(bh-1,1),cv2.INTER_LINEAR,borderMode=cv2.BORDER_REPLICATE)
-            output[top:bottom]*=(1-hair[:,:,None]);mask[top:bottom]*=(1-hair)
-        output[top:bottom]=np.clip(output[top:bottom]+base_image*(1-mask[top:bottom,:,None]),0,1)
+        else:
+            hair=np.zeros((bottom-top,w),np.float32)
+        backing=context[top:bottom] if active else base_image
+        composed=output[top:bottom]+backing*(1-mask[top:bottom,:,None])
+        output[top:bottom]=np.clip(composed*(1-hair[:,:,None])+base_image*hair[:,:,None],0,1)
+        mask[top:bottom]*=1-hair
     return output,mask

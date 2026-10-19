@@ -103,6 +103,16 @@ def automatic(service, asset):
     return store(service,identifier,out)
 
 
+def distance_field(hair_mask):
+    """Distance from protected hair, normalized to one quarter of the mask's longest edge."""
+    import cv2
+    quantized=np.floor(np.clip(hair_mask,0,1)*255+.5)/255
+    if not np.any(quantized>.02):
+        return np.ones_like(hair_mask,dtype=np.float32)
+    distance=cv2.distanceTransform(np.uint8(quantized<=.02),cv2.DIST_L2,cv2.DIST_MASK_PRECISE)
+    return np.clip(distance/(max(hair_mask.shape)*.25),0,1)
+
+
 def corrected(raw, points, edits):
     import cv2
     validate({},edits)
@@ -129,6 +139,7 @@ def corrected(raw, points, edits):
     sigma=edits.get('feather',1)*max(w,h)/768
     if sigma>0:
         result=cv2.GaussianBlur(result,(0,0),max(sigma,.01))
+    result[:,:,2]=distance_field(result[:,:,1])
     return np.clip(result,0,1)
 
 
@@ -139,7 +150,7 @@ def prepare(service, assets):
         for asset in assets:
             edits=asset.get('mask_edit',{});validate({},edits)
             raw_id=automatic(service,asset)
-            identifier=token(['corrected',REVISION,raw_id,asset['points'],edits])
+            identifier=token(['corrected',3,raw_id,asset['points'],edits])
             if not mask_path(service,identifier).exists():
                 store(service,identifier,corrected(read(service,raw_id),asset['points'],edits))
             mask=read(service,identifier);h,w=mask.shape[:2]

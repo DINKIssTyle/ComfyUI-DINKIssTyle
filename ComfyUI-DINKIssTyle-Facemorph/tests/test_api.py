@@ -10,6 +10,10 @@ import types
 import unittest
 from unittest.mock import patch
 import numpy as np
+try:
+    import torch
+except ImportError:
+    torch=None
 from PIL import Image
 from aiohttp import web
 from aiohttp.test_utils import TestClient,TestServer
@@ -103,6 +107,35 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
             response=await self.client.get('/dinki/facemorph/image/'+assets[0]['id']+'?crop='+bad)
             self.assertEqual(response.status,400)
 
+
+    async def test_single_photo_liquify_crop_hair_and_node_output(self):
+        try:import torch
+        except ImportError:self.skipTest('PyTorch required for IMAGE/MASK output test')
+        x,y=np.meshgrid(np.arange(80),np.arange(64))
+        pixels=np.uint8(np.stack([x*3,y*3,(x+y)*1.5],-1))
+        buffer=io.BytesIO();Image.fromarray(pixels).save(buffer,format='PNG')
+        asset=self.svc.upload(buffer.getvalue())
+        asset.update(points=json.loads((ROOT/'tests/landmarks.json').read_text()),shape=0,feature=0,regions={})
+        project={'version':1,'assets':[asset],'base':0,'hair':{'enabled':True}}
+        hair=importlib.import_module('fm_integration.core.hair')
+        raw=np.zeros((64,80,3),np.float32);raw[:,:,0]=1;raw[5:12,30:50]=[0,1,0]
+        identifier=hair.token(['single-hair']);hair.store(self.svc,identifier,raw)
+        management=types.ModuleType('comfy.model_management');management.throw_exception_if_processing_interrupted=lambda:None
+        comfy=types.ModuleType('comfy');comfy.model_management=management
+        with patch.object(hair,'automatic',return_value=identifier),patch.dict(sys.modules,{'comfy':comfy,'comfy.model_management':management}):
+            response=await self.client.post('/dinki/facemorph/prepare',json=project)
+            self.assertEqual(response.status,200,await response.text())
+            mesh=await response.json();self.assertEqual(len(mesh['aligned']),1);self.assertEqual(len(mesh['mask_ids']),1)
+            node=self.pack.nodes.FaceMorphStudio();original,mask=node.execute(json.dumps(project))
+            project['liquify']={'jawline':-81,'eyes':{'size':50}}
+            adjusted,adjusted_mask=node.execute(json.dumps(project))
+            self.assertEqual(tuple(adjusted.shape),(1,64,80,3));self.assertEqual(tuple(adjusted_mask.shape),(1,64,80))
+            self.assertGreater((original-adjusted).abs().max().item(),.005)
+            self.assertTrue(torch.isfinite(adjusted).all())
+            project['assets'][0]['crop']={'enabled':True,'margin':30}
+            mesh=self.svc.prepare(project);w,h=mesh['sizes'][0]
+            cropped,cropped_mask=node.execute(json.dumps(project))
+            self.assertEqual(tuple(cropped.shape),(1,h,w,3));self.assertEqual(tuple(cropped_mask.shape),(1,h,w))
 
     async def test_hair_mask_api_and_prepare_share_corrected_cache(self):
         import numpy as np

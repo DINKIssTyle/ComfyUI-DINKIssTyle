@@ -1,4 +1,4 @@
-"""A local inverse warp applied after the completed morph and background composite."""
+"""Local inverse warps shared by the face and its surrounding base context."""
 import math
 import numpy as np
 
@@ -86,20 +86,46 @@ def source_coordinates(uv,warp):
     return np.clip(result,0,1)
 
 
-def apply_liquify(image,mask,target,reference_size,settings=None,check_cancel=None):
+def pin_hair(destination, source, protection):
+    """Use a normalized hair-distance field to smoothly pin the displacement path."""
+    if protection is None:
+        return source
+    import cv2
+    h,w=protection.shape[:2]
+    distance=np.ones(destination.shape[:-1],np.float32)*max(h,w)*.25
+    for t in (0,.25,.5,.75,1):
+        uv=destination+(source-destination)*t
+        sampled=cv2.remap(protection,(uv[...,0]*(w-1)).astype(np.float32),
+                          (uv[...,1]*(h-1)).astype(np.float32),cv2.INTER_LINEAR,borderMode=cv2.BORDER_REPLICATE)
+        distance=np.minimum(distance,sampled*max(h,w)*.25)
+    travel=np.linalg.norm((source-destination)*[w-1,h-1],axis=-1)
+    # A halo proportional to travel prevents the pinned field from folding at a hair edge.
+    x=np.clip(distance/np.maximum(3,3*travel),0,1)
+    mobility=x*x*(3-2*x)
+    return destination+(source-destination)*mobility[...,None]
+
+
+def apply_liquify(image,mask,target,reference_size,settings=None,check_cancel=None,protection=None,premultiplied=False):
     import cv2
     warp=build_warp(target,reference_size,settings)
     if warp is None:return image,mask
     h,w=image.shape[:2]
-    output=np.empty_like(image);out_mask=np.empty_like(mask)
+    output=np.empty_like(image);out_mask=np.empty_like(mask) if mask is not None else None
     for top in range(0,h,192):
         if check_cancel:check_cancel()
         bottom=min(h,top+192)
         x,y=np.meshgrid(np.arange(w)/max(w-1,1),np.arange(top,bottom)/max(h-1,1))
-        uv=source_coordinates(np.stack((x,y),-1),warp).astype(np.float32)
+        destination=np.stack((x,y),-1)
+        uv=pin_hair(destination,source_coordinates(destination,warp),protection).astype(np.float32)
         mx,my=uv[...,0]*(w-1),uv[...,1]*(h-1)
         output[top:bottom]=cv2.remap(image,mx,my,cv2.INTER_CUBIC,borderMode=cv2.BORDER_REPLICATE)
-        out_mask[top:bottom]=cv2.remap(mask,mx,my,cv2.INTER_LINEAR,borderMode=cv2.BORDER_REPLICATE)
+        if mask is not None:
+            out_mask[top:bottom]=cv2.remap(mask,mx,my,cv2.INTER_CUBIC,borderMode=cv2.BORDER_REPLICATE)
     output[0]=image[0];output[-1]=image[-1];output[:,0]=image[:,0];output[:,-1]=image[:,-1]
-    out_mask[0]=mask[0];out_mask[-1]=mask[-1];out_mask[:,0]=mask[:,0];out_mask[:,-1]=mask[:,-1]
-    return np.clip(output,0,1),np.clip(out_mask,0,1)
+    if mask is not None:
+        out_mask[0]=mask[0];out_mask[-1]=mask[-1];out_mask[:,0]=mask[:,0];out_mask[:,-1]=mask[:,-1]
+    if premultiplied and out_mask is not None:
+        # Cubic overshoot must scale color and alpha together to avoid bright/dark edge rims.
+        factor=np.clip(out_mask,0,1)/np.maximum(out_mask,1e-8)
+        output*=factor[:,:,None]
+    return np.clip(output,0,1),np.clip(out_mask,0,1) if out_mask is not None else None

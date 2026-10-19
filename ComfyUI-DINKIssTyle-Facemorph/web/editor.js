@@ -40,7 +40,7 @@ export async function openEditor(node){
     const dialog=el('dialog',{class:'dkst-fm'});
     const style=el('style',{text:`
         .dkst-fm{box-sizing:border-box;width:min(1760px,98vw);height:92vh;max-width:none;max-height:none;padding:18px;background:#151922;color:#e7edf5;border:1px solid #435062;border-radius:14px;font:14px system-ui;}
-        .dkst-fm::backdrop{background:#0009}.dkst-fm *{box-sizing:border-box}.dkst-fm button,.dkst-fm select,.dkst-fm input[type=number]{background:#293343;color:inherit;border:1px solid #4b5b70;border-radius:6px;padding:7px;}
+        .dkst-fm::backdrop{background:#0009}.dkst-fm,.dkst-fm *{-webkit-user-select:none;user-select:none}.dkst-fm *{box-sizing:border-box}.dkst-fm input[type=number],.dkst-fm input[type=text],.dkst-fm textarea,.dkst-fm [contenteditable=true],.dkst-fm .status,.dkst-fm .popup p{-webkit-user-select:text;user-select:text}.dkst-fm button,.dkst-fm select,.dkst-fm input[type=number]{background:#293343;color:inherit;border:1px solid #4b5b70;border-radius:6px;padding:7px;}
         .dkst-fm button{cursor:pointer}.dkst-fm button:disabled{opacity:.4;cursor:wait}.dkst-fm button:hover{border-color:#69c5d1}.dkst-fm .bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
         .dkst-fm .layout{display:grid;grid-template-columns:260px minmax(0,1fr) 270px;gap:16px;height:calc(100% - 82px);min-height:200px}.dkst-fm .sidebar{overflow:auto;padding-right:5px}.dkst-fm .views{overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-content:start;min-width:0;}
         .dkst-fm canvas{display:block;width:100%;height:auto;touch-action:none;background:#080a0f}.dkst-fm .card{padding:10px;margin-bottom:10px;border:1px solid #364457;border-radius:9px}.dkst-fm .active{border-color:#72d0dc;background:#202c39;}
@@ -83,7 +83,7 @@ export async function openEditor(node){
     }
     function showHelp(){
         const panel=popup('Face Morph Studio help',
-            el('p',{text:'Drop 2–10 photos into the editor, click Add photos, or paste clipboard images with Ctrl+V / Cmd+V. Slider weights are relative and normalized automatically.'}),
+            el('p',{text:'Drop 1–10 photos into the editor, click Add photos, or paste clipboard images with Ctrl+V / Cmd+V. Use one photo for Face Liquify, or add more to morph faces. Slider weights are relative and normalized automatically.'}),
             el('p',{text:'Select Eyes or Eyebrows to adjust both sides together. Choose a Left or Right child region for individual control. Drag a correspondence point and release to update the mesh.'}),
             el('p',{text:'Photos, correspondence points, and weights are saved in the workflow. Originals are stored in ComfyUI input/DKST_Facemorph. Copy those originals too when moving a workflow to another computer.'}),
             el('p',{text:'Face Liquify adjusts the completed morph. Eye controls are paired by default; expand Individual eyes for separate adjustments. Zero leaves a control unchanged. Enabled toggles this stage for both preview and Run; Reset all restores its defaults.'}),
@@ -194,11 +194,11 @@ export async function openEditor(node){
         if(closed||ticket!==generation)return;
         sourceInfo=info;images=loaded;renderer.setImages(images);sourceDraw();if(controls)panel();
         else sidebar.querySelectorAll('.photo').forEach((thumb,i)=>thumb.src=imageUrl(state.assets[i].id,sourceInfo?.crop_bounds[i]));
-        if(state.assets.length>=2){
+        if(state.assets.length>=1){
             const prepared=await request('/prepare',state);
             if(closed||ticket!==generation)return;
             await installMasks(prepared,ticket);if(closed||ticket!==generation)return;mesh=prepared;draw();say('Ready.'+(mesh.warnings?.length?'\n'+mesh.warnings.join('\n'):''));
-        }else{preview.width=512;preview.height=512;say('Add at least 2 photos.');}
+        }else{preview.width=512;preview.height=512;say('Add a photo to start.');}
     }
     async function installMasks(prepared,ticket){
         const loaded=await Promise.all((prepared.mask_ids??[]).map(async id=>{const im=new Image();im.src=maskUrl(id);await im.decode();return im;}));
@@ -206,7 +206,7 @@ export async function openEditor(node){
     }
     async function prepareEdited(){
         const ticket=++generation;mesh=null;save();sourceDraw();
-        if(state.assets.length<2)return;
+        if(state.assets.length<1)return;
         try{const prepared=await request('/prepare',state);if(closed||ticket!==generation)return;await installMasks(prepared,ticket);if(closed||ticket!==generation)return;mesh=prepared;draw();say('Correspondence points updated.');}catch(error){say(error.message);}
     }
     function liquifyControls(){

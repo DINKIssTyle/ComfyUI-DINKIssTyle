@@ -160,9 +160,7 @@ class Service:
         from .geometry import validate_state
         from .crop import sources
         entries=state.get('assets',[])
-        # A single registered photo also needs a source preview before morphing.
-        checked={**state,'assets':entries*2} if isinstance(entries,list) and len(entries)==1 else state
-        validate_state(checked)
+        validate_state(state)
         sizes=[]
         for asset in entries:
             with Image.open(self.path(asset['id'])) as image:

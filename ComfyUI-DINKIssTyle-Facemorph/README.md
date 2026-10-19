@@ -1,6 +1,6 @@
 # DKST Face Morph Studio
 
-A standalone ComfyUI node pack for **correspondence-based shape morphing and appearance blending** across 2–10 photos.
+A standalone ComfyUI node pack for **correspondence-based shape morphing and appearance blending** across 2–10 photos, with **Face Liquify for a single photo**.
 Faces are analyzed automatically, and contour points can be corrected manually, as in traditional morphing software.
 Sliders update a live preview without using the execution queue. Run renders IMAGE and MASK outputs from original photos.
 
@@ -53,9 +53,9 @@ After updating this pack, fully stop and restart ComfyUI so the updated installe
 
 ## Usage
 
-Click the **?** button in the upper-right corner for usage and storage help. Explanatory text is hidden during editing.
+Click the **?** button in the upper-right corner for usage and storage help. Explanatory text is hidden during editing. Labels and other non-editable UI text do not select during dragging; input values, status/error messages, and help paragraphs remain selectable.
 
-1. Click **Add photos**, drag and drop, or paste clipboard images with **Ctrl+V / Cmd+V** while the editor is open. The total limit is 10 photos. Clipboard images use the same upload and automatic face analysis as files; text paste in inputs is unchanged.
+1. Add **one photo** for Face Liquify, or 2–10 photos for morphing. Click **Add photos**, drag and drop, or paste clipboard images with **Ctrl+V / Cmd+V** while the editor is open. The total limit is 10 photos. Clipboard images use the same upload and automatic face analysis as files; text paste in inputs is unchanged.
 2. The largest detected face is selected by default. When a photo contains multiple faces, select its face number to change the selection.
 3. Select a base photo. Its background, hair, neck, and aspect ratio determine the output composition.
 4. Select global weights or a facial region, then adjust each photo's **Shape / Appearance and texture** weights.
@@ -122,13 +122,17 @@ source correspondence points, or mixing weights.
 - Mouth: smile, upper lip, lower lip, width, and height.
 - Face shape: forehead, chin height, jawline, and face width.
 
+A single photo supports live preview, Face Liquify, face crops, hair protection, mask correction, and IMAGE/MASK output through Run.
+There is no need to add a duplicate photo. With one source, its relative weight normalizes to 100%.
+
 Every slider ranges from -100 to 100; **0 is unchanged**. Numeric fields accept exact values.
 **Enabled** bypasses or enables this stage in both preview and Run while retaining its values.
 **Reset all** restores zero adjustments. Undo, Apply, and workflow saving include these settings.
 The adjustment centers follow the current morphed face as mixing weights change.
+Run resamples premultiplied face color and alpha with the same cubic filter and corrects alpha overshoot together, avoiding dark or bright outline rims.
 
 The browser applies the final warp in a separate WebGL pass. Run uses the same face-relative coordinate system
-and inverse deformation fields on the premultiplied face layer and its alpha, processed in strips. The base photograph stays fixed; protected base hair is composited in front.
+and inverse deformation fields on the premultiplied face layer and its alpha, processed in strips. A separate base context follows the same deformation behind the face, so shrinking its alpha does not reveal the original jaw or face outline. Protected base hair stays fixed and is composited in front.
 At zero settings, this stage is skipped entirely, preserving the previous result exactly.
 Image borders are pinned. This is an independent landmark-guided implementation, not Photoshop's proprietary algorithm;
 extreme combinations can stretch features. It does not include brush-based Liquify tools.
@@ -143,7 +147,7 @@ extreme combinations can stretch features. It does not include brush-based Liqui
 - Upload limits: 32MiB per photo and 40 megapixels after decoding. EXIF orientation is applied; originals are stored as RGB PNGs.
 - Photos: `ComfyUI/input/DKST_Facemorph/<sha256>.png`.
 - Models: `ComfyUI/models/facemorph/face_landmarker.task` and `selfie_multiclass.tflite`.
-- Mask cache: `ComfyUI/input/DKST_Facemorph/masks/<sha256>.png` (red: usable face, green: protected hair).
+- Mask cache: `ComfyUI/input/DKST_Facemorph/masks/<sha256>.png` (red: usable face, green: protected hair, blue: normalized hair distance).
 - Photo references, points, region weights, hair options, normalized mask strokes, boundary controls, and Liquify settings are saved in the workflow through the node's `project` widget.
 - When moving a workflow to another computer, also copy the referenced originals from `input/DKST_Facemorph`.
 - Removing a photo from the editor does not delete its file. Saved analysis and cached masks are reused. Masks can be regenerated from originals and workflow corrections with the installed model.
@@ -184,9 +188,13 @@ Changing correspondence bounds can rebuild the crop and mask once when a point i
 Source appearance weights are multiplied by the warped usable-face mask and normalized again over the remaining sources.
 If all sources are invalid, the base photograph remains visible. Covered landmarks have reduced shape confidence;
 this confidence adjustment is softened if necessary to prevent an otherwise valid mesh from folding.
-Liquify deforms only the blended face layer. The original base hair stays in front, and the returned MASK excludes it.
+The face layer and its base context follow the same mesh and Liquify geometry. Displacement fades smoothly with distance from protected base hair along its sampled path; the original hair is composited in front, and the returned MASK excludes it.
 Run uses the same cached masks and composition rules, with higher-quality image interpolation.
 Color match uses usable-face pixels when protection is enabled.
+
+Face contraction also adjusts nearby neck/background pixels to remove the old silhouette. Image borders remain pinned;
+protected hair pixels retain the original base photo. This uses local geometric resampling, not background synthesis.
+If no source contributes usable face pixels, the original base remains unchanged.
 
 Select a photo and click **Mask**:
 
@@ -212,7 +220,7 @@ node --test tests/test_math.cjs tests/test_liquify.cjs tests/test_crop.cjs
 ```
 
 Tests cover identity warps, normalized weights, paired and individual region overrides, legacy workflow migration, zero weights, alignment,
-mesh errors, image and mask outputs, cancellation, API validation, unsupported model rejection, final face adjustment identity/bypass, paired eyes, image and mask warping, JavaScript/Python numerical parity, source exclusion, soft validity normalization, zero-coverage fallback, fixed base hair after Liquify, mask correction replay, immutable caches, per-source crop coordinates, margin clipping, cropped masks, and cropped node output dimensions.
+mesh errors, image and mask outputs, cancellation, API validation, unsupported model rejection, final face adjustment identity/bypass, paired eyes, image and mask warping, JavaScript/Python numerical parity, source exclusion, soft validity normalization, zero-coverage fallback, fixed base hair after Liquify, mask correction replay, immutable caches, per-source crop coordinates, margin clipping, cropped masks, and cropped node output dimensions, old-outline removal after jaw/width/chin contraction, swept-path hair pinning, and monotonic distance-based edge transitions.
 `tests/landmarks.json` contains coordinates detected by MediaPipe from Matplotlib's Grace Hopper sample, without the photo itself.
 
 References: [Morpheus help](https://www.morpheussoftware.net/morpheusmorph/help/help.php),

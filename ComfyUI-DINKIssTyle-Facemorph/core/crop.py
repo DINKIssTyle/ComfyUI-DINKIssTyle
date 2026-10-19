@@ -52,12 +52,13 @@ def mask(service,identifier,bbox,size):
     import cv2
     if bbox==[0,0,*size]:
         return identifier
-    key=hair.token(['source-crop-mask',1,identifier,bbox,size])
+    key=hair.token(['source-crop-mask',3,identifier,bbox,size])
     if not hair.mask_path(service,key).exists():
         raw=hair.read(service,identifier);mh,mw=raw.shape[:2]
         left,top,right,bottom=bbox;w,h=right-left,bottom-top
         factor=min(1,768/max(w,h));cw=max(2,round(w*factor));ch=max(2,round(h*factor))
         x,y=np.meshgrid(np.linspace(left,right-1,cw),np.linspace(top,bottom-1,ch))
         sampled=cv2.remap(raw,(x*(mw-1)/(size[0]-1)).astype(np.float32),(y*(mh-1)/(size[1]-1)).astype(np.float32),cv2.INTER_LINEAR,borderMode=cv2.BORDER_REPLICATE)
+        sampled[:,:,2]=hair.distance_field(sampled[:,:,1])
         hair.store(service,key,sampled)
     return key

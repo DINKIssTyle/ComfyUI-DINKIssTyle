@@ -132,7 +132,7 @@ async def correct_mask(request):
     from .core import hair
     data=await body(request)
     asset=data['asset']
-    validate_state({'version':1,'assets':[asset,asset],'base':0})
+    validate_state({'version':1,'assets':[asset],'base':0})
     async with BUSY:
         ids,raw_ids,_=await asyncio.to_thread(hair.prepare,service(),[asset])
     return web.json_response({'mask_ids':ids,'raw_mask_ids':raw_ids})

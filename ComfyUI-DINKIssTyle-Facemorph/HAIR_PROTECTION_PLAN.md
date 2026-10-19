@@ -1,7 +1,7 @@
 # Hair protection design
 
 Status: implemented. The remaining limitations are listed under Validation scope below.
-Goal: preserve the base photo's hairstyle, bangs, neck, and background while using visible facial anatomy from the other photos.
+Goal: preserve the base hairstyle and composition while using visible facial anatomy from other photos. Local neck/background resampling around a changed face silhouette prevents double contours.
 
 ## Original leakage paths
 
@@ -22,17 +22,21 @@ Protecting the mixing mask alone would not address that final deformation.
 3. Warp each source's color and validity mask using the same correspondence mapping.
    Multiply the source's per-pixel appearance weight by its warped valid-face mask, then normalize over valid sources.
    Hair from a non-base source must have zero contribution even when it lies inside the landmark oval.
-4. Build the mixed face as a premultiplied color + alpha layer. If all sources are invalid at a pixel,
-   retain the base photo there instead of dividing by zero or filling with another source's hair.
-5. Apply Face Liquify to the completed face layer and its alpha together, before final background composition.
-   This remains a post-morph adjustment, while keeping the base background and hairstyle outside the deformation pass.
-6. Composite the adjusted face layer over the unchanged base photo. Use the base hair mask as a protected foreground layer,
+4. Build the mixed face as a premultiplied color + alpha layer, with a separate base context behind it.
+   Invalid pixels fall back to that context instead of dividing by zero or using excluded source hair.
+   If the entire face has no usable contributions, retain the original base.
+5. Warp the base context through the base-to-target mesh. Apply the same Face Liquify field to that context
+   and the completed face layer/alpha. Otherwise face contraction reveals the original jaw under the shrinking alpha.
+   Use a distance field to smoothly pin displacement near protected hair along the sampled path. The transition width grows with travel distance, preventing abrupt edge folds. Limit the morph context to a feathered neighborhood of the old/new face bounds.
+6. Composite the adjusted face over that context. Use original base hair as a protected foreground layer,
    so the base's bangs and loose strands stay in front of the new face.
    Attenuate adjusted face alpha at that protected boundary to avoid double edges.
 7. Return a face MASK that follows Liquify and excludes protected hair.
 
-Merely putting the base's original hair back on top of an already warped full image is insufficient:
-it can leave displaced hair remnants outside the original hair mask. Warping the face layer separately avoids that path.
+Merely putting original hair over an unconstrained full-image warp can leave displaced hair copies.
+The face/context split plus swept-path hair pinning avoids pulling protected hair into exposed face/background areas.
+Keeping the underlying base completely unwarped is also insufficient: its original facial outline becomes visible
+when the morphed face or Liquify alpha contracts.
 
 ## Implementation stages
 
@@ -75,7 +79,7 @@ The existing MediaPipe package supplies ImageSegmenter; startup dependencies do 
 The editor downloads missing models in its setup modal. The TFLite model is pinned by SHA-256:
 `c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0`.
 
-Masks are RGB PNGs at up to 768px on the longest full-photo edge: red is usable face, green is protected hair.
+Masks are RGB PNGs at up to 768px on the longest full-photo edge: red is usable face, green is protected hair, and blue stores distance to hair normalized by one quarter of the mask’s longest edge.
 The model itself uses 256px input, so increasing the cache size does not invent segmentation detail.
 Automatic and corrected masks have separate immutable content-derived names under `input/DKST_Facemorph/masks`.
 The workflow stores normalized brush strokes and forehead/temple/feather values, so caches can be rebuilt.
@@ -83,15 +87,16 @@ Cached head crops are tied to selected-face bounds, and each correction revision
 Only source files and model files are needed to reconstruct the result; mask cache copying is optional.
 
 Both rasterizers accumulate masked appearance weights, normalize RGB, and use the union of active source validity
-for face coverage. They Liquify premultiplied face color and alpha before adding the unchanged base.
-The base hair mask then attenuates that layer in original base coordinates. Covered shape weights use smoothed hair
+for face coverage. A separate base context follows the same mesh and Liquify field as face color/alpha,
+with hair distance sampled at five locations along the destination-to-source path. Its smooth transition spans three times the proposed travel, with a minimum of three mask pixels. The context’s morph displacement fades out within 25% of the old/new face bounding box.
+The original base hair is then overlaid in original base coordinates. Covered shape weights use smoothed hair
 confidence with a minimum confidence of 0.1; an adaptive relaxation preserves an otherwise valid triangulation.
 User-created folded geometry is still rejected.
 
 ## Validation scope
 
 Automated synthetic tests verify excluded source color, soft weight normalization, all-invalid fallback,
-fixed protected base pixels and background after Liquify, reduced shape confidence, correction replay,
+fixed protected base pixels and image borders after Liquify, old-outline removal after contraction, reduced shape confidence, correction replay,
 restore strokes, boundary tightening, cache immutability, and input validation.
 Browser checks exercise real WebGL pixel values, Mask Apply/Cancel and workflow reopen,
 and ensure weight changes do not issue prepare or render requests.

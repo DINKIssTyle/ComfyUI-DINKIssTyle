@@ -39,8 +39,8 @@ def validate_state(state):
     validate_hair(state.get('hair', {}))
     upgrade_state(state)
     assets = state.get('assets', [])
-    if not isinstance(assets,list) or not 2 <= len(assets) <= 10:
-        raise ValueError('Add between 2 and 10 photos.')
+    if not isinstance(assets,list) or not 1 <= len(assets) <= 10:
+        raise ValueError('Add between 1 and 10 photos.')
     base = state.get('base', 0)
     if isinstance(base, bool) or not isinstance(base, int) or not 0 <= base < len(assets):
         raise ValueError('Invalid base photo.')

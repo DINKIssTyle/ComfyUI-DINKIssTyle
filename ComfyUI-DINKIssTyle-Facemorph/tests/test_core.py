@@ -28,6 +28,19 @@ class GeometryTests(unittest.TestCase):
         np.testing.assert_allclose(mesh['target'],s['assets'][0]['points'],atol=1e-10)
         self.assertTrue(mesh['triangles'])
 
+    def test_single_photo_and_zero_weights_are_identity(self):
+        s=fixture();s['assets']=s['assets'][:1];s['assets'][0].update(shape=0,feature=0)
+        mesh=plan(s,[(80,64)])
+        self.assertEqual(len(mesh['aligned']),1)
+        np.testing.assert_allclose(mesh['target'],s['assets'][0]['points'],atol=1e-12)
+        np.testing.assert_array_equal(mesh['feature_weights'],np.ones((1,COUNT)))
+        image=np.random.default_rng(11).integers(0,256,(64,80,3),dtype=np.uint8)
+        result,_=render([image],s['assets'],0,mesh,(80,64))
+        np.testing.assert_allclose(result,image/255,atol=1/255)
+        for count in (0,11):
+            bad={**s,'assets':s['assets']*count}
+            with self.assertRaises(ValueError):validate_state(bad)
+
     def test_zero_weights_use_base(self):
         s=fixture()
         for a in s['assets']:
