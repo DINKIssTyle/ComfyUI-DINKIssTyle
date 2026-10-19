@@ -48,6 +48,8 @@ def validate_state(state):
         if not isinstance(asset,dict):
             raise ValueError('Invalid photo entry.')
         validate_hair({},asset.get('mask_edit',{}))
+        from .crop import validate as validate_crop
+        validate_crop(asset.get('crop',{}))
         pts = np.asarray(asset.get('points'), dtype=np.float64)
         if pts.shape != (COUNT, 2) or not np.isfinite(pts).all() or (abs(pts) > 4).any():
             raise ValueError('Invalid correspondence points.')

@@ -156,19 +156,30 @@ class Service:
             hair.prepare(self,[asset])
             return asset
 
-    def prepare(self,state):
+    def sources(self,state):
         from .geometry import validate_state
-        assets,base = validate_state(state)
-        sizes = []
-        for a in assets:
-            with Image.open(self.path(a['id'])) as image:
-                sizes.append(image.size)
-        from . import hair
+        from .crop import sources
+        entries=state.get('assets',[])
+        # A single registered photo also needs a source preview before morphing.
+        checked={**state,'assets':entries*2} if isinstance(entries,list) and len(entries)==1 else state
+        validate_state(checked)
+        sizes=[]
+        for asset in entries:
+            with Image.open(self.path(asset['id'])) as image:
+                sizes.append(list(image.size))
+        assets,boxes,cropped_sizes=sources(entries,sizes)
+        return {'source_assets':assets,'crop_bounds':boxes,'original_sizes':sizes,'sizes':cropped_sizes}
+
+    def prepare(self,state):
+        from . import hair,crop
+        source=self.sources(state)
+        assets=state['assets'];base=state.get('base',0)
         ids,raw_ids,visibility=[],[],None
         if state.get('hair',{}).get('enabled',True):
             ids,raw_ids,visibility=hair.prepare(self,assets)
-        mesh = plan(state,sizes,visibility)
-        return {**mesh,'sizes':sizes,'base':base,'mask_ids':ids,'raw_mask_ids':raw_ids,'visibility':visibility}
+            ids=[crop.mask(self,i,b,s) for i,b,s in zip(ids,source['crop_bounds'],source['original_sizes'])]
+        mesh=plan({**state,'assets':source['source_assets']},source['sizes'],visibility)
+        return {**mesh,**source,'base':base,'mask_ids':ids,'raw_mask_ids':raw_ids,'visibility':visibility}
 
 
 

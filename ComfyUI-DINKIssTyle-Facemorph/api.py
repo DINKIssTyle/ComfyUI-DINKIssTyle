@@ -102,6 +102,12 @@ async def image(request):
     def preview():
         with Image.open(path) as opened:
             image = opened.convert('RGB')
+            if request.query.get('crop'):
+                try:bounds=[int(v) for v in request.query['crop'].split(',')]
+                except ValueError:raise ValueError('Invalid source crop.')
+                if len(bounds)!=4 or not (0<=bounds[0]<bounds[2]<=image.width and 0<=bounds[1]<bounds[3]<=image.height) or min(bounds[2]-bounds[0],bounds[3]-bounds[1])<2:
+                    raise ValueError('Invalid source crop.')
+                image=image.crop(bounds)
             image.thumbnail((1024,1024))
             buffer = io.BytesIO()
             image.save(buffer,format='JPEG',quality=92)
@@ -130,3 +136,12 @@ async def correct_mask(request):
     async with BUSY:
         ids,raw_ids,_=await asyncio.to_thread(hair.prepare,service(),[asset])
     return web.json_response({'mask_ids':ids,'raw_mask_ids':raw_ids})
+
+
+@PromptServer.instance.routes.post(PREFIX+'/sources')
+@errors
+async def sources(request):
+    data=await body(request)
+    async with BUSY:
+        result=await asyncio.to_thread(service().sources,data)
+    return web.json_response(result)

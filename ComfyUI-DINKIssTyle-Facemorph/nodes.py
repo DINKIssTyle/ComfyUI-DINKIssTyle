@@ -25,7 +25,7 @@ class FaceMorphStudio:
         state = json.loads(project)
         svc = service()
         mesh = svc.prepare(state)
-        images = [svc.image(a['id']) for a in state['assets']]
+        images = [svc.image(a['id'])[b[1]:b[3],b[0]:b[2]] for a,b in zip(state['assets'],mesh['crop_bounds'])]
         base = state['base']
         h,w = images[base].shape[:2]
         edge = max(w,h) if output_size == 'Base photo' else int(output_size)
@@ -34,7 +34,7 @@ class FaceMorphStudio:
         size = (max(2,round(w*edge/max(w,h))),max(2,round(h*edge/max(w,h))))
         masks=[read_mask(svc,identifier) for identifier in mesh['mask_ids']] or None
         mesh['protect_base']=state.get('hair',{}).get('protect_base',True)
-        result,mask = render(images,state['assets'],base,mesh,size,color_match,
+        result,mask = render(images,mesh['source_assets'],base,mesh,size,color_match,
                            comfy.model_management.throw_exception_if_processing_interrupted,
                            masks=masks,liquify=state.get('liquify',{}))
         return torch.from_numpy(np.ascontiguousarray(result))[None],torch.from_numpy(np.ascontiguousarray(mask))[None]

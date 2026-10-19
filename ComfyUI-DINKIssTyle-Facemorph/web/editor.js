@@ -1,3 +1,4 @@
+import {cropPoints,originalPoint} from './crop.js';
 import {editMask} from './mask-editor.js';
 import { api } from '../../scripts/api.js';
 import { MorphRenderer } from './renderer.js';
@@ -19,8 +20,8 @@ async function request(path,data){
     const result=await response.json();if(!response.ok)throw new Error(result.error||response.statusText);return result;
 }
 const maskUrl=id=>api.apiURL(ROOT+'/mask/'+encodeURIComponent(id));
-const imageUrl=id=>api.apiURL(ROOT+'/image/'+encodeURIComponent(id));
-async function loadImage(id){const image=new Image();image.src=imageUrl(id);await image.decode();return image;}
+const imageUrl=(id,bounds)=>api.apiURL(ROOT+'/image/'+encodeURIComponent(id)+(bounds?'?crop='+bounds.join(','):''));
+async function loadImage(id,bounds){const image=new Image();image.src=imageUrl(id,bounds);await image.decode();return image;}
 function supports(asset){
     const p=asset.points,oval=CURVES[0].map(j=>p[j]);
     const center=[0,1].map(d=>oval.reduce((s,v)=>s+v[d],0)/oval.length);
@@ -33,6 +34,7 @@ export async function openEditor(node){
     try{state=JSON.parse(widget.value);}catch{throw new Error('Project JSON is invalid. Restore a saved workflow.');}
     if(state.version!==1||!Array.isArray(state.assets))throw new Error('Unsupported project format.');
     upgradeState(state);state.liquify??={};state.hair??={enabled:true,protect_base:true};widget.value=JSON.stringify(state);
+    let sourceInfo=null,cropTimer=0;
     let selected=0,region='all',mesh=null,images=[],closed=false,busy=false,raf=0,generation=0,previewEdge=640,modelReady=false,auxiliary=null;
     const undo=[],liquifyExpanded=new Map();
     const dialog=el('dialog',{class:'dkst-fm'});
@@ -44,7 +46,7 @@ export async function openEditor(node){
         .dkst-fm canvas{display:block;width:100%;height:auto;touch-action:none;background:#080a0f}.dkst-fm .card{padding:10px;margin-bottom:10px;border:1px solid #364457;border-radius:9px}.dkst-fm .active{border-color:#72d0dc;background:#202c39;}
         .dkst-fm .photo{width:58px;height:58px;object-fit:cover;border-radius:6px}.dkst-fm .small{font-size:12px;color:#aab9cc;line-height:1.5}.dkst-fm .status{white-space:pre-wrap;max-height:64px;overflow:auto;color:#a6e1e7;margin:8px 0;min-height:20px}.dkst-fm label{display:block;margin:9px 0}.dkst-fm input[type=range]{width:100%;accent-color:#77d3df}.dkst-fm .actions{margin-left:auto;display:flex;gap:9px;align-items:center}.dkst-fm .help-button{width:32px;height:32px;border-radius:50%;font-weight:700}.dkst-fm .popup{width:min(580px,86vw);max-height:78vh;overflow:auto;padding:22px;background:#1c2431;color:#e7edf5;border:1px solid #4b5b70;border-radius:12px;font:14px/1.6 system-ui}.dkst-fm .popup::backdrop{background:#0009}.dkst-fm .mask-popup{width:min(800px,90vw)}.dkst-fm .mask-popup canvas{max-height:48vh;width:auto;max-width:100%;margin:auto;cursor:crosshair}.dkst-fm .mask-popup .bar{gap:8px}.dkst-fm .mask-popup label{flex:1;font-size:12px}.dkst-fm .mask-popup [aria-pressed=true]{border-color:#77d3df;background:#1b5059}.dkst-fm .photo-actions{flex-wrap:wrap}.dkst-fm .popup p{white-space:pre-wrap}.dkst-fm .popup h3{font-size:17px}.dkst-fm h3{font-size:15px;font-weight:600;margin:0 0 10px}.dkst-fm .warn{color:#ffc77a;}
         .dkst-fm .view-pane{min-width:0}.dkst-fm .view-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:20px;height:20px}.dkst-fm .source-title{display:flex}.dkst-fm .title-label{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}.dkst-fm .title-file{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}
-        .dkst-fm .sidebar-head{position:sticky;top:0;z-index:1;background:#151922;padding-bottom:10px}.dkst-fm .sidebar-head label{margin:0 0 7px}.dkst-fm .sidebar-head select{width:100%;min-width:0}.dkst-fm .photo-header{display:flex;align-items:center;gap:7px;margin-bottom:9px;min-width:0}.dkst-fm .photo-pick{display:flex;align-items:center;gap:9px;flex:1;min-width:0;text-align:left;border:0;background:transparent;padding:0}.dkst-fm .photo-pick .photo{width:44px;height:44px;flex-shrink:0}.dkst-fm .photo-meta{min-width:0;flex:1}.dkst-fm .photo-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;line-height:20px}.dkst-fm .photo-index{display:block;font-size:11px;color:#aab9cc}.dkst-fm .remove-photo{flex:0 0 26px;width:26px;height:26px;padding:0;border:0;background:transparent;color:#aab9cc;font-size:21px;line-height:1}.dkst-fm .remove-photo:hover{background:#4c2935;color:#ffc0c0}.dkst-fm .photo-actions{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px}.dkst-fm .photo-actions button{font-size:12px;padding:5px 7px}.dkst-fm .base-badge{font-size:12px;color:#91e1da;background:#1b393e;border-radius:5px;padding:5px 7px}.dkst-fm .photo-weight{display:block;margin:8px 0}.dkst-fm .weight-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}.dkst-fm .weight-head input[type=number]{width:62px;padding:3px 5px;font-variant-numeric:tabular-nums}.dkst-fm .photo-weight input[type=range]{display:block;margin:7px 0 0}.dkst-fm .region-reset{width:100%;font-size:12px;padding:5px;margin-top:5px}
+        .dkst-fm .sidebar-head{position:sticky;top:0;z-index:1;background:#151922;padding-bottom:10px}.dkst-fm .sidebar-head label{margin:0 0 7px}.dkst-fm .sidebar-head select{width:100%;min-width:0}.dkst-fm .photo-header{display:flex;align-items:center;gap:7px;margin-bottom:9px;min-width:0}.dkst-fm .photo-pick{display:flex;align-items:center;gap:9px;flex:1;min-width:0;text-align:left;border:0;background:transparent;padding:0}.dkst-fm .photo-pick .photo{width:44px;height:44px;flex-shrink:0}.dkst-fm .photo-meta{min-width:0;flex:1}.dkst-fm .photo-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;line-height:20px}.dkst-fm .photo-index{display:block;font-size:11px;color:#aab9cc}.dkst-fm .remove-photo{flex:0 0 26px;width:26px;height:26px;padding:0;border:0;background:transparent;color:#aab9cc;font-size:21px;line-height:1}.dkst-fm .remove-photo:hover{background:#4c2935;color:#ffc0c0}.dkst-fm .photo-actions{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px}.dkst-fm .photo-actions button{font-size:12px;padding:5px 7px}.dkst-fm .base-badge{font-size:12px;color:#91e1da;background:#1b393e;border-radius:5px;padding:5px 7px}.dkst-fm .photo-weight{display:block;margin:8px 0}.dkst-fm .weight-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}.dkst-fm .weight-head input[type=number]{width:62px;padding:3px 5px;font-variant-numeric:tabular-nums}.dkst-fm .photo-weight input[type=range]{display:block;margin:7px 0 0}.dkst-fm .crop-controls{border-top:1px solid #364457;border-bottom:1px solid #364457;padding:2px 0 8px;margin:8px 0}.dkst-fm .crop-controls label{font-size:12px;margin:5px 0 8px}.dkst-fm .crop-controls input[type=number]{width:62px;padding:3px 5px}.dkst-fm .crop-controls input[type=range]{display:block;margin:7px 0 0}.dkst-fm .crop-controls input:disabled{opacity:.4}.dkst-fm .region-reset{width:100%;font-size:12px;padding:5px;margin-top:5px}
         .dkst-fm .liquify-head{position:sticky;top:0;background:#151922;z-index:1;padding-bottom:3px}.dkst-fm .liquify{scroll-padding-top:90px;overflow:auto;border-left:1px solid #364457;padding-left:14px;min-width:0}.dkst-fm .liquify details{border-top:1px solid #364457;padding:10px 0}.dkst-fm .liquify summary{cursor:pointer;font-weight:600;margin-bottom:8px}.dkst-fm .liquify .individual{margin-top:10px;font-size:12px}.dkst-fm .liquify .control{margin:10px 0}.dkst-fm .liquify .control-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.dkst-fm .liquify input[type=number]{width:62px;padding:3px 5px}.dkst-fm .liquify .individual h4{font-size:12px;color:#aab9cc;margin:12px 0 5px}.dkst-fm .liquify .bar{justify-content:space-between}
         @media(max-width:1100px){.dkst-fm .layout{grid-template-columns:210px minmax(0,1fr) 240px}.dkst-fm .views{grid-template-columns:1fr}}
         @media(max-width:760px){.dkst-fm .layout{grid-template-columns:1fr;overflow:auto}.dkst-fm .sidebar,.dkst-fm .views,.dkst-fm .liquify{overflow:visible}.dkst-fm .liquify{border-left:0;padding-left:0}}
@@ -57,7 +59,7 @@ export async function openEditor(node){
     const say=message=>{status.textContent=message;};
     const save=()=>{widget.value=JSON.stringify(state);node.setDirtyCanvas?.(true,true);};
     const remember=()=>{undo.push(JSON.stringify(state));if(undo.length>30)undo.shift();};
-    const close=()=>{if(closed)return;closed=true;generation++;cancelAnimationFrame(raf);window.removeEventListener('paste',onPaste,true);auxiliary?.close();auxiliary?.remove();renderer?.dispose();dialog.close();dialog.remove();delete node.dkstMorphClose;delete node.dkstMorphFocus;};
+    const close=()=>{if(closed)return;closed=true;generation++;clearTimeout(cropTimer);cancelAnimationFrame(raf);window.removeEventListener('paste',onPaste,true);auxiliary?.close();auxiliary?.remove();renderer?.dispose();dialog.close();dialog.remove();delete node.dkstMorphClose;delete node.dkstMorphFocus;};
     const button=(text,fn)=>el('button',{text,onclick:()=>Promise.resolve().then(fn).catch(e=>say(e.message))});
     const upload=el('input',{type:'file',accept:'image/*',multiple:true,hidden:true});
     const help=button('?',showHelp);help.className='help-button';help.title='Help';help.setAttribute('aria-label','Help');
@@ -85,6 +87,7 @@ export async function openEditor(node){
             el('p',{text:'Select Eyes or Eyebrows to adjust both sides together. Choose a Left or Right child region for individual control. Drag a correspondence point and release to update the mesh.'}),
             el('p',{text:'Photos, correspondence points, and weights are saved in the workflow. Originals are stored in ComfyUI input/DKST_Facemorph. Copy those originals too when moving a workflow to another computer.'}),
             el('p',{text:'Face Liquify adjusts the completed morph. Eye controls are paired by default; expand Individual eyes for separate adjustments. Zero leaves a control unchanged. Enabled toggles this stage for both preview and Run; Reset all restores its defaults.'}),
+            el('p',{text:'Enable Face crop on each photo to use a face-centered source. Margin adds that percentage of the detected face size on each side, following Face Crop Export. Cropping the base also changes the final composition and output size. Originals, correspondence edits, and mask strokes remain intact when toggling crop.'}),
             el('p',{text:'Hair protection excludes source hair, reduces covered shape contributions, and preserves the base hairstyle in front of the adjusted face. Open Mask on a photo to correct detection with Include face, Exclude hair, and Restore strokes. All corrections are saved in the workflow. Fine strands and heavily covered faces may require manual review.'}),
             el('p',{text:'Preview uses reduced images and linear interpolation. Click Apply to return to the workflow, then use ComfyUI Run to render from originals with high-quality interpolation. Color match applies only to Run.'}));
         panel.append(button('Done',()=>panel.close()));
@@ -158,34 +161,39 @@ export async function openEditor(node){
     }
     // Capture before graph paste handlers; remove the listener when the editor closes.
     window.addEventListener('paste',onPaste,true);
+    const sourcePoints=i=>cropPoints(state.assets[i].points,sourceInfo?.crop_bounds[i],sourceInfo?.original_sizes[i]);
     function sourceDraw(){
         if(closed)return;
         const asset=state.assets[selected],image=images[selected],ctx=source.getContext('2d');
         if(!asset||!image){sourceFile.textContent='';sourceTitle.removeAttribute('title');source.width=512;source.height=512;ctx.clearRect(0,0,512,512);return;}
         const edge=768;source.width=Math.round(edge*image.width/Math.max(image.width,image.height));source.height=Math.round(edge*image.height/Math.max(image.width,image.height));
         ctx.drawImage(image,0,0,source.width,source.height);
+        const pointsForView=sourcePoints(selected);
         const pixel=point=>[point[0]*(source.width-1),point[1]*(source.height-1)];
         CURVES.forEach(curve=>{
             ctx.strokeStyle='#69f0df';ctx.lineWidth=1;
-            ctx.beginPath();curve.forEach((j,i)=>{const [x,y]=pixel(asset.points[j]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.closePath();ctx.stroke();
+            ctx.beginPath();curve.forEach((j,i)=>{const [x,y]=pixel(pointsForView[j]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.closePath();ctx.stroke();
         });
         ctx.setLineDash([]);
         const points=new Set(CURVES.flat());
-        for(const j of points){const [x,y]=pixel(asset.points[j]);ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fillStyle='#ecfffd';ctx.fill();}
+        for(const j of points){const [x,y]=pixel(pointsForView[j]);ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fillStyle='#ecfffd';ctx.fill();}
         sourceFile.textContent=` · ${asset.name||selected+1}`;sourceTitle.title=`Edit correspondence points · ${asset.name||selected+1}`;
     }
     function draw(){
         cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{
             if(closed||!mesh)return;
-            try{const start=performance.now();renderer.draw(state,updateMesh(state,mesh),previewEdge);const elapsed=performance.now()-start;resultTitle.textContent=`Live morph preview · ${previewEdge}px · ${elapsed.toFixed(0)}ms`;if(elapsed>50)previewEdge=Math.max(384,Math.round(previewEdge*.8));}
+            try{const start=performance.now();renderer.draw({...state,assets:state.assets.map((a,i)=>({...a,points:sourcePoints(i)}))},updateMesh(state,mesh),previewEdge);const elapsed=performance.now()-start;resultTitle.textContent=`Live morph preview · ${previewEdge}px · ${elapsed.toFixed(0)}ms`;if(elapsed>50)previewEdge=Math.max(384,Math.round(previewEdge*.8));}
             catch(error){say(error.message);preview.width=preview.width;}
         });
     }
-    async function refresh(){
-        const ticket=++generation;mesh=null;
-        const loaded=await Promise.all(state.assets.map(a=>loadImage(a.id)));
+    async function refresh({controls=true}={}){
+        const ticket=++generation;mesh=null;say('Updating sources…');
+        const info=state.assets.length?await request('/sources',state):null;
         if(closed||ticket!==generation)return;
-        images=loaded;renderer.setImages(images);sourceDraw();panel();
+        const loaded=await Promise.all(state.assets.map((a,i)=>loadImage(a.id,info?.crop_bounds[i])));
+        if(closed||ticket!==generation)return;
+        sourceInfo=info;images=loaded;renderer.setImages(images);sourceDraw();if(controls)panel();
+        else sidebar.querySelectorAll('.photo').forEach((thumb,i)=>thumb.src=imageUrl(state.assets[i].id,sourceInfo?.crop_bounds[i]));
         if(state.assets.length>=2){
             const prepared=await request('/prepare',state);
             if(closed||ticket!==generation)return;
@@ -249,7 +257,7 @@ export async function openEditor(node){
         state.assets.forEach((asset,i)=>{
             const card=el('div',{class:'card'+(i===selected?' active':'')});
             const name=asset.name||`Photo ${i+1}`;
-            const thumb=el('img',{class:'photo',src:imageUrl(asset.id),alt:name});
+            const thumb=el('img',{class:'photo',src:imageUrl(asset.id,sourceInfo?.crop_bounds[i]),alt:name});
             const pick=button('',()=>{if(busy)return;selected=i;sourceDraw();panel();});
             pick.className='photo-pick';pick.title=name;pick.setAttribute('aria-label',`Select photo ${i+1}: ${name}`);
             pick.append(thumb,el('span',{class:'photo-meta'},el('span',{class:'photo-name',text:name}),el('span',{class:'photo-index',text:`Photo ${i+1}`})));
@@ -262,13 +270,35 @@ export async function openEditor(node){
             if(i===selected){const analyze=button('Reanalyze',()=>reanalyze(asset.face_index||0));analyze.title='Reanalyze photo and reset correspondence points';photoActions.append(analyze);}
             if(i===selected)photoActions.append(button('Mask',async()=>{
                 if(busy)return;
-                await editMask({asset,image:images[i],popup,button,el,request,url:maskUrl,apply:async edits=>{
+                await editMask({asset,image:await loadImage(asset.id),popup,button,el,request,url:maskUrl,apply:async edits=>{
                     const previous=asset.mask_edit;remember();asset.mask_edit=edits;
                     try{await refresh();save();}
                     catch(error){if(previous===undefined)delete asset.mask_edit;else asset.mask_edit=previous;undo.pop();await refresh().catch(()=>{});throw error;}
                 }});
             }));
             card.append(photoActions);
+            const crop=asset.crop??{enabled:false,margin:30};
+            const enabled=el('input',{type:'checkbox',checked:crop.enabled===true});enabled.setAttribute('aria-label',`Face crop for photo ${i+1}`);
+            const margin=el('input',{type:'range',min:0,max:200,step:1,value:crop.margin??30,disabled:!enabled.checked});margin.setAttribute('aria-label',`Crop margin for photo ${i+1}`);
+            const number=el('input',{type:'number',min:0,max:200,step:1,value:crop.margin??30,disabled:!enabled.checked});number.setAttribute('aria-label',`Crop margin value for photo ${i+1}`);
+            const cropControls=el('div',{class:'crop-controls'},el('label',{},enabled,document.createTextNode(' Face crop')),
+                el('div',{class:'weight-head'},el('span',{text:'Margin (%)'}),number),margin);
+            enabled.addEventListener('change',async()=>{
+                if(busy){enabled.checked=asset.crop?.enabled===true;return;}
+                clearTimeout(cropTimer);remember();asset.crop={enabled:enabled.checked,margin:Number(margin.value)};save();
+                margin.disabled=number.disabled=!enabled.checked;
+                await refresh({controls:false}).catch(e=>say(e.message));
+            });
+            const changeMargin=value=>{
+                if(busy||!enabled.checked||!Number.isFinite(value))return;
+                const v=Math.round(Math.max(0,Math.min(200,value)));asset.crop={enabled:true,margin:v};margin.value=number.value=v;save();
+                clearTimeout(cropTimer);cropTimer=setTimeout(()=>refresh({controls:false}).catch(e=>say(e.message)),180);
+            };
+            margin.addEventListener('pointerdown',remember);number.addEventListener('focus',remember);
+            margin.addEventListener('keydown',event=>{if(event.key.startsWith('Arrow'))remember();});
+            margin.addEventListener('input',()=>changeMargin(Number(margin.value)));
+            number.addEventListener('input',()=>changeMargin(number.valueAsNumber));
+            card.append(cropControls);
             for(const [key,label] of [['shape','Shape'],['feature','Appearance']]){
                 const isOverride=region!=='all'&&asset.regions?.[region]?.[key]!==undefined;
                 const value=regionValue(asset,region,key);
@@ -311,17 +341,17 @@ export async function openEditor(node){
         if(busy||!state.assets[selected])return;
         const [x,y]=coords(event),r=source.getBoundingClientRect();let best=12;
         for(const j of new Set(CURVES.flat())){
-            const p=state.assets[selected].points[j],distance=Math.hypot((p[0]-x)*r.width,(p[1]-y)*r.height);
+            const p=sourcePoints(selected)[j],distance=Math.hypot((p[0]-x)*r.width,(p[1]-y)*r.height);
             if(distance<best){best=distance;dragging=j;}
         }
         if(dragging>=0){remember();source.setPointerCapture(event.pointerId);}
     });
     source.addEventListener('pointermove',event=>{
         if(dragging<0)return;
-        state.assets[selected].points[dragging]=coords(event).map(v=>Math.max(0,Math.min(1,v)));
+        state.assets[selected].points[dragging]=originalPoint(coords(event).map(v=>Math.max(0,Math.min(1,v))),sourceInfo?.crop_bounds[selected],sourceInfo?.original_sizes[selected]).map(v=>Math.max(0,Math.min(1,v)));
         supports(state.assets[selected]);sourceDraw();
     });
-    const endDrag=()=>{if(dragging<0)return;dragging=-1;prepareEdited();};
+    const endDrag=()=>{if(dragging<0)return;dragging=-1;if(state.assets[selected].crop?.enabled){save();refresh({controls:false}).catch(e=>say(e.message));}else prepareEdited();};
     source.addEventListener('pointerup',endDrag);source.addEventListener('pointercancel',endDrag);
     try{if(await ensureModel()&&!closed)await refresh();}catch(error){say(error.message);}
 }

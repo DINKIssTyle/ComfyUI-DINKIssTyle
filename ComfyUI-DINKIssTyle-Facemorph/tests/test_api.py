@@ -86,6 +86,23 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
             adjusted,adjusted_mask=self.pack.nodes.FaceMorphStudio().execute(json.dumps(project))
         self.assertGreater((adjusted-image).abs().max().item(),.001)
         self.assertGreater((adjusted_mask-mask).abs().max().item(),.001)
+        project['assets'][0]['crop']={'enabled':True,'margin':0}
+        response=await self.client.post('/dinki/facemorph/sources',json=project)
+        self.assertEqual(response.status,200)
+        sources=await response.json();w,h=sources['sizes'][0]
+        self.assertLess(w,80);self.assertLess(h,64)
+        bounds=sources['crop_bounds'][0]
+        response=await self.client.get('/dinki/facemorph/image/'+assets[0]['id']+'?crop='+','.join(map(str,bounds)))
+        self.assertEqual(response.status,200)
+        with Image.open(io.BytesIO(await response.read())) as preview:
+            self.assertEqual(preview.size,(w,h))
+        with patch.dict(sys.modules,{'comfy':comfy,'comfy.model_management':management}):
+            cropped,cropped_mask=self.pack.nodes.FaceMorphStudio().execute(json.dumps(project))
+        self.assertEqual(tuple(cropped.shape),(1,h,w,3));self.assertEqual(tuple(cropped_mask.shape),(1,h,w))
+        for bad in ['-1,0,80,64','0,0,81,64','0,0,1,1','0,nan,20,20','0,0,20']:
+            response=await self.client.get('/dinki/facemorph/image/'+assets[0]['id']+'?crop='+bad)
+            self.assertEqual(response.status,400)
+
 
     async def test_hair_mask_api_and_prepare_share_corrected_cache(self):
         import numpy as np

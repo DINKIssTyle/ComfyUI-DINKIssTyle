@@ -88,6 +88,27 @@ The other property is preserved. Use the child's **Use paired region weights** b
 or the parent's **Link both sides to global weights** button to reset the pair and both child overrides.
 Previously saved workflows are upgraded automatically while preserving photos and facial point edits.
 
+## Per-photo face crops
+
+Each photo card has a **Face crop** checkbox and a **Margin (%)** slider with a numeric field.
+Cropping is off by default, preserving existing workflows. The default margin is 30%; the range is 0–200%.
+Margin adds that percentage of the selected face's width and height on **each side**, following Face Crop Export's
+padding convention. The window shifts inward at image edges and is clipped to the original image.
+The bounds come from this pack's existing 468 face landmarks, so no additional detector or model is required.
+The original face bounding-box aspect ratio is retained before clipping; there is no forced square crop.
+
+When enabled, the cropped photo is the source used for thumbnails, correspondence editing, live morphing,
+and Run. Cropping the **base photo** also changes the output composition, aspect ratio, and the dimensions used by
+**Base photo** output size. Other sources can use independent crop settings.
+The browser refreshes crops after a short pause while adjusting Margin; it does not use the execution queue.
+Small faces are cropped from the original **before** generating a reduced preview.
+
+Original photos, saved correspondence points, and mask strokes stay in original-photo coordinates.
+They are transformed together when cropping, including face/hair masks and frame anchors.
+The Mask editor continues to show the full original photo so its strokes remain reusable.
+Crop settings are saved in the workflow and included in Undo. Disable Face crop to return to the original source.
+Cropping enlarges the face in the working composition; it cannot recover detail missing from the original.
+
 ## Face Liquify: final face adjustments
 
 The **Face Liquify** panel sits to the right of Live morph preview. It applies a separate local deformation
@@ -187,11 +208,11 @@ Implementation details and validation scope: [Hair protection design](HAIR_PROTE
 
 ```sh
 python -m unittest discover -s tests -v
-node --test tests/test_math.cjs tests/test_liquify.cjs
+node --test tests/test_math.cjs tests/test_liquify.cjs tests/test_crop.cjs
 ```
 
 Tests cover identity warps, normalized weights, paired and individual region overrides, legacy workflow migration, zero weights, alignment,
-mesh errors, image and mask outputs, cancellation, API validation, unsupported model rejection, final face adjustment identity/bypass, paired eyes, image and mask warping, JavaScript/Python numerical parity, source exclusion, soft validity normalization, zero-coverage fallback, fixed base hair after Liquify, mask correction replay, and immutable caches.
+mesh errors, image and mask outputs, cancellation, API validation, unsupported model rejection, final face adjustment identity/bypass, paired eyes, image and mask warping, JavaScript/Python numerical parity, source exclusion, soft validity normalization, zero-coverage fallback, fixed base hair after Liquify, mask correction replay, immutable caches, per-source crop coordinates, margin clipping, cropped masks, and cropped node output dimensions.
 `tests/landmarks.json` contains coordinates detected by MediaPipe from Matplotlib's Grace Hopper sample, without the photo itself.
 
 References: [Morpheus help](https://www.morpheussoftware.net/morpheusmorph/help/help.php),
