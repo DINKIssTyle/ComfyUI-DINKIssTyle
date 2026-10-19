@@ -5,7 +5,7 @@ const { join } = require('node:path');
 const vm = require('node:vm');
 
 test('DOM preview menu uses selected batch image and blocks ordinary menu', async () => {
-    let extension, opened, copied, fetched, studioCandidate;
+    let extension, opened, copied, fetched, studioCandidate, downloaded, savedBlob;
     const blob = { type: 'image/png' };
     const elements = [];
     function createElement(tag) {
@@ -14,13 +14,16 @@ test('DOM preview menu uses selected batch image and blocks ordinary menu', asyn
             appendChild(item) { this.children.push(item); },
             replaceChildren() { this.children = []; },
             addEventListener(name, callback) { this.events[name] = callback; },
-            removeAttribute() {}, remove() {}, contains() { return false; }
+            removeAttribute() {}, remove() {}, contains() { return false; },
+            click() { downloaded = this.download; }
         };
         elements.push(el); return el;
     }
     const app = { registerExtension(ext) { if (ext.name === 'DINKI.PreviewImage.Resolution') extension = ext; } };
     vm.runInNewContext(readFileSync(join(__dirname, '../ComfyUI-DINKIssTyle/js/dinki_nodes.js'), 'utf8').replace(/^import .*;\r?\n/gm, ''), {
         app, api: { apiURL: url => url }, URLSearchParams,
+        URL: { createObjectURL(value) { savedBlob = value; return 'blob:original'; }, revokeObjectURL() {} },
+        setTimeout: callback => callback(),
         selectedImageCandidate: node => ({ descriptor: node.dkstPreviewImages[node.dkstPreviewImageIndex], index: node.dkstPreviewImageIndex }),
         openPhotoStudio: async(node, candidate) => { assert.equal(node, null); studioCandidate = candidate; },
         fetch: async(url) => { fetched = url; return { ok: true, blob: async() => blob }; },
@@ -37,7 +40,7 @@ test('DOM preview menu uses selected batch image and blocks ordinary menu', asyn
     const node = new Node(); node.onNodeCreated();
     node.onExecuted({ dkst_images: [
         { filename: 'one.png', subfolder: '', type: 'temp' },
-        { filename: 'two.png', subfolder: '', type: 'output' }
+        { filename: 'two.png', subfolder: '', type: 'output', preview: 'webp;80', channel: 'rgb' }
     ] });
     const image = elements.find(el => el.tag === 'img');
     const select = elements.find(el => el.tag === 'select');
@@ -57,10 +60,18 @@ test('DOM preview menu uses selected batch image and blocks ordinary menu', asyn
     assert.deepEqual(buttons.map(el => el.textContent), ['Open Image', 'Copy Image', 'Save Image', 'Open in Photo Studio']);
     await buttons[0].onclick();
     assert.match(opened, /two.png/);
+    for (const url of [opened, image.src]) {
+        const params = new URLSearchParams(url.split('?')[1]);
+        assert.equal(params.has('preview'), false, 'must serve original bytes, not a metadata-free preview');
+        assert.equal(params.has('channel'), false);
+    }
     await buttons[1].onclick();
     assert.match(fetched, /two.png/);
     assert.match(fetched, /type=output/);
     assert.equal(copied, blob);
+    await buttons[2].onclick();
+    assert.equal(savedBlob, blob, 'download must keep the original file blob without canvas re-encoding');
+    assert.equal(downloaded, 'two.png');
     await buttons[3].onclick();
     assert.equal(studioCandidate.descriptor.filename, 'two.png');
     assert.equal(studioCandidate.index, 1);

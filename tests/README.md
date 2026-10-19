@@ -1,5 +1,22 @@
 # Tests
 
+Image Viewer metadata, compact advanced options and original-file downloads:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_preview*.py'
+node --test tests/dinki_preview_options.test.cjs tests/dinki_preview_viewer.test.cjs tests/dinki_preview_menu.test.cjs tests/dinki_preview_cache.test.cjs
+```
+
+Checks cover UTF-8 PNG text under custom and standard metadata keys, XMP
+dc:description with Photo Tagger's namespace/packet structure, XML escaping,
+exact CR/LF and whitespace retention, 8/16bit pixel and alpha preservation,
+both save destinations, explicit-text saving with --disable-metadata,
+behavior, legacy inline-text migration, existing links, advanced-option sizing,
+workflow settings and original-file open/download URLs. On ComfyUI, connect a
+text source to `metadata_text`, enable `meta_save`, execute with PNG selected,
+then use Open Image or Save Image and inspect Description/Comment metadata.
+Check advanced expand/collapse and workflow reload in classic and Nodes 2.0.
+
 Fit Node shortcut navigation, exact viewport restoration and utility regressions:
 
 ```sh

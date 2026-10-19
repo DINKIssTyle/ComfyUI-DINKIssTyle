@@ -1,6 +1,7 @@
 import os
 import struct
 import zlib
+from xml.sax.saxutils import escape
 
 import folder_paths
 import numpy as np
@@ -16,12 +17,22 @@ class DINKI_Preview_Image:
         return {
             "required": {
                 "images": ("IMAGE",),
-                "filename_prefix": ("STRING", {"default": "DKST_Image "}),
-                "format": (["png", "exr", "avif", "webp"],),
-                "bit_depth": (["8bit", "16bit"],),
-                "input_color_space": (["sRGB"],),
+                "filename_prefix": ("STRING", {"default": "DKST_Image ", "advanced": True}),
+                "format": (["png", "exr", "avif", "webp"], {"advanced": True}),
+                "bit_depth": (["8bit", "16bit"], {"advanced": True}),
+                "input_color_space": (["sRGB"], {"advanced": True}),
                 "always_save": ("BOOLEAN", {"default": False}),
-            }
+                "meta_save": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Save the explicitly connected metadata_text in PNG files, including temporary previews. Works with --disable-metadata; no workflow or execution graph is saved. PNG only.",
+                }),
+            },
+            "optional": {
+                "metadata_text": ("STRING", {
+                    "forceInput": True,
+                    "tooltip": "Connect the final prompt STRING. With meta_save on, PNG saves XMP dc:description plus dkst_text and Description/Comment; pixels are unchanged.",
+                }),
+            },
         }
 
     RETURN_TYPES = ("IMAGE",)
@@ -29,6 +40,7 @@ class DINKI_Preview_Image:
     FUNCTION = "preview_image"
     OUTPUT_NODE = True
     CATEGORY = "DINKIssTyle/Image"
+    DESCRIPTION = "Preview images and optionally save them. Enable meta_save to embed metadata_text in PNG files."
 
     @staticmethod
     def _png_chunk(chunk_type, data):
@@ -39,8 +51,27 @@ class DINKI_Preview_Image:
             + struct.pack(">I", zlib.crc32(payload) & 0xFFFFFFFF)
         )
 
+    @staticmethod
+    def _xmp_packet(text):
+        # Match Photo Tagger's explicit x/rdf/dc prefixes and language Alt.
+        # XML normalizes literal CR/CRLF; character references preserve them.
+        description = escape(text, {"\r": "&#13;"})
+        packet = (
+            '<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>\n'
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">\n'
+            ' <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n'
+            '  <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
+            '   <dc:description><rdf:Alt><rdf:li xml:lang="x-default">'
+            f'{description}</rdf:li></rdf:Alt></dc:description>\n'
+            '  </rdf:Description>\n'
+            ' </rdf:RDF>\n'
+            '</x:xmpmeta>\n'
+            '<?xpacket end="w"?>'
+        )
+        return packet.encode("utf-8")
+
     @classmethod
-    def _write_png(cls, path, image, bit_depth):
+    def _write_png(cls, path, image, bit_depth, metadata_text=None):
         height, width, channels = image.shape
         color_type = {1: 0, 3: 2, 4: 6}.get(channels)
         if color_type is None:
@@ -62,7 +93,20 @@ class DINKI_Preview_Image:
         with open(path, "wb") as png_file:
             png_file.write(b"\x89PNG\r\n\x1a\n")
             png_file.write(cls._png_chunk(b"IHDR", header))
+            if metadata_text:
+                # Photo Tagger embeds the XMP packet immediately after IHDR.
+                xmp_data = b"XML:com.adobe.xmp\x00\x00\x00\x00\x00" + cls._xmp_packet(metadata_text)
+                png_file.write(cls._png_chunk(b"iTXt", xmp_data))
             png_file.write(cls._png_chunk(b"sRGB", b"\x00"))
+            if metadata_text:
+                # Uncompressed iTXt: keyword, flag, method, language and
+                # translated keyword, followed by the original UTF-8 text.
+                encoded_text = metadata_text.encode("utf-8")
+                # ImageIO ignores custom keys when exposing metadata to macOS
+                # apps. Also write standard fields that it recognizes.
+                for keyword in (b"dkst_text", b"Description", b"Comment"):
+                    text_data = keyword + b"\x00\x00\x00\x00\x00" + encoded_text
+                    png_file.write(cls._png_chunk(b"iTXt", text_data))
             png_file.write(cls._png_chunk(b"IDAT", zlib.compress(scanlines, 6)))
             png_file.write(cls._png_chunk(b"IEND", b""))
 
@@ -169,12 +213,13 @@ class DINKI_Preview_Image:
             ) from error
 
     @classmethod
-    def _save_image(cls, path, image, image_format, bit_depth, input_color_space):
+    def _save_image(cls, path, image, image_format, bit_depth, input_color_space,
+                    metadata_text=None):
         image = np.nan_to_num(image, nan=0.0, posinf=1.0, neginf=0.0)
         image = np.clip(image, 0.0, 1.0).astype(np.float32, copy=False)
 
         if image_format == "png":
-            cls._write_png(path, image, bit_depth)
+            cls._write_png(path, image, bit_depth, metadata_text=metadata_text)
             return
 
         if image_format == "exr":
@@ -206,7 +251,18 @@ class DINKI_Preview_Image:
         bit_depth="8bit",
         input_color_space="sRGB",
         always_save=False,
+        meta_save=False,
+        metadata_text="",
     ):
+        text_to_save = None
+        if meta_save:
+            # This is explicit user-supplied text, not ComfyUI's automatic
+            # workflow metadata. The node's own switch controls its inclusion
+            # even when the host disables automatic graph/workflow embedding.
+            if format != "png":
+                raise ValueError("meta_save currently supports PNG only. Select png or turn meta_save off.")
+            text_to_save = metadata_text
+
         height, width = int(images.shape[1]), int(images.shape[2])
         target_dir = self.output_dir if always_save else self.temp_dir
         image_type = "output" if always_save else "temp"
@@ -220,7 +276,8 @@ class DINKI_Preview_Image:
             current_counter = counter + batch_index
             saved_name = f"{filename}_{current_counter:05}_.{format}"
             saved_path = os.path.join(full_output_folder, saved_name)
-            self._save_image(saved_path, image, format, bit_depth, input_color_space)
+            self._save_image(saved_path, image, format, bit_depth, input_color_space,
+                             metadata_text=text_to_save)
 
             if format == "exr":
                 preview_folder, preview_name, preview_counter, preview_subfolder, _ = (

@@ -139,8 +139,19 @@ function clipboardMenuAction(content, action) {
     } };
 }
 
+function originalImageURL(descriptor, cacheKey) {
+    // preview/channel parameters make /view re-encode the image and strip
+    // metadata. Open, download and display the original file bytes instead.
+    const params = new URLSearchParams({
+        filename: descriptor.filename, subfolder: descriptor.subfolder ?? "",
+        type: descriptor.type ?? "output",
+    });
+    if (cacheKey !== undefined) params.set("t", cacheKey);
+    return api.apiURL(`/view?${params}`);
+}
+
 function previewImageActions(descriptor) {
-    const url = api.apiURL(`/view?${new URLSearchParams(descriptor)}`);
+    const url = originalImageURL(descriptor);
     return [
         { content: "Open Image", callback: () => window.open(url, "_blank", "noopener,noreferrer") },
         { content: "Copy Image", callback: () => copyImageToClipboard(url) },
@@ -753,7 +764,7 @@ function applyIndexedNodeChange(node, count, changedName, changedValue, values =
 // LiteGraph's advanced toggle expands to fit visible widgets, but does not
 // shrink again when they are hidden. Keep mode controls' compact size separately
 // so hidden advanced controls cannot leave a permanent empty area.
-function keepNodeModeCompactSize(node, property) {
+function keepNodeModeCompactSize(node, property, compactMinimumHeight = 90) {
     // Nodes 2.0 exposes sizes as typed array-like views, not plain Arrays.
     const validSize = size => size?.length === 2 &&
         Number.isFinite(size[0]) && size[0] > 0 &&
@@ -764,8 +775,10 @@ function keepNodeModeCompactSize(node, property) {
             const size = computeSize.apply(this, arguments);
             // Nodes 2.0's minimum includes the hidden advanced widgets
             // even when this control is collapsed. The visible row and footer
-            // need only 90 graph units (plus the frontend's title height).
-            if (!this.showAdvanced && validSize(size)) return [size[0], Math.min(size[1], 90)];
+            // need only a compact minimum; viewers also reserve image space.
+            if (!this.showAdvanced && validSize(size)) {
+                return [size[0], Math.min(size[1], compactMinimumHeight)];
+            }
             return size;
         };
     }
@@ -2772,6 +2785,45 @@ app.registerExtension({
 // 13. DKST Image (Viewer) resolution overlay
 // ============================================================
 const previewImageClasses = new Set(["DINKI_Preview_Image", "DINKI_Preview_Image_Cache"]);
+const previewAdvancedWidgets = ["filename_prefix", "format", "bit_depth", "input_color_space"];
+
+function setPreviewWidgetOptions(widget, changes) {
+    // Store-backed widgets may expose getter-only options. Update that object
+    // and also replace it when a setter is available to notify Nodes 2.0.
+    if (widget.options && typeof widget.options === "object") Object.assign(widget.options, changes);
+    try { widget.options = { ...widget.options, ...changes }; } catch {}
+}
+
+function migrateViewerMetadata(node) {
+    const text = node.properties?.dkstLegacyMetadataText;
+    if (typeof text !== "string" || !text || !node.graph) return;
+    const index = node.inputs?.findIndex(input => input.name === "metadata_text") ?? -1;
+    if (index < 0) return;
+    if (node.inputs[index].link != null) {
+        delete node.properties.dkstLegacyMetadataText;
+        return;
+    }
+    // Preserve old inline text in a separate editable source. Keep the pending
+    // property if the text node is unavailable so a saved workflow loses no text.
+    const source = globalThis.LiteGraph?.createNode?.("DINKI_Text_Multiline");
+    const widget = source?.widgets?.find(widget => widget.name === "text");
+    if (!widget) return;
+    widget.value = text;
+    setPreviewWidgetOptions(widget, { dynamicPrompts: false });
+    source.properties ??= {};
+    source.properties.dkstLiteralMetadata = true;
+    source.title = "Image metadata text";
+    source.pos = [(node.pos?.[0] ?? 0) - (source.size?.[0] ?? 300) - 60, node.pos?.[1] ?? 0];
+    node.graph.add(source);
+    source.connect(0, node, index);
+    if (node.inputs[index].link == null) {
+        node.graph.remove?.(source);
+        return;
+    }
+    delete node.properties.dkstLegacyMetadataText;
+    node.graph.change?.();
+    node.setDirtyCanvas?.(true, true);
+}
 
 function visitPreviewNodes(callback) {
     const visited = new Set();
@@ -2826,11 +2878,24 @@ app.registerExtension({
         // without replaying onExecuted. These outputs belong to the active graph.
         if (!app.configuringGraph) visitPreviewNodes(node => node.dkstSyncPreview?.(false, true));
     },
+    afterConfigureGraph() {
+        visitPreviewNodes(node => node.dkstMigrateMetadata?.());
+    },
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (!previewImageClasses.has(nodeData.name)) return;
         const created = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function() {
             const result = created?.apply(this, arguments);
+            const isViewer = nodeData.name === "DINKI_Preview_Image";
+            if (isViewer) {
+                for (const name of previewAdvancedWidgets) {
+                    const control = getWidget(this, name);
+                    if (!control) continue;
+                    control.advanced = true;
+                    setPreviewWidgetOptions(control, { advanced: true });
+                }
+                this.dkstMigrateMetadata = () => migrateViewerMetadata(this);
+            }
             const container = document.createElement("div");
             Object.assign(container.style, {
                 width: "100%", height: "100%", minHeight: "0", display: "flex",
@@ -2855,6 +2920,14 @@ app.registerExtension({
             });
             widget.serialize = false;
             widget.options.serialize = false;
+            const sizing = isViewer
+                ? keepNodeModeCompactSize(this, "dkstViewerCompactSize", 280) : null;
+            const serialized = this.onSerialize;
+            this.onSerialize = function(info) {
+                const result = serialized?.apply(this, arguments);
+                sizing?.serialize(info);
+                return result;
+            };
             let descriptors = [];
             let previewGeneration = 0;
             let lastOutput;
@@ -2864,7 +2937,7 @@ app.registerExtension({
             this.getExtraMenuOptions = function(canvas, options) {
                 const result = extraMenu?.apply(this, arguments);
                 if (selected()) options.push(clipboardMenuAction("Copy Image", () =>
-                    copyImageToClipboard(api.apiURL(`/view?${new URLSearchParams(selected())}`))));
+                    copyImageToClipboard(originalImageURL(selected()))));
                 return result;
             };
             const display = () => {
@@ -2888,9 +2961,7 @@ app.registerExtension({
                     resolution.textContent = "Unable to preview image";
                     this.setDirtyCanvas(true, true);
                 };
-                image.src = api.apiURL(`/view?${new URLSearchParams({
-                    ...item, t: `${Date.now()}-${generation}`,
-                })}`);
+                image.src = originalImageURL(item, `${Date.now()}-${generation}`);
                 image.style.display = "block";
             };
             selector.onchange = () => {
@@ -2967,6 +3038,7 @@ app.registerExtension({
             };
             const draw = this.onDrawBackground;
             this.onDrawBackground = function() {
+                sizing?.sync();
                 this.dkstSyncPreview?.();
                 return draw?.apply(this, arguments);
             };
@@ -2982,10 +3054,35 @@ app.registerExtension({
                 return remove?.apply(this, arguments);
             };
             const configured = this.onConfigure;
-            this.onConfigure = function() {
-                const configuredResult = configured?.apply(this, arguments);
+            this.onConfigure = function(info, ...rest) {
+                let config = info;
+                if (isViewer) {
+                    const legacyText = info?.widgets_values?.[6];
+                    if (typeof legacyText === "string") {
+                        config = { ...info, widgets_values: info.widgets_values.slice(0, 6) };
+                        if (legacyText) {
+                            this.properties ??= {};
+                            this.properties.dkstLegacyMetadataText = legacyText;
+                            config.properties = { ...info.properties, dkstLegacyMetadataText: legacyText };
+                        }
+                        if (!this.showAdvanced && info.size?.length === 2) {
+                            config.size = [info.size[0], 280];
+                        }
+                    }
+                }
+                const configuredResult = configured?.call(this, config, ...rest);
+                // Old converted text inputs may retain a widget marker. The
+                // new socket must export its real source link instead.
+                if (isViewer) {
+                    const input = this.inputs?.find(input => input.name === "metadata_text");
+                    if (input?.widget) delete input.widget;
+                    sizing?.configure(config);
+                }
                 lastOutput = previewNodeOutput(this);
-                queueMicrotask(() => this.dkstRestorePreview?.());
+                queueMicrotask(() => {
+                    this.dkstRestorePreview?.();
+                    if (!app.configuringGraph) this.dkstMigrateMetadata?.();
+                });
                 return configuredResult;
             };
             return result;
@@ -3000,6 +3097,10 @@ app.registerExtension({
         };
     },
     loadedGraphNode(node) {
+        if (node.comfyClass === "DINKI_Text_Multiline" && node.properties?.dkstLiteralMetadata) {
+            const text = getWidget(node, "text");
+            if (text) setPreviewWidgetOptions(text, { dynamicPrompts: false });
+        }
         if (previewImageClasses.has(node.comfyClass)) {
             node.dkstRestorePreview?.();
         }
