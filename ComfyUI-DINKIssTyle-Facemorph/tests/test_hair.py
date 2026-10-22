@@ -26,6 +26,83 @@ def fixture():
 
 
 class HairTests(unittest.TestCase):
+    def test_guided_confidence_follows_photo_edges(self):
+        import cv2
+        guide=np.zeros((64,96,3),np.float32);guide[:,48:]=[.8,.6,.4]
+        truth=np.zeros((64,96),np.float32);truth[:,:48]=1
+        coarse=cv2.GaussianBlur(truth,(0,0),6)
+        refined=hair.guided_mask(guide,coarse,radius=12)
+        self.assertLess(np.mean((refined-truth)**2),np.mean((coarse-truth)**2)*.5)
+        self.assertTrue(np.isfinite(refined).all())
+        self.assertTrue(((refined>=0)&(refined<=1)).all())
+
+    def test_morph_backing_uses_the_same_hair_constrained_mesh(self):
+        import cv2
+        from core.geometry import protect_target
+        from core.topology import OVAL
+        s,m,_,_=fixture();w,h=320,256
+        original=np.asarray(s['assets'][0]['points'])
+        target=original.copy();target[:-8,0]=.5+(target[:-8,0]-.5)*.8
+        m['target']=target.tolist();m['sizes']=[(w,h)]*2
+        m['color_corrections']=[{'gain':[1,1,1],'offset':[0,0,0]}]*2
+        image=np.full((h,w,3),[35,80,130],np.uint8)
+        polygon=np.round(original[OVAL]*[w-1,h-1]).astype(np.int32)
+        cv2.fillPoly(image,[polygon],(220,170,140));cv2.polylines(image,[polygon],True,(15,10,5),2)
+        masks=[np.zeros((h,w,3),np.float32) for _ in range(2)]
+        for mask in masks:mask[:,:,0]=1
+        masks[0][:,245:]=[0,1,0]
+        protection=np.floor(hair.distance_field(masks[0][:,:,1])*255+.5)/255
+        constrained=protect_target(m,original,protection)
+        self.assertGreater(np.max(abs(np.asarray(constrained['target'])-target)),.005)
+        expected,alpha=render([image,image],s['assets'],0,{**constrained,'protect_base':False},(w,h),masks=masks)
+        actual,_=render([image,image],s['assets'],0,m,(w,h),masks=masks)
+        visible=masks[0][:,:,1]==0
+        np.testing.assert_allclose(actual[visible],expected[visible],atol=1e-6)
+        self.assertTrue(np.any((alpha>0)&(alpha<.9)&visible))
+        np.testing.assert_allclose(actual[:,245:],image[:,245:]/255,atol=1e-6)
+
+    def test_target_pinning_matches_browser_and_preserves_triangles(self):
+        import subprocess
+        from core.geometry import protect_target
+        s,m,_,_=fixture()
+        original=np.asarray(s['assets'][0]['points'])
+        target=original.copy();target[:-8,0]=.5+(target[:-8,0]-.5)*.85
+        m['target']=target.tolist()
+        mask=np.zeros((64,80,4),np.uint8);mask[:,:,0]=255;mask[:,:16,1]=255
+        mask[:,:,2]=np.uint8(hair.distance_field(mask[:,:,1]/255)*255+.5)
+        expected=protect_target(m,original,mask[:,:,2].astype(float)/255)
+        source=(Path(__file__).resolve().parents[1]/'web/math.js').read_text()
+        code="""import fs from 'node:fs';const input=JSON.parse(fs.readFileSync(0,'utf8'));
+const {protectTarget}=await import('data:text/javascript;base64,'+Buffer.from(input.source).toString('base64'));
+console.log(JSON.stringify(protectTarget(input.mesh,input.base,input.mask)));"""
+        payload={'source':source,'mesh':m,'base':original.tolist(),'mask':{'width':80,'height':64,'hair':True,'data':mask.ravel().tolist()}}
+        result=subprocess.run(['node','--input-type=module','-e',code],input=json.dumps(payload),text=True,capture_output=True,check=True)
+        actual=json.loads(result.stdout)
+        np.testing.assert_allclose(actual['target'],expected['target'],atol=1e-12)
+        self.assertEqual(actual['hair_pin_amount'],expected['hair_pin_amount'])
+        np.testing.assert_array_equal(np.asarray(actual['target'])[-8:],target[-8:])
+        self.assertIs(protect_target(m,original,None),m)
+
+    def test_boundary_color_transition_is_local_to_protected_hair(self):
+        s,m,images,masks=fixture()
+        m['triangles']=[[504,506,508],[504,508,510]];m['alpha']=[1]*512
+        masks[0][:,48:]=[0,1,0]
+        protected,_=render(images,s['assets'],0,m,(80,64),masks=masks)
+        ordinary,_=render(images,s['assets'],0,{**m,'protect_base':False},(80,64),masks=masks)
+        base=images[0][32,47]/255
+        self.assertLess(np.linalg.norm(protected[32,47]-base),np.linalg.norm(ordinary[32,47]-base)*.5)
+        np.testing.assert_allclose(protected[32,32],ordinary[32,32],atol=1e-6)
+        np.testing.assert_allclose(protected[:,48:],images[0][:,48:]/255,atol=1e-6)
+
+    def test_target_protection_relaxes_instead_of_folding(self):
+        from core.geometry import protect_target
+        target=[[0,0],[1,0],[0,1]]
+        mesh={'target':target,'reference':target,'triangles':[[0,1,2]]}
+        base=[[0,0],[-.8,0],[0,1]]
+        result=protect_target(mesh,base,np.zeros((16,16)))
+        self.assertEqual(result['hair_pin_amount'],.5)
+        self.assertGreater(result['target'][1][0],0)
+
     def test_excluded_source_has_no_color_contribution(self):
         s,m,images,masks=fixture();masks[1][:]=[0,1,0]
         result,mask=render(images,s['assets'],0,m,(80,64),masks=masks)

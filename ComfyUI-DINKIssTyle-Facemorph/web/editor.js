@@ -34,9 +34,12 @@ export async function openEditor(node){
     try{state=JSON.parse(widget.value);}catch{throw new Error('Project JSON is invalid. Restore a saved workflow.');}
     if(state.version!==1||!Array.isArray(state.assets))throw new Error('Unsupported project format.');
     upgradeState(state);state.liquify??={};state.hair??={enabled:true,protect_base:true};widget.value=JSON.stringify(state);
+    const colorWidget=node.widgets.find(w=>w.name==='color_match');
+    state.blend??={};state.blend.color_match=colorWidget?.value?(state.blend.color_match||100):0;
     let sourceInfo=null,cropTimer=0;
     let selected=0,region='all',mesh=null,images=[],closed=false,busy=false,raf=0,generation=0,previewEdge=640,modelReady=false,auxiliary=null;
-    const undo=[],liquifyExpanded=new Map();
+    const undo=[],redo=[],liquifyExpanded=new Map(),view={mode:0,position:.5};
+    let showPoints=true,selectedPoint=-1;
     const dialog=el('dialog',{class:'dkst-fm'});
     const style=el('style',{text:`
         .dkst-fm{box-sizing:border-box;width:min(1760px,98vw);height:92vh;max-width:none;max-height:none;padding:18px;background:#151922;color:#e7edf5;border:1px solid #435062;border-radius:14px;font:14px system-ui;}
@@ -45,7 +48,7 @@ export async function openEditor(node){
         .dkst-fm .layout{display:grid;grid-template-columns:260px minmax(0,1fr) 270px;gap:16px;height:calc(100% - 82px);min-height:200px}.dkst-fm .sidebar{overflow:auto;padding-right:5px}.dkst-fm .views{overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-content:start;min-width:0;}
         .dkst-fm canvas{display:block;width:100%;height:auto;touch-action:none;background:#080a0f}.dkst-fm .card{padding:10px;margin-bottom:10px;border:1px solid #364457;border-radius:9px}.dkst-fm .active{border-color:#72d0dc;background:#202c39;}
         .dkst-fm .photo{width:58px;height:58px;object-fit:cover;border-radius:6px}.dkst-fm .small{font-size:12px;color:#aab9cc;line-height:1.5}.dkst-fm .status{white-space:pre-wrap;max-height:64px;overflow:auto;color:#a6e1e7;margin:8px 0;min-height:20px}.dkst-fm label{display:block;margin:9px 0}.dkst-fm input[type=range]{width:100%;accent-color:#77d3df}.dkst-fm .actions{margin-left:auto;display:flex;gap:9px;align-items:center}.dkst-fm .help-button{width:32px;height:32px;border-radius:50%;font-weight:700}.dkst-fm .popup{width:min(580px,86vw);max-height:78vh;overflow:auto;padding:22px;background:#1c2431;color:#e7edf5;border:1px solid #4b5b70;border-radius:12px;font:14px/1.6 system-ui}.dkst-fm .popup::backdrop{background:#0009}.dkst-fm .mask-popup{width:min(800px,90vw)}.dkst-fm .mask-popup canvas{max-height:48vh;width:auto;max-width:100%;margin:auto;cursor:crosshair}.dkst-fm .mask-popup .bar{gap:8px}.dkst-fm .mask-popup label{flex:1;font-size:12px}.dkst-fm .mask-popup [aria-pressed=true]{border-color:#77d3df;background:#1b5059}.dkst-fm .photo-actions{flex-wrap:wrap}.dkst-fm .popup p{white-space:pre-wrap}.dkst-fm .popup h3{font-size:17px}.dkst-fm h3{font-size:15px;font-weight:600;margin:0 0 10px}.dkst-fm .warn{color:#ffc77a;}
-        .dkst-fm .view-pane{min-width:0}.dkst-fm .view-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:20px;height:20px}.dkst-fm .source-title{display:flex}.dkst-fm .title-label{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}.dkst-fm .title-file{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}
+        .dkst-fm .view-tools{height:76px;align-content:flex-start}.dkst-fm .view-tools label{margin:7px 0}.dkst-fm .view-pane{min-width:0}.dkst-fm .view-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:20px;height:20px}.dkst-fm .source-title{display:flex}.dkst-fm .title-label{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}.dkst-fm .title-file{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}
         .dkst-fm .sidebar-head{position:sticky;top:0;z-index:1;background:#151922;padding-bottom:10px}.dkst-fm .sidebar-head label{margin:0 0 7px}.dkst-fm .sidebar-head select{width:100%;min-width:0}.dkst-fm .photo-header{display:flex;align-items:center;gap:7px;margin-bottom:9px;min-width:0}.dkst-fm .photo-pick{display:flex;align-items:center;gap:9px;flex:1;min-width:0;text-align:left;border:0;background:transparent;padding:0}.dkst-fm .photo-pick .photo{width:44px;height:44px;flex-shrink:0}.dkst-fm .photo-meta{min-width:0;flex:1}.dkst-fm .photo-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;line-height:20px}.dkst-fm .photo-index{display:block;font-size:11px;color:#aab9cc}.dkst-fm .remove-photo{flex:0 0 26px;width:26px;height:26px;padding:0;border:0;background:transparent;color:#aab9cc;font-size:21px;line-height:1}.dkst-fm .remove-photo:hover{background:#4c2935;color:#ffc0c0}.dkst-fm .photo-actions{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px}.dkst-fm .photo-actions button{font-size:12px;padding:5px 7px}.dkst-fm .base-badge{font-size:12px;color:#91e1da;background:#1b393e;border-radius:5px;padding:5px 7px}.dkst-fm .photo-weight{display:block;margin:8px 0}.dkst-fm .weight-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}.dkst-fm .weight-head input[type=number]{width:62px;padding:3px 5px;font-variant-numeric:tabular-nums}.dkst-fm .photo-weight input[type=range]{display:block;margin:7px 0 0}.dkst-fm .crop-controls{border-top:1px solid #364457;border-bottom:1px solid #364457;padding:2px 0 8px;margin:8px 0}.dkst-fm .crop-controls label{font-size:12px;margin:5px 0 8px}.dkst-fm .crop-controls input[type=number]{width:62px;padding:3px 5px}.dkst-fm .crop-controls input[type=range]{display:block;margin:7px 0 0}.dkst-fm .crop-controls input:disabled{opacity:.4}.dkst-fm .region-reset{width:100%;font-size:12px;padding:5px;margin-top:5px}
         .dkst-fm .liquify-head{position:sticky;top:0;background:#151922;z-index:1;padding-bottom:3px}.dkst-fm .liquify{scroll-padding-top:90px;overflow:auto;border-left:1px solid #364457;padding-left:14px;min-width:0}.dkst-fm .liquify details{border-top:1px solid #364457;padding:10px 0}.dkst-fm .liquify summary{cursor:pointer;font-weight:600;margin-bottom:8px}.dkst-fm .liquify .individual{margin-top:10px;font-size:12px}.dkst-fm .liquify .control{margin:10px 0}.dkst-fm .liquify .control-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.dkst-fm .liquify input[type=number]{width:62px;padding:3px 5px}.dkst-fm .liquify .individual h4{font-size:12px;color:#aab9cc;margin:12px 0 5px}.dkst-fm .liquify .bar{justify-content:space-between}
         @media(max-width:1100px){.dkst-fm .layout{grid-template-columns:210px minmax(0,1fr) 240px}.dkst-fm .views{grid-template-columns:1fr}}
@@ -57,8 +60,9 @@ export async function openEditor(node){
     const sourceTitle=el('h3',{class:'view-title source-title'},el('span',{class:'title-label',text:'Edit correspondence points'}),sourceFile),resultTitle=el('h3',{class:'view-title',text:'Live morph preview'});
     let renderer;
     const say=message=>{status.textContent=message;};
-    const save=()=>{widget.value=JSON.stringify(state);node.setDirtyCanvas?.(true,true);};
-    const remember=()=>{undo.push(JSON.stringify(state));if(undo.length>30)undo.shift();};
+    const save=()=>{widget.value=JSON.stringify(state);if(colorWidget)colorWidget.value=(state.blend?.color_match??0)>0;node.setDirtyCanvas?.(true,true);};
+    const remember=()=>{undo.push(JSON.stringify(state));redo.length=0;if(undo.length>30)undo.shift();};
+    const history=async(from,to)=>{if(busy||!from.length)return;to.push(JSON.stringify(state));state=JSON.parse(from.pop());selected=Math.max(0,Math.min(selected,state.assets.length-1));selectedPoint=-1;save();await refresh();};
     const close=()=>{if(closed)return;closed=true;generation++;clearTimeout(cropTimer);cancelAnimationFrame(raf);window.removeEventListener('paste',onPaste,true);auxiliary?.close();auxiliary?.remove();renderer?.dispose();dialog.close();dialog.remove();delete node.dkstMorphClose;delete node.dkstMorphFocus;};
     const button=(text,fn)=>el('button',{text,onclick:()=>Promise.resolve().then(fn).catch(e=>say(e.message))});
     const upload=el('input',{type:'file',accept:'image/*',multiple:true,hidden:true});
@@ -66,9 +70,16 @@ export async function openEditor(node){
     const hairToggle=el('input',{type:'checkbox',checked:state.hair.enabled!==false});
     hairToggle.addEventListener('change',async()=>{if(busy){hairToggle.checked=state.hair.enabled!==false;return;}remember();state.hair.enabled=hairToggle.checked;save();await refresh().catch(e=>say(e.message));});
     const toolbar=el('div',{class:'bar'},el('strong',{text:'DKST Face Morph Studio'}),
-        button('Add photos',async()=>{if(!busy&&await ensureModel())upload.click();}),button('Undo',async()=>{if(busy||!undo.length)return;state=JSON.parse(undo.pop());selected=Math.min(selected,state.assets.length-1);save();await refresh();}),
+        button('Add photos',async()=>{if(!busy&&await ensureModel())upload.click();}),button('Undo',()=>history(undo,redo)),button('Redo',()=>history(redo,undo)),
         el('label',{},hairToggle,document.createTextNode(' Hair protection')),el('div',{class:'actions'},help,button('Apply',()=>{save();close();})));
-    const views=el('div',{class:'views'},el('div',{class:'view-pane'},sourceTitle,source),el('div',{class:'view-pane'},resultTitle,preview));
+    const mode=el('select',{},...['Result','Mask overlay','Face mask','Before / after'].map((text,value)=>el('option',{value,text})));
+    mode.setAttribute('aria-label','Preview display');
+    const compare=el('input',{type:'range',min:0,max:100,value:50,hidden:true});compare.setAttribute('aria-label','Before and after divider');
+    mode.addEventListener('change',()=>{view.mode=Number(mode.value);compare.hidden=view.mode!==3;draw();});
+    compare.addEventListener('input',()=>{view.position=Number(compare.value)/100;draw();});
+    const pointsToggle=el('input',{type:'checkbox',checked:true});pointsToggle.addEventListener('change',()=>{showPoints=pointsToggle.checked;sourceDraw();});
+    source.tabIndex=0;source.setAttribute('aria-label','Correspondence points. Select a point, then use arrow keys to move it. Shift moves ten pixels.');
+    const views=el('div',{class:'views'},el('div',{class:'view-pane'},sourceTitle,el('div',{class:'bar view-tools'},el('label',{},pointsToggle,document.createTextNode(' Show points'))),source),el('div',{class:'view-pane'},resultTitle,el('div',{class:'bar view-tools'},mode,compare),preview));
     dialog.append(style,toolbar,status,el('div',{class:'layout'},sidebar,views,liquifyPanel),upload);
     document.body.append(dialog);dialog.showModal();
     node.dkstMorphClose=close;node.dkstMorphFocus=()=>dialog.focus();
@@ -89,7 +100,7 @@ export async function openEditor(node){
             el('p',{text:'Face Liquify adjusts the completed morph. Eye controls are paired by default; expand Individual eyes for separate adjustments. Zero leaves a control unchanged. Enabled toggles this stage for both preview and Run; Reset all restores its defaults.'}),
             el('p',{text:'Enable Face crop on each photo to use a face-centered source. Margin adds that percentage of the detected face size on each side, following Face Crop Export. Cropping the base also changes the final composition and output size. Originals, correspondence edits, and mask strokes remain intact when toggling crop.'}),
             el('p',{text:'Hair protection excludes source hair, reduces covered shape contributions, and preserves the base hairstyle in front of the adjusted face. Open Mask on a photo to correct detection with Include face, Exclude hair, and Restore strokes. All corrections are saved in the workflow. Fine strands and heavily covered faces may require manual review.'}),
-            el('p',{text:'Preview uses reduced images and linear interpolation. Click Apply to return to the workflow, then use ComfyUI Run to render from originals with high-quality interpolation. Color match applies only to Run.'}));
+            el('p',{text:'Preview uses reduced images and linear interpolation. Click Apply to return to the workflow, then use ComfyUI Run to render from originals with high-quality interpolation. Color match strength updates both preview and Run. Use Mask overlay or Face mask to inspect the final blend boundary; Before / after compares with the original base. Select a correspondence point and use arrow keys for one source pixel, or Shift for ten.'}));
         panel.append(button('Done',()=>panel.close()));
     }
     async function ensureModel(){
@@ -170,19 +181,19 @@ export async function openEditor(node){
         ctx.drawImage(image,0,0,source.width,source.height);
         const pointsForView=sourcePoints(selected);
         const pixel=point=>[point[0]*(source.width-1),point[1]*(source.height-1)];
-        CURVES.forEach(curve=>{
+        if(showPoints)CURVES.forEach(curve=>{
             ctx.strokeStyle='#69f0df';ctx.lineWidth=1;
             ctx.beginPath();curve.forEach((j,i)=>{const [x,y]=pixel(pointsForView[j]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.closePath();ctx.stroke();
         });
         ctx.setLineDash([]);
         const points=new Set(CURVES.flat());
-        for(const j of points){const [x,y]=pixel(pointsForView[j]);ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fillStyle='#ecfffd';ctx.fill();}
+        if(showPoints)for(const j of points){const [x,y]=pixel(pointsForView[j]);ctx.beginPath();ctx.arc(x,y,j===selectedPoint?5:2.5,0,Math.PI*2);ctx.fillStyle=j===selectedPoint?'#ffbf69':'#ecfffd';ctx.fill();}
         sourceFile.textContent=` · ${asset.name||selected+1}`;sourceTitle.title=`Edit correspondence points · ${asset.name||selected+1}`;
     }
     function draw(){
         cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{
             if(closed||!mesh)return;
-            try{const start=performance.now();renderer.draw({...state,assets:state.assets.map((a,i)=>({...a,points:sourcePoints(i)}))},updateMesh(state,mesh),previewEdge);const elapsed=performance.now()-start;resultTitle.textContent=`Live morph preview · ${previewEdge}px · ${elapsed.toFixed(0)}ms`;if(elapsed>50)previewEdge=Math.max(384,Math.round(previewEdge*.8));}
+            try{const start=performance.now();renderer.draw({...state,assets:state.assets.map((a,i)=>({...a,points:sourcePoints(i)}))},updateMesh(state,mesh),previewEdge,view);const elapsed=performance.now()-start;resultTitle.textContent=`Live morph preview · ${previewEdge}px · ${elapsed.toFixed(0)}ms`;if(elapsed>50)previewEdge=Math.max(384,Math.round(previewEdge*.8));}
             catch(error){say(error.message);preview.width=preview.width;}
         });
     }
@@ -207,7 +218,7 @@ export async function openEditor(node){
     async function prepareEdited(){
         const ticket=++generation;mesh=null;save();sourceDraw();
         if(state.assets.length<1)return;
-        try{const prepared=await request('/prepare',state);if(closed||ticket!==generation)return;await installMasks(prepared,ticket);if(closed||ticket!==generation)return;mesh=prepared;draw();say('Correspondence points updated.');}catch(error){say(error.message);}
+        try{const prepared=await request('/prepare',state);if(closed||ticket!==generation)return;await installMasks(prepared,ticket);if(closed||ticket!==generation)return;mesh=prepared;draw();say('Correspondence points updated.');}catch(error){say(error.message);preview.width=preview.width;}
     }
     function liquifyControls(){
         state.liquify??={};const controls=[];
@@ -252,13 +263,23 @@ export async function openEditor(node){
     function panel(){
         hairToggle.checked=state.hair?.enabled!==false;liquifyControls();
         sidebar.replaceChildren();
+        const color=el('input',{type:'range',min:0,max:100,step:1,value:state.blend?.color_match??0});color.setAttribute('aria-label','Color match strength');
+        const colorValue=el('span',{text:`${color.value}%`});
+        color.addEventListener('pointerdown',remember);color.addEventListener('keydown',event=>{if(event.key.startsWith('Arrow')||['Home','End'].includes(event.key))remember();});
+        color.addEventListener('input',()=>{if(busy)return;state.blend??={};state.blend.color_match=Number(color.value);colorValue.textContent=`${color.value}%`;save();draw();});
+        const feather=el('input',{type:'range',min:0,max:100,step:1,value:state.blend?.edge_feather??0});feather.setAttribute('aria-label','Blend edge feather');
+        const featherValue=el('span',{text:`${feather.value}%`});
+        feather.addEventListener('pointerdown',remember);feather.addEventListener('keydown',event=>{if(event.key.startsWith('Arrow')||['Home','End'].includes(event.key))remember();});
+        feather.addEventListener('input',()=>{if(busy)return;state.blend??={};state.blend.edge_feather=Number(feather.value);featherValue.textContent=`${feather.value}%`;save();draw();});
+        sidebar.append(el('div',{class:'card'},el('div',{class:'weight-head'},el('span',{text:'Color match to base'}),colorValue),color,
+            el('div',{class:'weight-head'},el('span',{text:'Blend edge feather'}),featherValue),feather));
         const regionSelect=el('select',{},...REGION_OPTIONS.map(([value,text])=>el('option',{value,text})));
         regionSelect.value=region;regionSelect.addEventListener('change',()=>{region=regionSelect.value;panel();});sidebar.append(el('div',{class:'sidebar-head'},el('label',{text:'Region to adjust'}),regionSelect));
         state.assets.forEach((asset,i)=>{
             const card=el('div',{class:'card'+(i===selected?' active':'')});
             const name=asset.name||`Photo ${i+1}`;
             const thumb=el('img',{class:'photo',src:imageUrl(asset.id,sourceInfo?.crop_bounds[i]),alt:name});
-            const pick=button('',()=>{if(busy)return;selected=i;sourceDraw();panel();});
+            const pick=button('',()=>{if(busy)return;selected=i;selectedPoint=-1;sourceDraw();panel();});
             pick.className='photo-pick';pick.title=name;pick.setAttribute('aria-label',`Select photo ${i+1}: ${name}`);
             pick.append(thumb,el('span',{class:'photo-meta'},el('span',{class:'photo-name',text:name}),el('span',{class:'photo-index',text:`Photo ${i+1}`})));
             const remove=button('×',async()=>{if(busy)return;remember();state.assets.splice(i,1);if(state.base===i)state.base=0;else if(state.base>i)state.base--;selected=Math.max(0,Math.min(selected,state.assets.length-1));save();await refresh();});
@@ -298,7 +319,7 @@ export async function openEditor(node){
             margin.addEventListener('keydown',event=>{if(event.key.startsWith('Arrow'))remember();});
             margin.addEventListener('input',()=>changeMargin(Number(margin.value)));
             number.addEventListener('input',()=>changeMargin(number.valueAsNumber));
-            card.append(cropControls);
+            const cropDetails=el('details',{open:i===selected},el('summary',{text:'Face crop settings'}),cropControls);card.append(cropDetails);
             for(const [key,label] of [['shape','Shape'],['feature','Appearance']]){
                 const isOverride=region!=='all'&&asset.regions?.[region]?.[key]!==undefined;
                 const value=regionValue(asset,region,key);
@@ -311,12 +332,12 @@ export async function openEditor(node){
                 const change=value=>{
                     if(busy||!Number.isFinite(value))return;
                     const v=Math.round(Math.max(0,Math.min(100,value))*10)/10;
-                    setRegionWeight(asset,region,key,v);slider.value=v;number.value=v;save();draw();
+                    setRegionWeight(asset,region,key,v);slider.value=v;number.value=v;save();updateContributions();draw();
                 };
                 slider.addEventListener('input',()=>change(Number(slider.value)));
                 number.addEventListener('input',()=>change(number.valueAsNumber));
                 number.addEventListener('blur',()=>number.value=regionValue(asset,region,key));
-                card.append(el('div',{class:'photo-weight'},el('span',{class:'weight-head'},caption,number),slider));
+                card.append(el('div',{class:'photo-weight'},el('span',{class:'weight-head'},caption,number),slider,el('div',{class:'small contribution',datasetKey:key,datasetIndex:i})));
             }
             if(region!=='all'){const reset=button(PARENTS[region]?'Use paired weights':'Use global weights',()=>{remember();clearRegionWeights(asset,region);save();panel();draw();});reset.className='region-reset';reset.title=PAIRS[region]?'Reset both sides to global weights':'Restore inherited region weights';card.append(reset);}
             if(i===selected){
@@ -328,6 +349,19 @@ export async function openEditor(node){
             }
             sidebar.append(card);
         });
+        updateContributions();
+    }
+    function updateContributions(){
+        for(const label of sidebar.querySelectorAll('.contribution')){
+            const key=label.datasetKey,i=label.datasetIndex;
+            const regions=PAIRS[region]??[region];
+            const values=regions.map(r=>{
+                const weights=state.assets.map(a=>regionValue(a,r,key)),total=weights.reduce((a,b)=>a+b,0);
+                return total?weights[i]/total*100:(i===state.base?100:0);
+            });
+            label.textContent=`Relative share: ${values.map(v=>v.toFixed(1)+'%').join(' / ')}`;
+            label.title='Normalized slider weights before hair visibility and per-pixel mask adjustments. Paired values show left / right.';
+        }
     }
     async function reanalyze(faceIndex){
         if(busy)return;busy=true;remember();say('Reanalyzing selected photo…');
@@ -338,20 +372,29 @@ export async function openEditor(node){
     let dragging=-1;
     const coords=event=>{const r=source.getBoundingClientRect();return [(event.clientX-r.left)/r.width,(event.clientY-r.top)/r.height];};
     source.addEventListener('pointerdown',event=>{
-        if(busy||!state.assets[selected])return;
+        if(busy||!showPoints||!state.assets[selected])return;
         const [x,y]=coords(event),r=source.getBoundingClientRect();let best=12;
         for(const j of new Set(CURVES.flat())){
             const p=sourcePoints(selected)[j],distance=Math.hypot((p[0]-x)*r.width,(p[1]-y)*r.height);
             if(distance<best){best=distance;dragging=j;}
         }
-        if(dragging>=0){remember();source.setPointerCapture(event.pointerId);}
+        if(dragging>=0){selectedPoint=dragging;source.focus();remember();source.setPointerCapture(event.pointerId);sourceDraw();}
     });
     source.addEventListener('pointermove',event=>{
         if(dragging<0)return;
         state.assets[selected].points[dragging]=originalPoint(coords(event).map(v=>Math.max(0,Math.min(1,v))),sourceInfo?.crop_bounds[selected],sourceInfo?.original_sizes[selected]).map(v=>Math.max(0,Math.min(1,v)));
         supports(state.assets[selected]);sourceDraw();
     });
-    const endDrag=()=>{if(dragging<0)return;dragging=-1;if(state.assets[selected].crop?.enabled){save();refresh({controls:false}).catch(e=>say(e.message));}else prepareEdited();};
+    const endDrag=()=>{if(dragging<0)return;dragging=-1;if(state.assets[selected].crop?.enabled){save();refresh({controls:false}).catch(e=>say(e.message));}else prepareEdited().catch(e=>say(e.message));};
+    source.addEventListener('keydown',event=>{
+        const directions={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
+        const delta=directions[event.key];if(!delta||selectedPoint<0||busy||!showPoints)return;
+        event.preventDefault();event.stopPropagation();if(!event.repeat)remember();
+        const asset=state.assets[selected],size=sourceInfo.original_sizes[selected],step=event.shiftKey?10:1;
+        asset.points[selectedPoint]=asset.points[selectedPoint].map((v,d)=>Math.max(0,Math.min(1,v+delta[d]*step/Math.max(size[d]-1,1))));
+        supports(asset);sourceDraw();save();
+    });
+    source.addEventListener('keyup',event=>{if(event.key.startsWith('Arrow')&&selectedPoint>=0){if(state.assets[selected].crop?.enabled)refresh({controls:false}).catch(e=>say(e.message));else prepareEdited().catch(e=>say(e.message));}});
     source.addEventListener('pointerup',endDrag);source.addEventListener('pointercancel',endDrag);
     try{if(await ensureModel()&&!closed)await refresh();}catch(error){say(error.message);}
 }

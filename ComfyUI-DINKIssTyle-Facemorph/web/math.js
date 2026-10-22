@@ -76,3 +76,28 @@ export function updateMesh(state, mesh) {
     if(folded(target))throw new Error('The mesh folds over. Reduce shape weights or correct correspondence points.');
     return {...mesh,target,shape_weights:shape,feature_weights:feature};
 }
+
+// Same forward mesh constraint as core/geometry.py. Mask blue is cached distance.
+export function protectTarget(mesh,base,mask){
+    if(!mask?.hair)return mesh;
+    const {width:w,height:h,data}=mask;
+    const distanceAt=p=>{
+        const x=Math.max(0,Math.min(1,p[0]))*(w-1),y=Math.max(0,Math.min(1,p[1]))*(h-1);
+        const x0=Math.floor(x),y0=Math.floor(y),x1=Math.min(x0+1,w-1),y1=Math.min(y0+1,h-1),fx=x-x0,fy=y-y0;
+        const sample=(x,y)=>data[(y*w+x)*4+2]/255;
+        return ((sample(x0,y0)*(1-fx)+sample(x1,y0)*fx)*(1-fy)+(sample(x0,y1)*(1-fx)+sample(x1,y1)*fx)*fy)*Math.max(w,h)*.25;
+    };
+    const desired=mesh.target.map((target,i)=>{
+        const start=base[i],delta=target.map((v,d)=>v-start[d]);
+        let distance=Math.max(w,h)*.25;
+        for(const t of [0,.25,.5,.75,1])distance=Math.min(distance,distanceAt(start.map((v,d)=>v+delta[d]*t)));
+        const travel=Math.hypot(delta[0]*(w-1),delta[1]*(h-1)),x=Math.max(0,Math.min(1,distance/Math.max(3,3*travel))),mobility=x*x*(3-2*x);
+        return start.map((v,d)=>v+delta[d]*mobility);
+    });
+    const area=(points,t)=>{const [a,b,c]=t.map(i=>points[i]);return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);};
+    for(const amount of [1,.5,.25,.125,.0625,.03125,.015625,0]){
+        const target=mesh.target.map((p,i)=>p.map((v,d)=>v+(desired[i][d]-v)*amount));
+        if(mesh.triangles.every(t=>{const a=area(mesh.reference,t),b=area(target,t);return a*b>=-1e-12&&Math.abs(b)>=1e-12;}))return {...mesh,target,hair_pin_amount:amount};
+    }
+    throw new Error('The mesh folds over. Reduce shape weights or correct correspondence points.');
+}

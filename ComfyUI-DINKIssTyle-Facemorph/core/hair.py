@@ -9,7 +9,7 @@ from .topology import OVAL
 MODEL_NAME = 'selfie_multiclass.tflite'
 MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/1/selfie_multiclass_256x256.tflite'
 MODEL_SHA256 = 'c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0'
-REVISION = 1
+REVISION = 2
 
 
 def validate(settings, edits=None):
@@ -73,6 +73,26 @@ def read(service, identifier):
         return np.asarray(im.convert('RGB'),dtype=np.float32)/255
 
 
+def guided_mask(guide, mask, radius=12, epsilon=.001):
+    """Fit coarse semantic confidence to full-color photographic edges."""
+    import cv2
+    guide=np.asarray(guide,np.float32)
+    confidence=np.asarray(mask,np.float32)
+    size=(2*radius+1,2*radius+1)
+    box=lambda a:cv2.boxFilter(a,-1,size,borderType=cv2.BORDER_REFLECT)
+    mean=box(guide);mean_p=box(confidence)
+    covariance=np.empty((*confidence.shape,3,3),np.float32)
+    cross=np.empty_like(guide)
+    for i in range(3):
+        cross[:,:,i]=box(guide[:,:,i]*confidence)-mean[:,:,i]*mean_p
+        for j in range(3):
+            covariance[:,:,i,j]=box(guide[:,:,i]*guide[:,:,j])-mean[:,:,i]*mean[:,:,j]
+            if i==j:covariance[:,:,i,j]+=epsilon
+    a=np.linalg.solve(covariance,cross[:,:,:,None])[:,:,:,0]
+    b=mean_p-np.sum(a*mean,axis=-1)
+    return np.clip(np.sum(box(a)*guide,axis=-1)+box(b),0,1)
+
+
 def automatic(service, asset):
     """Segment a selected-head crop, retaining full-photo coordinates in the cache."""
     import cv2
@@ -94,12 +114,14 @@ def automatic(service, asset):
     face=np.array(result.confidence_masks[3].numpy_view(),copy=True)
     hair=np.array(result.confidence_masks[1].numpy_view(),copy=True)
     # Make confident hair fully opaque, preserving a soft transition at ambiguous edges.
-    hair=np.clip((hair-.15)/.65,0,1)
-    face=np.clip((face-.08)/.65,0,1)*(1-hair)
     edge=768;mw=max(2,round(w*min(1,edge/max(w,h))));mh=max(2,round(h*min(1,edge/max(w,h))))
     out=np.zeros((mh,mw,3),np.float32)
     a,b=np.floor(lo*[mw-1,mh-1]).astype(int);c,d=np.ceil(hi*[mw-1,mh-1]).astype(int)+1
     out[b:d,a:c,0]=cv2.resize(face,(c-a,d-b));out[b:d,a:c,1]=cv2.resize(hair,(c-a,d-b))
+    guide=cv2.resize(raw,(mw,mh)).astype(np.float32)/255
+    radius=max(2,round(max(mw,mh)/64))
+    out[:,:,1]=np.clip((guided_mask(guide,out[:,:,1],radius)-.15)/.65,0,1)
+    out[:,:,0]=np.clip((guided_mask(guide,out[:,:,0],radius)-.08)/.65,0,1)*(1-out[:,:,1])
     return store(service,identifier,out)
 
 

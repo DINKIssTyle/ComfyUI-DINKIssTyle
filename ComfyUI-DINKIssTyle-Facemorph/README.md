@@ -88,6 +88,18 @@ The other property is preserved. Use the child's **Use paired region weights** b
 or the parent's **Link both sides to global weights** button to reset the pair and both child overrides.
 Previously saved workflows are upgraded automatically while preserving photos and facial point edits.
 
+## Blend inspection and precision editing
+
+- **Color match to base** adjusts correction strength from 0–100% in preview and Run. Zero preserves original source colors. Corrections are prepared once per source update; moving the slider does not request a server render or segmentation.
+- **Blend edge feather** increases the inward fade of the existing soft blend boundary, including soft source visibility. It preserves fully opaque face pixels and fixed protected base hair. Zero retains the previous boundary. This changes the alpha falloff rather than adding a pixel-radius blur; use the photo's Mask editor for forehead/temple boundaries and manual corrections.
+- **Result / Mask overlay / Face mask / Before / after** switch the result view. The face mask includes Liquify and excludes protected hair. Before / after compares against the original cropped base with an adjustable divider. Display modes do not change saved output.
+- **Show points** hides correspondence guides. Select a point to highlight it; arrow keys move it by one original source pixel, or ten with Shift. Release the arrow key to update the mesh.
+- **Undo / Redo** restore project edits, including blending, points, masks and crops. A new edit clears Redo.
+- **Relative share** shows normalized slider weights. Paired regions show left / right shares separately. Hair confidence and per-pixel mask availability can change the effective contribution, so this is a weight summary rather than a pixel coverage measurement.
+- Crop settings for unselected photos start collapsed. Source and result canvases remain aligned while switching comparison modes.
+
+Existing projects default to zero additional edge feather and retain their color-match toggle. Blend settings are stored in the project workflow.
+
 ## Per-photo face crops
 
 Each photo card has a **Face crop** checkbox and a **Margin (%)** slider with a numeric field.
@@ -143,7 +155,7 @@ extreme combinations can stretch features. It does not include brush-based Liqui
 - Resolution: base photo size or a longest edge of 1024/2048/4096px. Base photo size is also limited to 4096px.
 - Preview: starts at a 640px longest edge and adapts down to 384px on slower devices; browser WebGL, linear interpolation, and an 8-bit accumulation buffer.
 - Run: original RGB photos, OpenCV high-quality interpolation, and 192-row strips to limit intermediate memory usage.
-- `color_match`: optionally matches face-region color statistics to the base photo. Applies only to Run.
+- `color_match`: enables color matching in Run and initializes the editor control. The editor saves a 0–100% strength and synchronizes this checkbox. Preview and Run use the same correction statistics from original cropped photos, excluding background, eyes, eyebrows, lips and unavailable face pixels.
 - Upload limits: 32MiB per photo and 40 megapixels after decoding. EXIF orientation is applied; originals are stored as RGB PNGs.
 - Photos: `ComfyUI/input/DKST_Facemorph/<sha256>.png`.
 - Models: `ComfyUI/models/facemorph/face_landmarker.task` and `selfie_multiclass.tflite`.
@@ -180,7 +192,7 @@ Photos are registered directly in the editor rather than through an upstream Com
 through the existing MediaPipe runtime; no additional Python package is required. The model download is approximately 16 MB,
 pinned to a version and verified with SHA-256 before installation.
 
-Each selected face is analyzed within a padded head crop. Soft visible-face and hair masks are cached by photo,
+Each selected face is analyzed within a padded head crop. RGB-guided filtering aligns coarse segmentation confidence with photographic edges before creating soft visible-face and hair masks. These masks are cached by photo,
 model version, and crop. Manual corrections produce separate immutable cache entries. Ordinary morph and Liquify sliders
 reuse the masks entirely in WebGL; they do not run segmentation or send render requests.
 Changing correspondence bounds can rebuild the crop and mask once when a point is released.
@@ -188,9 +200,9 @@ Changing correspondence bounds can rebuild the crop and mask once when a point i
 Source appearance weights are multiplied by the warped usable-face mask and normalized again over the remaining sources.
 If all sources are invalid, the base photograph remains visible. Covered landmarks have reduced shape confidence;
 this confidence adjustment is softened if necessary to prevent an otherwise valid mesh from folding.
-The face layer and its base context follow the same mesh and Liquify geometry. Displacement fades smoothly with distance from protected base hair along its sampled path; the original hair is composited in front, and the returned MASK excludes it.
+The face layer and its base context share a mesh whose forward displacement fades near protected base hair. Constraining the shared mesh prevents the original face outline from showing through a differently warped backing. The constraint relaxes when needed to keep triangles valid. Liquify then uses the same hair-pinned inverse deformation for both layers. Original hair is composited in front, and the returned MASK excludes it. Shape adjustments close to fixed hair are limited to preserve that correspondence.
 Run uses the same cached masks and composition rules, with higher-quality image interpolation.
-Color match uses usable-face pixels when protection is enabled.
+Color match uses usable-face pixels when protection is enabled. Beside fixed base hair, a narrow transition (8% of face width) smoothly matches source color statistics to the base even with global Color match at zero. The interior retains the selected appearance weights and global correction strength. This reduces abrupt skin-color changes when occluded sources stop contributing.
 
 Face contraction also adjusts nearby neck/background pixels to remove the old silhouette. Image borders remain pinned;
 protected hair pixels retain the original base photo. This uses local geometric resampling, not background synthesis.
@@ -217,6 +229,8 @@ Implementation details and validation scope: [Hair protection design](HAIR_PROTE
 ```sh
 python -m unittest discover -s tests -v
 node --test tests/test_math.cjs tests/test_liquify.cjs tests/test_crop.cjs
+# Optional real WebGL/editor test: install Playwright and its Chromium first.
+node --test tests/test_editor_browser.cjs
 ```
 
 Tests cover identity warps, normalized weights, paired and individual region overrides, legacy workflow migration, zero weights, alignment,
@@ -227,3 +241,7 @@ References: [Morpheus help](https://www.morpheussoftware.net/morpheusmorph/help/
 [FantaMorph Face Mixer](https://www.fantamorph.com/how_to_use_face_mixer.html),
 [RE:Flex](https://revisionfx.com/products/reflex/resolve/),
 [MediaPipe Face Landmarker](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker).
+
+Blend tests also verify color strength interpolation, missing-skin fallback, edge feather and protected-hair invariants. The optional browser test checks WebGL color values, display modes, Undo/Redo, keyboard point movement, workflow reopen, and the absence of prepare requests during color slider changes. Set `DKST_TEST_BROWSER` to an installed Chromium/Chrome executable if needed.
+
+Hair-boundary regression tests cover a morphed face with a nearby protected-hair strip, shared foreground/backing geometry, local boundary color matching, guided confidence edges, fold-safe target constraints, and JavaScript/Python target-coordinate parity.

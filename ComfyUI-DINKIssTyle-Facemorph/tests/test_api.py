@@ -9,6 +9,8 @@ import tempfile
 import types
 import unittest
 from unittest.mock import patch
+# Preload native lazy imports before patch.dict snapshots sys.modules.
+import scipy.spatial
 import numpy as np
 try:
     import torch

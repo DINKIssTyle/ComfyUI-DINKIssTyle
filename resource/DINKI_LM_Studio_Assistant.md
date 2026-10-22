@@ -33,6 +33,7 @@ When an **image is connected**, the node operates as a Vision Assistant.
 #### 2. Text Mode (Text Only)
 When **no image is connected**, the node functions as a pure text generator.
 * It generates text based solely on the `user_prompt` and `system_prompt`.
+* Text-only requests use plain text message content. An empty image batch also uses Text Mode. If `user_prompt` is empty, the node asks the model to generate a response following the system instructions.
 * **Use Case:** Prompt expansion, style generation, or creative writing.
 
 ![Preview](DINKI_LM_Studio_Assistant_02.png)

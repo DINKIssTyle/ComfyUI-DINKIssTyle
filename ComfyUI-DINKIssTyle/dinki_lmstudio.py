@@ -91,7 +91,9 @@ class DINKI_LMStudio:
         digest = hashlib.sha256()
         # Credentials and endpoints are not serialized. Profile revisions also
         # invalidate a saved answer after connection settings change.
-        settings = [1, scope, unique_id, user_prompt, system_prompt, model_key,
+        # Revision 2 separates text-only messages from multimodal messages.
+        # Answers saved with the old image-oriented default must regenerate.
+        settings = [2, scope, unique_id, user_prompt, system_prompt, model_key,
                     connection_alias, profile.get("revision"), float(temperature), int(max_tokens)]
         digest.update(json.dumps(settings, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
         if image is not None:
@@ -210,11 +212,11 @@ class DINKI_LMStudio:
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
 
-        # 콘텐츠 리스트 생성 (텍스트 + n개의 이미지)
-        content_list = [{"type": "text", "text": user_prompt or "Describe the images."}]
-
-        # 이미지 처리 (배치 지원)
-        if image is not None:
+        # Use plain string content for text-only models/chat templates. Only
+        # actual images should select multimodal content and a caption prompt.
+        has_images = image is not None and image.shape[0] > 0
+        if has_images:
+            content_list = [{"type": "text", "text": user_prompt or "Describe the images."}]
             # image shape은 보통 [Batch, Height, Width, Channels]
             batch_count = image.shape[0]
             
@@ -228,8 +230,10 @@ class DINKI_LMStudio:
                     "type": "image_url",
                     "image_url": {"url": image_url}
                 })
-
-        messages.append({"role": "user", "content": content_list})
+            messages.append({"role": "user", "content": content_list})
+        else:
+            messages.append({"role": "user", "content": user_prompt or
+                             "Generate a response following the system instructions."})
 
         body = {
             "model": model_key,

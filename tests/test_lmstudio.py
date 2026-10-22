@@ -62,6 +62,33 @@ class LMStudioTests(unittest.TestCase):
         self.assertEqual(config["min"], 0)
         self.assertGreaterEqual(config["max"], 131072)
 
+    def test_text_only_request_uses_plain_text_without_encoding_images(self):
+        with patch.object(self.node, "_convert_single_image_to_base64",
+                          side_effect=AssertionError("No image was supplied")):
+            result = self.node.run(user_prompt="Write a landscape prompt.",
+                                   system_prompt="Respond in English.")
+        self.assertEqual(result["result"], ("answer",))
+        self.assertEqual(self.requests.post.call_args.kwargs["json"]["messages"], [
+            {"role": "system", "content": "Respond in English."},
+            {"role": "user", "content": "Write a landscape prompt."},
+        ])
+
+    def test_missing_and_empty_image_batches_use_text_only_defaults(self):
+        for image in (None, np.zeros((0, 2, 2, 3), dtype=np.float32)):
+            with self.subTest(image=image):
+                self.node.run(image=image, system_prompt="Write a poem.")
+                messages = self.requests.post.call_args.kwargs["json"]["messages"]
+                self.assertEqual(messages[0], {"role": "system", "content": "Write a poem."})
+                self.assertEqual(messages[1], {
+                    "role": "user", "content": "Generate a response following the system instructions.",
+                })
+
+    def test_image_request_keeps_multimodal_content_and_caption_default(self):
+        self.node.run(image=np.zeros((1, 2, 2, 3), dtype=np.float32))
+        content = self.requests.post.call_args.kwargs["json"]["messages"][-1]["content"]
+        self.assertEqual(content[0], {"type": "text", "text": "Describe the images."})
+        self.assertEqual(content[1]["type"], "image_url")
+
     def test_server_error_details_and_address_are_not_returned(self):
         response = self.requests.post.return_value
         response.raise_for_status.side_effect = HTTPError("400 Bad Request")

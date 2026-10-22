@@ -177,7 +177,11 @@ class Service:
             ids,raw_ids,visibility=hair.prepare(self,assets)
             ids=[crop.mask(self,i,b,s) for i,b,s in zip(ids,source['crop_bounds'],source['original_sizes'])]
         mesh=plan({**state,'assets':source['source_assets']},source['sizes'],visibility)
-        return {**mesh,**source,'base':base,'mask_ids':ids,'raw_mask_ids':raw_ids,'visibility':visibility}
+        from .color import corrections
+        images=(self.image(a['id'])[b[1]:b[3],b[0]:b[2]] for a,b in zip(assets,source['crop_bounds']))
+        colors=corrections(images,source['source_assets'],base,[hair.read(self,i) for i in ids] or None)
+        return {**mesh,**source,'base':base,'mask_ids':ids,'raw_mask_ids':raw_ids,'visibility':visibility,
+                'color_corrections':colors}
 
 
 

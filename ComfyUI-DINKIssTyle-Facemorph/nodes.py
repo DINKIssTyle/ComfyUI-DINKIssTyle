@@ -7,7 +7,7 @@ class FaceMorphStudio:
         return {'required':{
             'project':('STRING',{'default':'{"version":1,"assets":[],"base":0}','multiline':True}),
             'output_size':(['Base photo','1024','2048','4096'],),
-            'color_match':('BOOLEAN',{'default':False,'tooltip':'Match source color statistics to the base. Final render only; may alter appearance.'}),
+            'color_match':('BOOLEAN',{'default':False,'tooltip':'Match source color statistics to the base. Also shown in the editor preview; strength is adjustable in the editor.'}),
         }}
     RETURN_TYPES = ('IMAGE','MASK')
     RETURN_NAMES = ('image','face_mask')
@@ -34,7 +34,7 @@ class FaceMorphStudio:
         size = (max(2,round(w*edge/max(w,h))),max(2,round(h*edge/max(w,h))))
         masks=[read_mask(svc,identifier) for identifier in mesh['mask_ids']] or None
         mesh['protect_base']=state.get('hair',{}).get('protect_base',True)
-        result,mask = render(images,mesh['source_assets'],base,mesh,size,color_match,
+        result,mask = render(images,mesh['source_assets'],base,mesh,size,((state.get('blend',{}).get('color_match',100) or 100)/100 if color_match else 0),
                            comfy.model_management.throw_exception_if_processing_interrupted,
-                           masks=masks,liquify=state.get('liquify',{}))
+                           masks=masks,liquify=state.get('liquify',{}),blend=state.get('blend',{}))
         return torch.from_numpy(np.ascontiguousarray(result))[None],torch.from_numpy(np.ascontiguousarray(mask))[None]

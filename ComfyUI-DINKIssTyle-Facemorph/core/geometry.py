@@ -37,6 +37,8 @@ def validate_state(state):
     validate(state.get('liquify', {}))
     from .hair import validate as validate_hair
     validate_hair(state.get('hair', {}))
+    from .color import validate as validate_blend
+    validate_blend(state.get('blend', {}))
     upgrade_state(state)
     assets = state.get('assets', [])
     if not isinstance(assets,list) or not 1 <= len(assets) <= 10:
@@ -158,3 +160,41 @@ def add_support(points):
     pts.extend((center + (oval-center)*1.12).tolist())
     pts.extend([[0,0],[.5,0],[1,0],[1,.5],[1,1],[.5,1],[0,1],[0,.5]])
     return pts
+
+
+def protect_target(mesh, base_points, protection):
+    """Constrain the shared mesh, so face and backing stay in correspondence.
+
+    Pinning only the backing's inverse map exposes its original face underneath
+    a differently deformed foreground. Use the cached base-hair distance field
+    to limit the forward displacement of both layers together instead.
+    """
+    if protection is None:
+        return mesh
+    base = np.asarray(base_points, dtype=float)
+    target = np.asarray(mesh['target'], dtype=float)
+    h, w = protection.shape
+    distance = np.full(len(base), max(h,w)*.25)
+    for t in (0, .25, .5, .75, 1):
+        uv = base+(target-base)*t
+        xy = np.clip(uv,0,1)*[w-1,h-1]
+        lo = np.floor(xy).astype(int)
+        hi = np.minimum(lo+1,[w-1,h-1])
+        f = xy-lo
+        a = protection[lo[:,1],lo[:,0]]*(1-f[:,0])+protection[lo[:,1],hi[:,0]]*f[:,0]
+        b = protection[hi[:,1],lo[:,0]]*(1-f[:,0])+protection[hi[:,1],hi[:,0]]*f[:,0]
+        distance = np.minimum(distance,(a*(1-f[:,1])+b*f[:,1])*max(h,w)*.25)
+    travel = np.linalg.norm((target-base)*[w-1,h-1],axis=-1)
+    x = np.clip(distance/np.maximum(3,3*travel),0,1)
+    desired = base+(target-base)*(x*x*(3-2*x))[:,None]
+    triangles = np.asarray(mesh['triangles'])
+    def areas(points):
+        p=points[triangles];a,b=p[:,1]-p[:,0],p[:,2]-p[:,0]
+        return a[:,0]*b[:,1]-a[:,1]*b[:,0]
+    reference = areas(np.asarray(mesh['reference']))
+    for amount in (1,.5,.25,.125,.0625,.03125,.015625,0):
+        adjusted = target+(desired-target)*amount
+        area = areas(adjusted)
+        if np.all(reference*area >= -1e-12) and np.all(abs(area) >= 1e-12):
+            return {**mesh,'target':adjusted.tolist(),'hair_pin_amount':amount}
+    raise ValueError('The mesh folds over. Reduce shape weights or correct correspondence points.')

@@ -27,7 +27,7 @@ Protecting the mixing mask alone would not address that final deformation.
    If the entire face has no usable contributions, retain the original base.
 5. Warp the base context through the base-to-target mesh. Apply the same Face Liquify field to that context
    and the completed face layer/alpha. Otherwise face contraction reveals the original jaw under the shrinking alpha.
-   Use a distance field to smoothly pin displacement near protected hair along the sampled path. The transition width grows with travel distance, preventing abrupt edge folds. Limit the morph context to a feathered neighborhood of the old/new face bounds.
+   Use the distance field to pin the shared forward mesh near protected hair, rather than pinning only the backing inverse map. The transition width grows with travel distance; relax the pin amount when necessary to preserve valid triangles. Liquify still pins the shared inverse map for both layers. Limit the morph context to a feathered neighborhood of the old/new face bounds.
 6. Composite the adjusted face over that context. Use original base hair as a protected foreground layer,
    so the base's bangs and loose strands stay in front of the new face.
    Attenuate adjusted face alpha at that protected boundary to avoid double edges.
@@ -87,9 +87,9 @@ Cached head crops are tied to selected-face bounds, and each correction revision
 Only source files and model files are needed to reconstruct the result; mask cache copying is optional.
 
 Both rasterizers accumulate masked appearance weights, normalize RGB, and use the union of active source validity
-for face coverage. A separate base context follows the same mesh and Liquify field as face color/alpha,
-with hair distance sampled at five locations along the destination-to-source path. Its smooth transition spans three times the proposed travel, with a minimum of three mask pixels. The context’s morph displacement fades out within 25% of the old/new face bounding box.
-The original base hair is then overlaid in original base coordinates. Covered shape weights use smoothed hair
+for face coverage. A separate base context follows the same hair-constrained forward mesh and Liquify field as face color/alpha.
+The forward constraint samples hair distance at five locations from each base vertex to its proposed target; Liquify samples along the inverse pixel path. Its smooth transition spans three times the proposed travel, with a minimum of three mask pixels. The context’s morph displacement fades out within 25% of the old/new face bounding box.
+Segmentation confidence is refined against RGB edges before thresholding. A narrow source color-statistics transition at protected hair reduces seams when source visibility changes. The original base hair is then overlaid in original base coordinates. Covered shape weights use smoothed hair
 confidence with a minimum confidence of 0.1; an adaptive relaxation preserves an otherwise valid triangulation.
 User-created folded geometry is still rejected.
 
@@ -107,3 +107,5 @@ This semantic model cannot guarantee strand-level accuracy. Mask review is requi
 and strong pose differences. Linear preview sampling and cubic Run sampling can differ at mask boundaries.
 
 Reference: [MediaPipe Image Segmenter](https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter).
+
+The October 22 boundary fix was reproduced with the user’s two local photos and face crops: protecting only the backing left a strip of original skin behind the warped face. The shared forward constraint removes that geometry mismatch. Real-photo WebGL and CPU renders were compared in addition to synthetic invariants; the source photos are not included in tests.
